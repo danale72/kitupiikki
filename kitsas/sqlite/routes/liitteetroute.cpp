@@ -113,10 +113,12 @@ QVariant LiitteetRoute::doDelete(const QString &polku)
     return QVariant();
 }
 
-QByteArray LiitteetRoute::hash(const QByteArray &ba)
+QString LiitteetRoute::hash(const QByteArray &ba)
 {
+    // Must return QString, not QByteArray: QPSQL binds QByteArray as bytea,
+    // which corrupts the Liite.sha TEXT column (same issue as mapToJson).
     QCryptographicHash laskin(QCryptographicHash::Sha256);
     laskin.addData(ba);
-    return laskin.result().toHex();
+    return QString::fromLatin1(laskin.result().toHex());
 }
 
