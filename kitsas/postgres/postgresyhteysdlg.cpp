@@ -30,6 +30,12 @@ void PostgresYhteysDlg::asetaYhteys(const PostgresYhteys &yhteys)
     ui->passwordEdit->setText(yhteys.password);
 }
 
+void PostgresYhteysDlg::piilotaTietokantaKentta()
+{
+    ui->databaseLabel->hide();
+    ui->databaseEdit->hide();
+}
+
 PostgresYhteys PostgresYhteysDlg::yhteys() const
 {
     PostgresYhteys tulos;

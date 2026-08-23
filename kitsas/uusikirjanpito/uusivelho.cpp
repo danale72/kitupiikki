@@ -74,6 +74,7 @@ UusiVelho::UusiVelho(QWidget *parent) :
     connect(this, &UusiVelho::helpRequested, this, &UusiVelho::help);
 
     setMinimumSize(QSize(512,512));
+    resize( sizeHint() * 1.5 );
 
     setStyleSheet("background-color: palette(base)");
 }

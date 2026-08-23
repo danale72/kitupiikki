@@ -25,6 +25,7 @@ public:
 
     void asetaYhteys(const PostgresYhteys& yhteys);
     PostgresYhteys yhteys() const;
+    void piilotaTietokantaKentta();
 
 private:
     Ui::PostgresYhteysDlg *ui;

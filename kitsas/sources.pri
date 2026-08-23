@@ -52,7 +52,6 @@ SOURCES += \
     $$PWD/postgres/postgresmodel.cpp \
     $$PWD/postgres/postgresvelhosivu.cpp \
     $$PWD/postgres/postgresyhteysdlg.cpp \
-    $$PWD/postgres/selectclientdlg.cpp \
     $$PWD/kieli/kielet.cpp \
     $$PWD/kieli/kieli.cpp \
     $$PWD/kieli/kielicombo.cpp \
@@ -493,7 +492,6 @@ HEADERS += \
     $$PWD/postgres/postgresvelhosivu.h \
     $$PWD/postgres/postgresyhteys.h \
     $$PWD/postgres/postgresyhteysdlg.h \
-    $$PWD/postgres/selectclientdlg.h \
     $$PWD/kieli/abstraktimonikielinen.h \
     $$PWD/kieli/kielet.h \
     $$PWD/kieli/kieli.h \
@@ -900,7 +898,6 @@ RESOURCES += \
 FORMS += \
     $$PWD/aloitussivu/kaksivaihedialog.ui \
     $$PWD/postgres/postgresyhteysdlg.ui \
-    $$PWD/postgres/selectclientdlg.ui \
     $$PWD/aloitussivu/luotunnusdialogi.ui \
     $$PWD/aloitussivu/salasananvaihto.ui \
     $$PWD/aloitussivu/toffeelogin.ui \

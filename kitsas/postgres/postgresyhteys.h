@@ -24,6 +24,10 @@ struct PostgresYhteys
         return QStringLiteral("%1:%2/%3").arg(host).arg(port).arg(database);
     }
 
+    QString palvelinAvain() const {
+        return QStringLiteral("%1:%2").arg(host).arg(port);
+    }
+
     PostgresYhteys hallintaYhteys() const {
         PostgresYhteys tulos = *this;
         tulos.database = QStringLiteral("postgres");

@@ -143,30 +143,106 @@ QSqlDatabase PostgresModel::avaaHallinta(const PostgresYhteys &palvelin, bool il
     return hallinta;
 }
 
-QStringList PostgresModel::listaaTietokannat(const PostgresYhteys &palvelin, bool ilmoitaVirheesta)
+bool PostgresModel::testaaKirjautuminen(const PostgresYhteys &yhteys)
 {
-    QStringList nimet;
+    QSqlDatabase hallinta = avaaHallinta(yhteys, true);
+    const bool ok = hallinta.isOpen();
+    if( ok )
+        hallinta.close();
+    return ok;
+}
+
+QList<PostgresAsiakas> PostgresModel::listaaTietokannat(const PostgresYhteys &palvelin, bool ilmoitaVirheesta)
+{
+    QList<PostgresAsiakas> asiakkaat;
     QSqlDatabase hallinta = avaaHallinta(palvelin, ilmoitaVirheesta);
     if( !hallinta.isOpen())
-        return nimet;
+        return asiakkaat;
 
     QSqlQuery query(hallinta);
     if( !query.exec(QStringLiteral(
             "SELECT datname FROM pg_database "
             "WHERE datistemplate = false AND datname <> 'postgres' "
+            "AND has_database_privilege(datname, 'CONNECT') "
             "ORDER BY datname")) ) {
         if( ilmoitaVirheesta )
             QMessageBox::critical(nullptr, tr("Tietokantojen haku epäonnistui"),
                                   query.lastError().text());
         hallinta.close();
-        return nimet;
+        return asiakkaat;
     }
 
+    QStringList ehdokkaat;
     while( query.next())
-        nimet.append(query.value(0).toString());
+        ehdokkaat.append(query.value(0).toString());
 
     hallinta.close();
-    return nimet;
+
+    // Tunnetut ei-Kitsas-tietokannat muistetaan palvelimittain, jotta niitä
+    // ei tarvitse tarkistaa uudelleen joka kirjautumisella.
+    const QString palvelinAvain = palvelin.palvelinAvain();
+    QVariantMap eiKitsasKartta = kp()->settings()->value(QStringLiteral("PostgresEiKitsasKannat")).toMap();
+    QStringList eiKitsas = eiKitsasKartta.value(palvelinAvain).toStringList();
+    bool eiKitsasMuuttui = false;
+
+    for( const QString& dbNimi : ehdokkaat ) {
+        if( eiKitsas.contains(dbNimi) )
+            continue;
+        QString nimi;
+        if( onkoKitsasTietokanta(palvelin.asiakasYhteys(dbNimi), &nimi) ) {
+            PostgresAsiakas asiakas;
+            asiakas.tietokanta = dbNimi;
+            asiakas.nimi = nimi.isEmpty() ? dbNimi : nimi;
+            asiakkaat.append(asiakas);
+        } else {
+            eiKitsas.append(dbNimi);
+            eiKitsasMuuttui = true;
+        }
+    }
+
+    if( eiKitsasMuuttui ) {
+        eiKitsasKartta.insert(palvelinAvain, eiKitsas);
+        kp()->settings()->setValue(QStringLiteral("PostgresEiKitsasKannat"), eiKitsasKartta);
+    }
+
+    return asiakkaat;
+}
+
+bool PostgresModel::onkoKitsasTietokanta(const PostgresYhteys &yhteys, QString *nimi)
+{
+    const QString yhteysnimi = QStringLiteral("KIRJANPITO_PG_PROBE");
+    if( QSqlDatabase::contains(yhteysnimi) ) {
+        {
+            QSqlDatabase vanha = QSqlDatabase::database(yhteysnimi);
+            if( vanha.isOpen())
+                vanha.close();
+        }
+        QSqlDatabase::removeDatabase(yhteysnimi);
+    }
+
+    QSqlDatabase probe = QSqlDatabase::addDatabase(QStringLiteral("QPSQL"), yhteysnimi);
+    probe.setHostName(yhteys.host);
+    probe.setPort(yhteys.port);
+    probe.setDatabaseName(yhteys.database);
+    probe.setUserName(yhteys.username);
+    probe.setPassword(yhteys.password);
+
+    bool kelpaa = false;
+    if( probe.open() ) {
+        QSqlQuery query(probe);
+        query.exec(QStringLiteral("SELECT arvo FROM Asetus WHERE avain='KpVersio'"));
+        kelpaa = query.next();
+
+        if( kelpaa && nimi ) {
+            QSqlQuery nimiKysely(probe);
+            nimiKysely.exec(QStringLiteral("SELECT arvo FROM Asetus WHERE avain='Nimi'"));
+            if( nimiKysely.next())
+                *nimi = nimiKysely.value(0).toString();
+        }
+        probe.close();
+    }
+    QSqlDatabase::removeDatabase(yhteysnimi);
+    return kelpaa;
 }
 
 bool PostgresModel::luoTietokanta(const PostgresYhteys &palvelin, const QString &nimi, bool ilmoitaVirheesta)

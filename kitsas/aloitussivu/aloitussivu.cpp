@@ -28,6 +28,8 @@
 #include <QFileDialog>
 #include <QDesktopServices>
 #include <QListWidget>
+#include <QMenu>
+#include <QInputDialog>
 #include <QMessageBox>
 
 #include <QRegularExpression>
@@ -50,7 +52,6 @@
 #include "sqlite/sqlitemodel.h"
 #include "postgres/postgresmodel.h"
 #include "postgres/postgresyhteysdlg.h"
-#include "postgres/selectclientdlg.h"
 
 #include "uusikirjanpito/uusivelho.h"
 #include "kitupiikkituonti/vanhatuontidlg.h"
@@ -113,10 +114,10 @@ AloitusSivu::AloitusSivu(QWidget *parent) :
     connect( ui->viimeisetView, &QListView::clicked,
              [] (const QModelIndex& index) { kp()->sqlite()->avaaTiedosto( index.data(SQLiteModel::PolkuRooli).toString() );} );
 
-    ui->postgresView->setModel( kp()->postgres() );
-    connect( ui->postgresView, &QListView::clicked, this, [](const QModelIndex& index) {
-        kp()->postgres()->avaa( kp()->postgres()->yhteysRivilla(index.row()) );
-    });
+    connect( ui->postgresUusiNappi, &QPushButton::clicked, this, &AloitusSivu::postgresUusiAsiakas);
+    connect( ui->postgresAsiakasList, &QListWidget::itemClicked, this, &AloitusSivu::postgresAvaaValittu);
+    connect( ui->postgresAsiakasList, &QListWidget::customContextMenuRequested, this, &AloitusSivu::postgresAsiakasContextMenu);
+    connect( ui->postgresSuodin, &QLineEdit::textChanged, this, &AloitusSivu::postgresSuodataLista);
 
     connect( ui->pilviView, &QListView::clicked,
              [](const QModelIndex& index) { kp()->pilvi()->avaaPilvesta( index.data(PilviModel::IdRooli).toInt() ); } );
@@ -160,7 +161,7 @@ AloitusSivu::AloitusSivu(QWidget *parent) :
     if( viimeIndeksi == TIETOKONE_TAB)
         ui->tkpilviTab->setCurrentIndex(TIETOKONE_TAB);
     else
-        ui->tkpilviTab->setCurrentIndex(PILVI_TAB);
+        ui->tkpilviTab->setCurrentIndex(POSTGRES_TAB);
 
     ui->inboxFrame->setVisible(false);
     ui->inboxFrame->installEventFilter(this);
@@ -340,19 +341,115 @@ void AloitusSivu::avaaTietokanta()
 void AloitusSivu::avaaPostgres()
 {
     PostgresYhteysDlg yhteysDlg(this);
-    const QVariantList viimeiset = kp()->settings()->value("ViimePostgres").toList();
-    if( !viimeiset.isEmpty())
-        yhteysDlg.asetaYhteys( PostgresYhteys::fromMap(viimeiset.last().toMap()).hallintaYhteys() );
+    yhteysDlg.piilotaTietokantaKentta();
+    const QVariantMap viimeksi = kp()->settings()->value("PostgresKirjautuminen").toMap();
+    if( !viimeksi.isEmpty()) {
+        PostgresYhteys y = PostgresYhteys::fromMap(viimeksi);
+        y.database = QStringLiteral("postgres");
+        yhteysDlg.asetaYhteys( y );
+    }
 
     if( yhteysDlg.exec() != QDialog::Accepted )
         return;
 
-    PostgresYhteys palvelin = yhteysDlg.yhteys();
-    if( palvelin.database.isEmpty())
-        palvelin.database = QStringLiteral("postgres");
+    const PostgresYhteys palvelin = yhteysDlg.yhteys();
+    if( !kp()->postgres()->testaaKirjautuminen(palvelin) )
+        return;
 
-    SelectClientDlg dlg(palvelin, this);
-    dlg.exec();
+    pgSessioYhteys_ = palvelin;
+
+    QVariantMap tallennettava;
+    tallennettava.insert(QStringLiteral("host"), palvelin.host);
+    tallennettava.insert(QStringLiteral("port"), palvelin.port);
+    tallennettava.insert(QStringLiteral("username"), palvelin.username);
+    kp()->settings()->setValue("PostgresKirjautuminen", tallennettava);
+
+    ui->postgresUusiNappi->setEnabled(true);
+    paivitaPostgresLista();
+}
+
+void AloitusSivu::paivitaPostgresLista()
+{
+    ui->postgresAsiakasList->clear();
+    const auto asiakkaat = kp()->postgres()->listaaTietokannat(pgSessioYhteys_, false);
+    for( const PostgresAsiakas& asiakas : asiakkaat ) {
+        QListWidgetItem* item = new QListWidgetItem(asiakas.nimi, ui->postgresAsiakasList);
+        item->setData(Qt::UserRole, asiakas.tietokanta);
+    }
+    postgresSuodataLista( ui->postgresSuodin->text() );
+}
+
+void AloitusSivu::postgresSuodataLista(const QString &teksti)
+{
+    for( int i = 0; i < ui->postgresAsiakasList->count(); i++ ) {
+        QListWidgetItem* item = ui->postgresAsiakasList->item(i);
+        item->setHidden( !teksti.isEmpty() && !item->text().contains(teksti, Qt::CaseInsensitive) );
+    }
+}
+
+void AloitusSivu::postgresAvaaValittu(QListWidgetItem *item)
+{
+    if( !item )
+        return;
+    kp()->postgres()->avaa( pgSessioYhteys_.asiakasYhteys( item->data(Qt::UserRole).toString() ) );
+}
+
+void AloitusSivu::postgresAsiakasContextMenu(const QPoint &pos)
+{
+    QListWidgetItem* item = ui->postgresAsiakasList->itemAt(pos);
+    if( !item )
+        return;
+
+    QMenu menu(this);
+    QAction* muokkaa = menu.addAction(tr("Muokkaa yhteyttä"));
+    QAction* valittu = menu.exec( ui->postgresAsiakasList->mapToGlobal(pos) );
+    if( valittu != muokkaa )
+        return;
+
+    PostgresYhteysDlg dlg(this);
+    dlg.asetaYhteys( pgSessioYhteys_.asiakasYhteys( item->data(Qt::UserRole).toString() ) );
+    if( dlg.exec() == QDialog::Accepted )
+        kp()->postgres()->avaa( dlg.yhteys() );
+}
+
+void AloitusSivu::postgresUusiAsiakas()
+{
+    bool ok = false;
+    const QString nimi = QInputDialog::getText(this, tr("Uusi asiakas"),
+                                               tr("Asiakkaan nimi (tietokannan nimi):"),
+                                               QLineEdit::Normal, QString(), &ok)
+            .trimmed().toLower();
+    if( !ok || nimi.isEmpty())
+        return;
+
+    if( !PostgresModel::onkoKelvollinenTietokannanNimi(nimi) ) {
+        QMessageBox::warning(this, tr("Uusi asiakas"),
+                             tr("Asiakkaan nimen on alettava kirjaimella ja se saa sisältää vain kirjaimia, numeroita ja alaviivoja (enintään 63 merkkiä)."));
+        return;
+    }
+
+    bool loytyi = false;
+    for( int i = 0; i < ui->postgresAsiakasList->count(); ++i ) {
+        if( ui->postgresAsiakasList->item(i)->data(Qt::UserRole).toString() == nimi ) {
+            loytyi = true;
+            break;
+        }
+    }
+    if( loytyi ) {
+        QMessageBox::warning(this, tr("Uusi asiakas"),
+                             tr("Asiakas nimeltä %1 on jo olemassa.").arg(nimi));
+        return;
+    }
+
+    UusiVelho velho(this);
+    if( !velho.uusiPostgresAsiakas(pgSessioYhteys_.asiakasYhteys(nimi)) )
+        return;
+
+    if( !kp()->postgres()->luoTietokanta(pgSessioYhteys_, nimi) )
+        return;
+
+    if( kp()->postgres()->uusiKirjanpito(pgSessioYhteys_.asiakasYhteys(nimi), velho.data()) )
+        paivitaPostgresLista();
 }
 
 void AloitusSivu::tuoKitupiikista()
