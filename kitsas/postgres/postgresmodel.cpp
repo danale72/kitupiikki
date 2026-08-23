@@ -339,15 +339,16 @@ bool PostgresModel::avaa(const PostgresYhteys &yhteys, bool ilmoitaVirheesta)
     return true;
 }
 
-bool PostgresModel::uusiKirjanpito(const PostgresYhteys &yhteys, const QVariantMap &initials)
+bool PostgresModel::uusiKirjanpito(const PostgresYhteys &yhteys, const QVariantMap &initials, bool ilmoitaVirheesta)
 {
-    if( !yhdista(yhteys, true) )
+    if( !yhdista(yhteys, ilmoitaVirheesta) )
         return false;
 
     if( onkoKaavioOlemassa() ) {
-        QMessageBox::critical(nullptr, tr("Tietokanta ei ole tyhjä"),
-                              tr("Tietokannassa %1 on jo Kitsaan kaavio. Valitse tyhjä tietokanta tai avaa olemassa oleva kirjanpito.")
-                              .arg(yhteys.avain()));
+        if( ilmoitaVirheesta )
+            QMessageBox::critical(nullptr, tr("Tietokanta ei ole tyhjä"),
+                                  tr("Tietokannassa %1 on jo Kitsaan kaavio. Valitse tyhjä tietokanta tai avaa olemassa oleva kirjanpito.")
+                                  .arg(yhteys.avain()));
         tietokanta_.close();
         return false;
     }

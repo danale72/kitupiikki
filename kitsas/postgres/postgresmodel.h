@@ -32,7 +32,7 @@ public:
 
     bool avaa(const PostgresYhteys& yhteys, bool ilmoitaVirheesta = true);
     bool testaaKirjautuminen(const PostgresYhteys& yhteys);
-    bool uusiKirjanpito(const PostgresYhteys& yhteys, const QVariantMap& initials);
+    bool uusiKirjanpito(const PostgresYhteys& yhteys, const QVariantMap& initials, bool ilmoitaVirheesta = true);
 
     QList<PostgresAsiakas> listaaTietokannat(const PostgresYhteys& palvelin, bool ilmoitaVirheesta = true);
     bool luoTietokanta(const PostgresYhteys& palvelin, const QString& nimi, bool ilmoitaVirheesta = true);
