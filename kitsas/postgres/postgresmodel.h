@@ -12,6 +12,12 @@
 #include "sql/sqlmodel.h"
 #include "postgresyhteys.h"
 
+struct PostgresAsiakas
+{
+    QString tietokanta;
+    QString nimi;
+};
+
 class PostgresModel : public SqlModel
 {
     Q_OBJECT
@@ -25,9 +31,10 @@ public:
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
 
     bool avaa(const PostgresYhteys& yhteys, bool ilmoitaVirheesta = true);
+    bool testaaKirjautuminen(const PostgresYhteys& yhteys);
     bool uusiKirjanpito(const PostgresYhteys& yhteys, const QVariantMap& initials, bool ilmoitaVirheesta = true);
 
-    QStringList listaaTietokannat(const PostgresYhteys& palvelin, bool ilmoitaVirheesta = true);
+    QList<PostgresAsiakas> listaaTietokannat(const PostgresYhteys& palvelin, bool ilmoitaVirheesta = true);
     bool luoTietokanta(const PostgresYhteys& palvelin, const QString& nimi, bool ilmoitaVirheesta = true);
     static bool onkoKelvollinenTietokannanNimi(const QString& nimi);
 
@@ -47,6 +54,7 @@ private:
     bool yhdista(const PostgresYhteys& yhteys, bool ilmoitaVirheesta);
     bool onkoKaavioOlemassa();
     QSqlDatabase avaaHallinta(const PostgresYhteys& palvelin, bool ilmoitaVirheesta);
+    bool onkoKitsasTietokanta(const PostgresYhteys& yhteys, QString* nimi = nullptr);
 
     PostgresYhteys nykyinen_;
     QVariantList viimeiset_;

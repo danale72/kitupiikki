@@ -31,6 +31,7 @@
 
 #include <QDebug>
 
+#include <QStyle>
 #include <QStyleFactory>
 #include <QSettings>
 
@@ -71,7 +72,33 @@ int main(int argc, char *argv[])
     // #120 GNOME-ongelmien takia ei käytetä Linuxissa natiiveja dialogeja
     a.setAttribute(Qt::AA_DontUseNativeDialogs);
 #endif
-        
+
+    // Pakotetaan vaalea teema käyttöjärjestelmän tummasta tilasta riippumatta.
+    // Fusion-tyylin standardPalette() seuraa Qt 6.5+:ssa järjestelmän
+    // tumma/vaalea-asetusta, joten paletti rakennetaan käsin kiinteillä väreillä.
+    // Lähtöväristä (napin väri) johdetaan Light/Dark/Mid/Midlight/Shadow-sävyt
+    // automaattisesti, jotta esim. palette(mid):iin nojaava työkalupalkin tyyli
+    // ei jää oletusarvoisesti mustaksi.
+    QPalette vaaleaPaletti( QColor(239, 239, 239) );
+    vaaleaPaletti.setColor(QPalette::Window, QColor(239, 239, 239));
+    vaaleaPaletti.setColor(QPalette::WindowText, QColor(0, 0, 0));
+    vaaleaPaletti.setColor(QPalette::Base, QColor(255, 255, 255));
+    vaaleaPaletti.setColor(QPalette::AlternateBase, QColor(247, 247, 247));
+    vaaleaPaletti.setColor(QPalette::ToolTipBase, QColor(255, 255, 220));
+    vaaleaPaletti.setColor(QPalette::ToolTipText, QColor(0, 0, 0));
+    vaaleaPaletti.setColor(QPalette::Text, QColor(0, 0, 0));
+    vaaleaPaletti.setColor(QPalette::Button, QColor(239, 239, 239));
+    vaaleaPaletti.setColor(QPalette::ButtonText, QColor(0, 0, 0));
+    vaaleaPaletti.setColor(QPalette::BrightText, QColor(255, 0, 0));
+    vaaleaPaletti.setColor(QPalette::Link, QColor(0, 0, 255));
+    vaaleaPaletti.setColor(QPalette::Highlight, QColor(48, 140, 198));
+    vaaleaPaletti.setColor(QPalette::HighlightedText, QColor(255, 255, 255));
+    vaaleaPaletti.setColor(QPalette::Disabled, QPalette::WindowText, QColor(120, 120, 120));
+    vaaleaPaletti.setColor(QPalette::Disabled, QPalette::Text, QColor(120, 120, 120));
+    vaaleaPaletti.setColor(QPalette::Disabled, QPalette::ButtonText, QColor(120, 120, 120));
+    vaaleaPaletti.setColor(QPalette::Disabled, QPalette::Base, QColor(239, 239, 239));
+    a.setPalette(vaaleaPaletti);
+
     QCommandLineParser parser;
     parser.addOptions({
                           {"api",

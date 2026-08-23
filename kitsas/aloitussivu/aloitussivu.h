@@ -31,7 +31,11 @@
 #include "kitupiikkisivu.h"
 
 #include "pilvi/pilvikayttaja.h"
+#include "postgres/postgresyhteys.h"
+#include <QPoint>
 #include "ui_aloitus.h"
+
+class QListWidgetItem;
 
 
 class LoginService;
@@ -46,6 +50,7 @@ class AloitusSivu : public KitupiikkiSivu
     Q_OBJECT
 
     enum Tabs {
+        POSTGRES_TAB,
         TIETOKONE_TAB,
         PILVI_TAB,
         TUKI_TAB
@@ -69,6 +74,10 @@ public slots:
     void uusiTietokanta();
     void avaaTietokanta();
     void avaaPostgres();
+    void postgresUusiAsiakas();
+    void postgresAvaaValittu(QListWidgetItem* item);
+    void postgresAsiakasContextMenu(const QPoint& pos);
+    void postgresSuodataLista(const QString& teksti);
     void tuoKitupiikista();
 
     void abouttiarallaa();
@@ -99,7 +108,8 @@ signals:
 
 protected:
     void initLoginService();
-    enum PilviPino { KIRJAUDU, LISTA, SISAANTULO };    
+    void paivitaPostgresLista();
+    enum PilviPino { KIRJAUDU, LISTA, SISAANTULO };
 
 protected:
     Ui::Aloitus *ui;
@@ -108,6 +118,7 @@ protected:
     QSortFilterProxyModel* pilviProxy_ = nullptr;
 
     LoginService* login_;
+    PostgresYhteys pgSessioYhteys_;
 
 };
 

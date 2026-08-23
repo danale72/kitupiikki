@@ -301,8 +301,56 @@ border-color: rgb(170, 0, 0);</string>
      <item>
       <widget class="QTabWidget" name="tkpilviTab">
        <property name="currentIndex">
-        <number>1</number>
+        <number>0</number>
        </property>
+       <widget class="QWidget" name="postgres">
+        <attribute name="icon">
+         <iconset resource="../pic/pic.qrc">
+          <normaloff>:/pic/computer-mainframe.png</normaloff>:/pic/computer-mainframe.png</iconset>
+        </attribute>
+        <attribute name="title">
+         <string>Postgres</string>
+        </attribute>
+        <layout class="QVBoxLayout" name="verticalLayout_8">
+         <item>
+          <widget class="QPushButton" name="postgresNappi">
+           <property name="toolTip">
+            <string>Yhdistä PostgreSQL-tietokantaan</string>
+           </property>
+           <property name="text">
+            <string>Yhdistä PostgreSQL</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="postgresUusiNappi">
+           <property name="enabled">
+            <bool>false</bool>
+           </property>
+           <property name="text">
+            <string>Uusi asiakas</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QLineEdit" name="postgresSuodin">
+           <property name="placeholderText">
+            <string>Hae asiakasta...</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QListWidget" name="postgresAsiakasList">
+           <property name="contextMenuPolicy">
+            <enum>Qt::CustomContextMenu</enum>
+           </property>
+           <property name="editTriggers">
+            <set>QAbstractItemView::NoEditTriggers</set>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
        <widget class="QWidget" name="tietokone">
         <attribute name="icon">
          <iconset resource="../pic/pic.qrc">
@@ -326,29 +374,6 @@ border-color: rgb(170, 0, 0);</string>
            </property>
            <property name="shortcut">
             <string>Ctrl+O</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QPushButton" name="postgresNappi">
-           <property name="toolTip">
-            <string>Yhdistä PostgreSQL-tietokantaan</string>
-           </property>
-           <property name="text">
-            <string>Yhdistä PostgreSQL</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QListView" name="postgresView">
-           <property name="maximumSize">
-            <size>
-             <width>16777215</width>
-             <height>80</height>
-            </size>
-           </property>
-           <property name="editTriggers">
-            <set>QAbstractItemView::NoEditTriggers</set>
            </property>
           </widget>
          </item>
