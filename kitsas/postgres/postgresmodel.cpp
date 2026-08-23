@@ -241,6 +241,7 @@ bool PostgresModel::onkoKitsasTietokanta(const PostgresYhteys &yhteys, QString *
         }
         probe.close();
     }
+    probe = QSqlDatabase();
     QSqlDatabase::removeDatabase(yhteysnimi);
     return kelpaa;
 }
