@@ -365,7 +365,7 @@ bool PostgresModel::uusiKirjanpito(const PostgresYhteys &yhteys, const QVariantM
     }
 
     tietokanta_.close();
-    return avaa(yhteys, true);
+    return avaa(yhteys, ilmoitaVirheesta);
 }
 
 void PostgresModel::lataaViimeiset()

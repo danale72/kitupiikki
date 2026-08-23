@@ -30,7 +30,7 @@ public:
 
     QVariant doDelete(const QString &polku) override;
 
-    static QByteArray hash(const QByteArray& ba);
+    static QString hash(const QByteArray& ba);
 
 };
 
