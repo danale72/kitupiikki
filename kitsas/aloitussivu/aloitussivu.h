@@ -32,6 +32,7 @@
 
 #include "pilvi/pilvikayttaja.h"
 #include "postgres/postgresyhteys.h"
+#include <QPoint>
 #include "ui_aloitus.h"
 
 class QListWidgetItem;
