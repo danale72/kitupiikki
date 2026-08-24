@@ -33,7 +33,6 @@ chmod +x linuxdeploy*.AppImage
     --exclude-library libqsqlmimer.so \
     --exclude-library libqsqlodbc.so \
     --exclude-library libqsqlmysql.so \
-    --exclude-library libqsqlpsql.so \
     --exclude-library libqsqloci.so \
     --exclude-library libqsqlibase.so
 
