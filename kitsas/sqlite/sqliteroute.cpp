@@ -19,6 +19,8 @@
 #include <QSqlRecord>
 #include <QDebug>
 #include <QSqlError>
+#include <QSet>
+#include <QMap>
 
 #include "model/euro.h"
 
@@ -158,39 +160,87 @@ QSqlDatabase SQLiteRoute::db()
 
 void SQLiteRoute::taydennaEratJaMerkkaukset(QVariantList &vientilista)
 {
+    // Kerätään ensin tarvittavat viennin ja erän id:t, jotta erä- ja merkkaustiedot
+    // voidaan hakea yhdellä kyselyllä riviä kohti sen sijaan, että jokaiselle
+    // viennille tehtäisiin omat kyselynsä (kallista etäkäytössä olevalla tietokannalla).
+    QSet<int> vientiIdt;
+    QSet<int> eraIdt;
+    for(const QVariant &v : vientilista) {
+        QVariantMap map = v.toMap();
+        int id = map.value("id").toInt();
+        if( id )
+            vientiIdt.insert(id);
+        if( map.contains("era")) {
+            int eraid = map.value("era").toMap().value("id").toInt();
+            if( eraid )
+                eraIdt.insert(eraid);
+        }
+    }
+
     QSqlQuery kysely(db());
+
+    QMap<int, QVariantMap> eratiedot;
+    QMap<int, qlonglong> eraDebetit;
+    QMap<int, qlonglong> eraKreditit;
+
+    if( !eraIdt.isEmpty()) {
+        QStringList idlist;
+        for(int id : eraIdt)
+            idlist << QString::number(id);
+        const QString idehto = idlist.join(',');
+
+        kysely.exec(QString("SELECT Vienti.id as id, Tosite.tunniste as tunniste, Tosite.sarja as sarja, Tosite.pvm as pvm, Tosite.tyyppi as tositetyyppi "
+                            "FROM Vienti JOIN Tosite ON Vienti.tosite=Tosite.id "
+                            "WHERE Vienti.id IN (%1)")
+                    .arg(idehto));
+        for(const QVariant& v : resultList(kysely)) {
+            QVariantMap m = v.toMap();
+            eratiedot.insert( m.value("id").toInt(), m);
+        }
+
+        kysely.exec(QString("SELECT eraid, SUM(debetsnt) as debetit, SUM(kreditsnt) as kreditit "
+                            "FROM Vienti JOIN Tosite ON Vienti.tosite=Tosite.id "
+                            "WHERE eraid IN (%1) AND Tosite.tila >= 100 "
+                            "GROUP BY eraid")
+                    .arg(idehto));
+        while( kysely.next()) {
+            int eraid = kysely.value(0).toInt();
+            eraDebetit.insert(eraid, kysely.value(1).toLongLong());
+            eraKreditit.insert(eraid, kysely.value(2).toLongLong());
+        }
+    }
+
+    QMap<int, QVariantList> merkkaukset;
+    if( !vientiIdt.isEmpty()) {
+        QStringList idlist;
+        for(int id : vientiIdt)
+            idlist << QString::number(id);
+
+        kysely.exec(QString("SELECT vienti, kohdennus FROM Merkkaus WHERE vienti IN (%1)").arg(idlist.join(',')));
+        while( kysely.next())
+            merkkaukset[ kysely.value(0).toInt() ].append( kysely.value(1).toInt() );
+    }
 
     for(int i=0; i < vientilista.count(); i++) {
         QVariantMap map = vientilista.at(i).toMap();
-        if( map.contains("era")) {
-            QVariantMap eramap = map.value("era").toMap();
-            int eraid = eramap.value("id").toInt();
-            if( eraid ) {
-                kysely.exec(QString("SELECT Vienti.id as id, Tosite.tunniste as tunniste, Tosite.sarja as sarja, Tosite.pvm as pvm, Tosite.tyyppi as tositetyyppi "
-                                    "FROM Vienti JOIN Tosite ON Vienti.tosite=Tosite.id "
-                                    "WHERE Vienti.id=%1")
-                            .arg(eraid));
-                eramap = resultMap(kysely);
 
-                if( eramap.isEmpty()) {
+        if( map.contains("era")) {
+            int eraid = map.value("era").toMap().value("id").toInt();
+            if( eraid ) {
+                if( !eratiedot.contains(eraid)) {
                     map.remove("era");
                 } else {
-                    kysely.exec(QString("SELECT SUM(debetsnt) as debetit, SUM(kreditsnt) as kreditit FROM Vienti JOIN Tosite ON Vienti.tosite=Tosite.id WHERE eraid=%1 AND Tosite.tila >= 100 ").arg(eraid));
-                    if( kysely.next())
-                        eramap.insert("saldo", (kysely.value(0).toLongLong() - kysely.value(1).toLongLong()) / 100.0);
+                    QVariantMap eramap = eratiedot.value(eraid);
+                    eramap.insert("saldo", (eraDebetit.value(eraid,0) - eraKreditit.value(eraid,0)) / 100.0);
                     map.insert("era", eramap);
                 }
-                vientilista[i] = map;
             }
         }
 
-        QVariantList merkkaukset;
-        kysely.exec(QString("SELECT kohdennus FROM Merkkaus WHERE vienti=%1").arg(map.value("id").toInt()));
-        while( kysely.next() )
-            merkkaukset.append( kysely.value(0).toInt() );
-        if( merkkaukset.count()) {
-            map.insert("merkkaukset", merkkaukset);
-            vientilista[i] = map;            
-        }        
+        const QVariantList& rivinMerkkaukset = merkkaukset.value( map.value("id").toInt() );
+        if( rivinMerkkaukset.count())
+            map.insert("merkkaukset", rivinMerkkaukset);
+
+        vientilista[i] = map;
     }
 }
