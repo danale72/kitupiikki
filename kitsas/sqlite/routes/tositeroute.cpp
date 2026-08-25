@@ -366,7 +366,10 @@ int TositeRoute::lisaaTaiPaivita(const QVariant pyynto, const int paivitettavanT
         rivinumero++;
         rivi.rivinumero = rivinumero;
 
-        if( rivi.vientiid ) {
+        if( paivitettavanTositeId && rivi.vientiid ) {
+            // Omistajuustarkistus koskee vain olemassa olevan tositteen päivitystä (PUT) -
+            // vanhaa Kitupiikki-tietokantaa tuotaessa (POST + importid) vanhatviennit on
+            // tyhjä eikä tuotujen vientien id:itä pidä hylätä sen perusteella.
             if( !vanhatviennit.contains(rivi.vientiid)) {
                 db().rollback();
                 throw SQLiteVirhe("Virheellinen viennin id", 206);
@@ -394,15 +397,32 @@ int TositeRoute::lisaaTaiPaivita(const QVariant pyynto, const int paivitettavanT
             uudet.append(rivi);
     }
 
-    // Monirivisten kyselyjen rivimäärä paloitellaan turvamarginaalilla, jotta parametrien
-    // määrä ei koskaan lähesty QSQLITE:n tai QPSQL:n rajoja (SQLite oletuksena 32766,
-    // Postgres-protokolla 65535) edes hyvin suurilla tuonneilla.
-    const int ERAKOKO = 300;
+    // Tämä reititin on yhteinen QSQLITE:lle ja QPSQL:lle, ja molempien parametriraja
+    // sekä RETURNING-tuki pitää siksi selvittää ajonaikaisesti sen sijaan että
+    // oletettaisiin uusin mahdollinen kirjastoversio:
+    //  - Postgres on tukenut RETURNINGia aina, protokollaraja on 65535 parametria.
+    //  - SQLite tukee RETURNINGia vasta 3.35:stä alkaen, ja nosti oletusarvoisen
+    //    parametrirajan (SQLITE_MAX_VARIABLE_NUMBER) 999:stä 32766:een 3.32:ssa.
+    bool returningTuettu = true;
+    int erakoko = 3000;   // turvamarginaalilla Postgresin 65535/18 parametrin rajasta
+
+    if( db().driverName() == "QSQLITE") {
+        int major = 3, minor = 0;
+        QSqlQuery versiokysely(db());
+        if( versiokysely.exec("SELECT sqlite_version()") && versiokysely.next()) {
+            const QStringList osat = versiokysely.value(0).toString().split('.');
+            major = osat.value(0).toInt();
+            minor = osat.value(1).toInt();
+        }
+        returningTuettu = (major > 3) || (major == 3 && minor >= 35);
+        const bool isotParametrit = (major > 3) || (major == 3 && minor >= 32);
+        erakoko = isotParametrit ? 1500 : 50;   // 1500*18=27000 (<32766); 50*18=900 (<999)
+    }
 
     // Jo olemassa olevat viennit: monirivinen UPSERT paloissa
     if( !paivitettavat.isEmpty()) {
-        for(int alku=0; alku < paivitettavat.count(); alku += ERAKOKO) {
-            const int maara = qMin(ERAKOKO, paivitettavat.count() - alku);
+        for(int alku=0; alku < paivitettavat.count(); alku += erakoko) {
+            const int maara = qMin(erakoko, paivitettavat.count() - alku);
             QStringList paikat;
             for(int i=0; i < maara; i++)
                 paikat << "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
@@ -430,13 +450,13 @@ int TositeRoute::lisaaTaiPaivita(const QVariant pyynto, const int paivitettavanT
         }
     }
 
-    // Uudet viennit: monirivinen INSERT paloissa, id:t saadaan takaisin RETURNING-lauseella.
+    // Uudet viennit: id:t saadaan takaisin RETURNING-lauseella silloin kun ajuri sitä tukee.
     // Rivinumero palautetaan mukana, jotta id:t voidaan yhdistää oikeisiin riveihin
     // luottamatta siihen, missä järjestyksessä tietokanta rivit palauttaa.
     QMap<int,int> uudenRivinId;   // rivinumero -> uusi vienti-id
-    if( !uudet.isEmpty()) {
-        for(int alku=0; alku < uudet.count(); alku += ERAKOKO) {
-            const int maara = qMin(ERAKOKO, uudet.count() - alku);
+    if( !uudet.isEmpty() && returningTuettu) {
+        for(int alku=0; alku < uudet.count(); alku += erakoko) {
+            const int maara = qMin(erakoko, uudet.count() - alku);
             QStringList paikat;
             for(int i=0; i < maara; i++)
                 paikat << "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
@@ -457,6 +477,23 @@ int TositeRoute::lisaaTaiPaivita(const QVariant pyynto, const int paivitettavanT
             }
             while( lisayskysely.next())
                 uudenRivinId.insert( lisayskysely.value(1).toInt(), lisayskysely.value(0).toInt() );
+        }
+    } else if( !uudet.isEmpty() ) {
+        // Varapolku vanhemmalle SQLitelle (< 3.35), jolla ei ole RETURNING-tukea:
+        // lisätään rivi kerrallaan ja luetaan id lastInsertId():lla.
+        QSqlQuery lisayskysely(db());
+        lisayskysely.prepare(
+            "INSERT INTO Vienti (tosite, pvm, tili, kohdennus, selite, debetsnt, kreditsnt, eraid, json, alvkoodi, alvprosentti, rivi, kumppani, jaksoalkaa, jaksoloppuu, tyyppi, arkistotunnus) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ");
+
+        for(const auto& rivi : uudet) {
+            for(const auto& arvo : rivi.arvot)
+                lisayskysely.addBindValue(arvo);
+            if( !lisayskysely.exec()) {
+                db().rollback();
+                throw SQLiteVirhe(lisayskysely);
+            }
+            uudenRivinId.insert(rivi.rivinumero, lisayskysely.lastInsertId().toInt());
         }
     }
 
@@ -504,8 +541,8 @@ int TositeRoute::lisaaTaiPaivita(const QVariant pyynto, const int paivitettavanT
             }
         }
 
-        for(int alku=0; alku < uudetMerkkaukset.count(); alku += ERAKOKO) {
-            const int maara = qMin(ERAKOKO, uudetMerkkaukset.count() - alku);
+        for(int alku=0; alku < uudetMerkkaukset.count(); alku += erakoko) {
+            const int maara = qMin(erakoko, uudetMerkkaukset.count() - alku);
             QStringList arvot;
             for(int i=alku; i < alku+maara; i++)
                 arvot << QString("(%1,%2)").arg(uudetMerkkaukset.at(i).first).arg(uudetMerkkaukset.at(i).second);
@@ -529,8 +566,8 @@ int TositeRoute::lisaaTaiPaivita(const QVariant pyynto, const int paivitettavanT
         kysely.exec(QString("DELETE FROM Rivi WHERE tosite=%1").arg(paivitettavanTositeId));
 
     if( !rivit.isEmpty()) {
-        for(int alku=0; alku < rivit.count(); alku += ERAKOKO) {
-            const int maara = qMin(ERAKOKO, rivit.count() - alku);
+        for(int alku=0; alku < rivit.count(); alku += erakoko) {
+            const int maara = qMin(erakoko, rivit.count() - alku);
             QStringList paikat;
             for(int i=0; i < maara; i++)
                 paikat << "(?,?,?,?,?,?,?)";

@@ -128,6 +128,8 @@ void ViennitRoute::taydennaVastatilit(QVariantList &lista)
     QSqlQuery kysely(db());
     kysely.exec(QString("SELECT tosite, tili FROM Vienti WHERE tosite IN (%1)").arg(idlist.join(',')));
     while(kysely.next()) {
+        if( kysely.value(1).isNull())
+            continue;   // NULL-tiliä ei näytetä vastatilinä, kuten alkuperäinen tili<>... -ehtokaan ei näyttänyt
         int tositeId = kysely.value(0).toInt();
         int tili = kysely.value(1).toInt();
         if( !tilitTositteella[tositeId].contains(tili))
