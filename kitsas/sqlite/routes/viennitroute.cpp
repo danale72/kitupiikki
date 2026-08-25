@@ -19,6 +19,9 @@
 #include "db/kirjanpito.h"
 #include "model/tosite.h"
 
+#include <QSet>
+#include <QMap>
+
 ViennitRoute::ViennitRoute(SqlModel* model) :
     SQLiteRoute(model,"/viennit")
 {
@@ -106,21 +109,42 @@ QVariant ViennitRoute::vienti(int id)
 
 void ViennitRoute::taydennaVastatilit(QVariantList &lista)
 {
+    // Haetaan kaikkien listan tositteiden tilit yhdellä kyselyllä sen sijaan,
+    // että jokaiselle viennille tehtäisiin oma kyselynsä.
+    QSet<int> tositeIdt;
+    for(const QVariant& v : lista) {
+        int tositeId = v.toMap().value("tosite").toMap().value("id").toInt();
+        if( tositeId )
+            tositeIdt.insert(tositeId);
+    }
+    if( tositeIdt.isEmpty())
+        return;
+
+    QStringList idlist;
+    for(int id : tositeIdt)
+        idlist << QString::number(id);
+
+    QMap<int, QVariantList> tilitTositteella;
     QSqlQuery kysely(db());
+    kysely.exec(QString("SELECT tosite, tili FROM Vienti WHERE tosite IN (%1)").arg(idlist.join(',')));
+    while(kysely.next()) {
+        if( kysely.value(1).isNull())
+            continue;   // NULL-tiliä ei näytetä vastatilinä, kuten alkuperäinen tili<>... -ehtokaan ei näyttänyt
+        int tositeId = kysely.value(0).toInt();
+        int tili = kysely.value(1).toInt();
+        if( !tilitTositteella[tositeId].contains(tili))
+            tilitTositteella[tositeId].append(tili);
+    }
 
     for(int i=0; i < lista.count(); i++) {
         QVariantMap vienti = lista[i].toMap();
         int tili = vienti.value("tili").toInt();
-        QVariantMap tosite = vienti.value("tosite").toMap();
-        int tositeId = tosite.value("id").toInt();
+        int tositeId = vienti.value("tosite").toMap().value("id").toInt();
 
         QVariantList vastatilit;
-        kysely.exec(QString("SELECT tili FROM Vienti WHERE tosite=%1 AND tili <> %2").arg(tositeId).arg(tili));
-        while(kysely.next()) {
-            int vastatili = kysely.value(0).toInt();
-            if( !vastatilit.contains(vastatili)) {
-                vastatilit.append(vastatili);
-            }
+        for(const QVariant& v : tilitTositteella.value(tositeId)) {
+            if( v.toInt() != tili)
+                vastatilit.append(v);
         }
         if(!vastatilit.isEmpty()) {
             vienti.insert("vastatilit", vastatilit);
