@@ -231,7 +231,11 @@ void SQLiteRoute::taydennaEratJaMerkkaukset(QVariantList &vientilista)
                     map.remove("era");
                 } else {
                     QVariantMap eramap = eratiedot.value(eraid);
-                    eramap.insert("saldo", (eraDebetit.value(eraid,0) - eraKreditit.value(eraid,0)) / 100.0);
+                    // Saldo lisätään vain, jos SUM-kysely todella löysi rivin (eli erällä on
+                    // vähintään yksi kirjanpidossa oleva vienti) - muuten esim. vasta avatun
+                    // luonnoserän puuttuva saldo näkyisi virheellisesti nollasaldona (maksettuna).
+                    if( eraDebetit.contains(eraid))
+                        eramap.insert("saldo", (eraDebetit.value(eraid,0) - eraKreditit.value(eraid,0)) / 100.0);
                     map.insert("era", eramap);
                 }
             }

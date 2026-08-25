@@ -394,75 +394,126 @@ int TositeRoute::lisaaTaiPaivita(const QVariant pyynto, const int paivitettavanT
             uudet.append(rivi);
     }
 
-    // Jo olemassa olevat viennit: yksi monirivinen UPSERT
+    // Monirivisten kyselyjen rivimäärä paloitellaan turvamarginaalilla, jotta parametrien
+    // määrä ei koskaan lähesty QSQLITE:n tai QPSQL:n rajoja (SQLite oletuksena 32766,
+    // Postgres-protokolla 65535) edes hyvin suurilla tuonneilla.
+    const int ERAKOKO = 300;
+
+    // Jo olemassa olevat viennit: monirivinen UPSERT paloissa
     if( !paivitettavat.isEmpty()) {
-        QStringList paikat;
-        for(int i=0; i < paivitettavat.count(); i++)
-            paikat << "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        for(int alku=0; alku < paivitettavat.count(); alku += ERAKOKO) {
+            const int maara = qMin(ERAKOKO, paivitettavat.count() - alku);
+            QStringList paikat;
+            for(int i=0; i < maara; i++)
+                paikat << "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
-        QSqlQuery paivityskysely(db());
-        paivityskysely.prepare(QString(
-            "INSERT INTO Vienti (id, tosite, pvm, tili, kohdennus, selite, debetsnt, kreditsnt, eraid, json, alvkoodi, alvprosentti, rivi, kumppani, jaksoalkaa, jaksoloppuu, tyyppi, arkistotunnus) "
-            "VALUES %1 "
-            "ON CONFLICT (id) DO UPDATE SET tosite=EXCLUDED.tosite, pvm=EXCLUDED.pvm, tili=EXCLUDED.tili, kohdennus=EXCLUDED.kohdennus,"
-            "selite=EXCLUDED.selite, debetsnt=EXCLUDED.debetsnt, kreditsnt=EXCLUDED.kreditsnt, eraid=EXCLUDED.eraid,"
-            "json=EXCLUDED.json, alvkoodi=EXCLUDED.alvkoodi, alvprosentti=EXCLUDED.alvprosentti, rivi=EXCLUDED.rivi,"
-            "kumppani=EXCLUDED.kumppani, jaksoalkaa=EXCLUDED.jaksoalkaa, jaksoloppuu=EXCLUDED.jaksoloppuu,"
-            "tyyppi=EXCLUDED.tyyppi, arkistotunnus=EXCLUDED.arkistotunnus").arg(paikat.join(',')));
+            QSqlQuery paivityskysely(db());
+            paivityskysely.prepare(QString(
+                "INSERT INTO Vienti (id, tosite, pvm, tili, kohdennus, selite, debetsnt, kreditsnt, eraid, json, alvkoodi, alvprosentti, rivi, kumppani, jaksoalkaa, jaksoloppuu, tyyppi, arkistotunnus) "
+                "VALUES %1 "
+                "ON CONFLICT (id) DO UPDATE SET tosite=EXCLUDED.tosite, pvm=EXCLUDED.pvm, tili=EXCLUDED.tili, kohdennus=EXCLUDED.kohdennus,"
+                "selite=EXCLUDED.selite, debetsnt=EXCLUDED.debetsnt, kreditsnt=EXCLUDED.kreditsnt, eraid=EXCLUDED.eraid,"
+                "json=EXCLUDED.json, alvkoodi=EXCLUDED.alvkoodi, alvprosentti=EXCLUDED.alvprosentti, rivi=EXCLUDED.rivi,"
+                "kumppani=EXCLUDED.kumppani, jaksoalkaa=EXCLUDED.jaksoalkaa, jaksoloppuu=EXCLUDED.jaksoloppuu,"
+                "tyyppi=EXCLUDED.tyyppi, arkistotunnus=EXCLUDED.arkistotunnus").arg(paikat.join(',')));
 
-        for(const auto& rivi : paivitettavat) {
-            paivityskysely.addBindValue(rivi.vientiid);
-            for(const auto& arvo : rivi.arvot)
-                paivityskysely.addBindValue(arvo);
+            for(int i=alku; i < alku+maara; i++) {
+                const VientiRivi& rivi = paivitettavat.at(i);
+                paivityskysely.addBindValue(rivi.vientiid);
+                for(const auto& arvo : rivi.arvot)
+                    paivityskysely.addBindValue(arvo);
+            }
+            if( !paivityskysely.exec()) {
+                db().rollback();
+                throw SQLiteVirhe(paivityskysely);
+            }
         }
-        paivityskysely.exec();
     }
 
-    // Uudet viennit: yksi monirivinen INSERT, id:t saadaan takaisin RETURNING-lauseella.
+    // Uudet viennit: monirivinen INSERT paloissa, id:t saadaan takaisin RETURNING-lauseella.
     // Rivinumero palautetaan mukana, jotta id:t voidaan yhdistää oikeisiin riveihin
     // luottamatta siihen, missä järjestyksessä tietokanta rivit palauttaa.
     QMap<int,int> uudenRivinId;   // rivinumero -> uusi vienti-id
     if( !uudet.isEmpty()) {
-        QStringList paikat;
-        for(int i=0; i < uudet.count(); i++)
-            paikat << "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        for(int alku=0; alku < uudet.count(); alku += ERAKOKO) {
+            const int maara = qMin(ERAKOKO, uudet.count() - alku);
+            QStringList paikat;
+            for(int i=0; i < maara; i++)
+                paikat << "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
-        QSqlQuery lisayskysely(db());
-        lisayskysely.prepare(QString(
-            "INSERT INTO Vienti (tosite, pvm, tili, kohdennus, selite, debetsnt, kreditsnt, eraid, json, alvkoodi, alvprosentti, rivi, kumppani, jaksoalkaa, jaksoloppuu, tyyppi, arkistotunnus) "
-            "VALUES %1 RETURNING id, rivi").arg(paikat.join(',')));
+            QSqlQuery lisayskysely(db());
+            lisayskysely.prepare(QString(
+                "INSERT INTO Vienti (tosite, pvm, tili, kohdennus, selite, debetsnt, kreditsnt, eraid, json, alvkoodi, alvprosentti, rivi, kumppani, jaksoalkaa, jaksoloppuu, tyyppi, arkistotunnus) "
+                "VALUES %1 RETURNING id, rivi").arg(paikat.join(',')));
 
-        for(const auto& rivi : uudet) {
-            for(const auto& arvo : rivi.arvot)
-                lisayskysely.addBindValue(arvo);
+            for(int i=alku; i < alku+maara; i++) {
+                const VientiRivi& rivi = uudet.at(i);
+                for(const auto& arvo : rivi.arvot)
+                    lisayskysely.addBindValue(arvo);
+            }
+            if( !lisayskysely.exec()) {
+                db().rollback();
+                throw SQLiteVirhe(lisayskysely);
+            }
+            while( lisayskysely.next())
+                uudenRivinId.insert( lisayskysely.value(1).toInt(), lisayskysely.value(0).toInt() );
         }
-        lisayskysely.exec();
-        while( lisayskysely.next())
-            uudenRivinId.insert( lisayskysely.value(1).toInt(), lisayskysely.value(0).toInt() );
     }
 
-    // Uuden erän käyttöönotto ja merkkaukset - vaativat lopullisen vienti-id:n
-    QList<QPair<int,int>> uudetMerkkaukset;   // (vienti, kohdennus)
+    // Uuden erän käyttöönotto ja merkkaukset - vaativat lopullisen vienti-id:n.
+    // Kaikki UUSI_ERA-rivit kootaan yhteen ja päivitetään yhdellä kyselyllä, jotta
+    // esim. kuukausittaisten toistuvien tositteiden luonti ei jää rivi kerrallaan tehtäväksi.
+    QSet<int> uudetErat;
+    QList<QPair<int,int>> merkkausparit;   // (vienti, kohdennus)
 
     for(const auto& rivi : paivitettavat) {
         if( rivi.eraid == Kitsas::UUSI_ERA)
-            kysely.exec(QString("UPDATE Vienti SET eraid=%1 WHERE id=%1").arg(rivi.vientiid) );
+            uudetErat.insert(rivi.vientiid);
         for(const auto& merkkaus : rivi.merkkaukset)
-            uudetMerkkaukset.append( qMakePair(rivi.vientiid, merkkaus.toInt()) );
+            merkkausparit.append( qMakePair(rivi.vientiid, merkkaus.toInt()) );
     }
     for(const auto& rivi : uudet) {
         int vientiid = uudenRivinId.value(rivi.rivinumero);
         if( rivi.eraid == Kitsas::UUSI_ERA)
-            kysely.exec(QString("UPDATE Vienti SET eraid=%1 WHERE id=%1").arg(vientiid) );
+            uudetErat.insert(vientiid);
         for(const auto& merkkaus : rivi.merkkaukset)
-            uudetMerkkaukset.append( qMakePair(vientiid, merkkaus.toInt()) );
+            merkkausparit.append( qMakePair(vientiid, merkkaus.toInt()) );
     }
 
-    if( !uudetMerkkaukset.isEmpty()) {
-        QStringList arvot;
-        for(const auto& pari : uudetMerkkaukset)
-            arvot << QString("(%1,%2)").arg(pari.first).arg(pari.second);
-        kysely.exec(QString("INSERT INTO Merkkaus(vienti,kohdennus) VALUES %1").arg(arvot.join(',')));
+    if( !uudetErat.isEmpty()) {
+        QStringList idlist;
+        for(int id : uudetErat)
+            idlist << QString::number(id);
+        if( !kysely.exec(QString("UPDATE Vienti SET eraid=id WHERE id IN (%1)").arg(idlist.join(',')))) {
+            db().rollback();
+            throw SQLiteVirhe(kysely);
+        }
+    }
+
+    // Merkkaukset: sama (vienti,kohdennus)-pari karsitaan kertaalleen, koska Merkkauksen
+    // perusavain on (vienti,kohdennus) - kaksinkertainen pari kaataisi koko monirivisen
+    // lisäyksen. ON CONFLICT DO NOTHING suojaa vielä tämänkin varalta.
+    if( !merkkausparit.isEmpty()) {
+        QList<QPair<int,int>> uudetMerkkaukset;
+        QSet<qint64> nahdyt;
+        for(const auto& pari : merkkausparit) {
+            qint64 avain = (qint64(pari.first) << 32) | quint32(pari.second);
+            if( !nahdyt.contains(avain)) {
+                nahdyt.insert(avain);
+                uudetMerkkaukset.append(pari);
+            }
+        }
+
+        for(int alku=0; alku < uudetMerkkaukset.count(); alku += ERAKOKO) {
+            const int maara = qMin(ERAKOKO, uudetMerkkaukset.count() - alku);
+            QStringList arvot;
+            for(int i=alku; i < alku+maara; i++)
+                arvot << QString("(%1,%2)").arg(uudetMerkkaukset.at(i).first).arg(uudetMerkkaukset.at(i).second);
+            if( !kysely.exec(QString("INSERT INTO Merkkaus(vienti,kohdennus) VALUES %1 ON CONFLICT (vienti,kohdennus) DO NOTHING").arg(arvot.join(',')))) {
+                db().rollback();
+                throw SQLiteVirhe(kysely);
+            }
+        }
     }
 
     // Kiinnitetään esilähetetyt liitteet
@@ -478,22 +529,30 @@ int TositeRoute::lisaaTaiPaivita(const QVariant pyynto, const int paivitettavanT
         kysely.exec(QString("DELETE FROM Rivi WHERE tosite=%1").arg(paivitettavanTositeId));
 
     if( !rivit.isEmpty()) {
-        QStringList paikat;
-        for(int rivi=0; rivi < rivit.count(); rivi++)
-            paikat << "(?,?,?,?,?,?,?)";
-        kysely.prepare(QString("INSERT INTO Rivi(tosite,rivi,tuote,myyntikpl,ostokpl, ahinta, json) VALUES %1").arg(paikat.join(',')));
-        for(int rivi=0; rivi < rivit.count(); rivi++)
-        {
-            QVariantMap rmap = rivit.at(rivi).toMap();
-            kysely.addBindValue(tositeId);
-            kysely.addBindValue(rivi + 1);
-            kysely.addBindValue(rmap.take("tuote").toString());
-            kysely.addBindValue(rmap.take("myyntikpl").toDouble());
-            kysely.addBindValue(rmap.take("ostokpl").toDouble());
-            kysely.addBindValue(rmap.take("ahinta").toDouble());
-            kysely.addBindValue( mapToJson(rmap) );
+        for(int alku=0; alku < rivit.count(); alku += ERAKOKO) {
+            const int maara = qMin(ERAKOKO, rivit.count() - alku);
+            QStringList paikat;
+            for(int i=0; i < maara; i++)
+                paikat << "(?,?,?,?,?,?,?)";
+
+            QSqlQuery rivikysely(db());
+            rivikysely.prepare(QString("INSERT INTO Rivi(tosite,rivi,tuote,myyntikpl,ostokpl, ahinta, json) VALUES %1").arg(paikat.join(',')));
+            for(int rivi=alku; rivi < alku+maara; rivi++)
+            {
+                QVariantMap rmap = rivit.at(rivi).toMap();
+                rivikysely.addBindValue(tositeId);
+                rivikysely.addBindValue(rivi + 1);
+                rivikysely.addBindValue(rmap.take("tuote").toString());
+                rivikysely.addBindValue(rmap.take("myyntikpl").toDouble());
+                rivikysely.addBindValue(rmap.take("ostokpl").toDouble());
+                rivikysely.addBindValue(rmap.take("ahinta").toDouble());
+                rivikysely.addBindValue( mapToJson(rmap) );
+            }
+            if( !rivikysely.exec()) {
+                db().rollback();
+                throw SQLiteVirhe(rivikysely);
+            }
         }
-        kysely.exec();
     }
 
 
