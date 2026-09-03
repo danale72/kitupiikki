@@ -48,12 +48,14 @@ public:
     QVariantMap data() const;
     QString polku() const;
     PostgresYhteys postgresYhteys() const;
+    QString sqliteTuontiPolku() const { return sqliteTuontiPolku_; }
 
     int nextId() const override;
 
     QVariantMap asetukset_;
     QVariantList tilit_;
     QVariantList tilikaudet_;
+    QString sqliteTuontiPolku_;
 
     static QVariantMap asetukset( const QString& polku);
 
@@ -104,9 +106,11 @@ protected:
     public:
         Tilikarttasivu(UusiVelho *wizard);
         bool validatePage() override;
+        void initializePage() override;
         void cleanupPage() override {;}
     protected:
         void tiedostosta();
+        void tuoSqlitesta();
         Ui::UusiTilikartta *ui;
         UusiVelho *velho;
         bool karttaLadattu_ = false;

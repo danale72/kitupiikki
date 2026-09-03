@@ -448,6 +448,12 @@ void AloitusSivu::postgresUusiAsiakas()
     if( !kp()->postgres()->luoTietokanta(pgSessioYhteys_, nimi) )
         return;
 
+    if( !velho.sqliteTuontiPolku().isEmpty() ) {
+        if( kp()->postgres()->tuoSqlitesta(pgSessioYhteys_.asiakasYhteys(nimi), velho.sqliteTuontiPolku()) )
+            paivitaPostgresLista();
+        return;
+    }
+
     if( kp()->postgres()->uusiKirjanpito(pgSessioYhteys_.asiakasYhteys(nimi), velho.data()) )
         paivitaPostgresLista();
 }

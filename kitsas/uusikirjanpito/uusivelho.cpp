@@ -334,6 +334,13 @@ UusiVelho::Tilikarttasivu::Tilikarttasivu(UusiVelho *wizard) :
     ui->setupUi(this);
     setTitle( UusiVelho::tr("Tilikartta"));
     connect( ui->tiedostoNappi, &QPushButton::clicked, this, &Tilikarttasivu::tiedostosta );
+    connect( ui->sqliteNappi, &QPushButton::clicked, this, &Tilikarttasivu::tuoSqlitesta );
+}
+
+void UusiVelho::Tilikarttasivu::initializePage()
+{
+    // SQLite-tuonti on mielekäs vain Postgres-asiakasta luotaessa.
+    ui->sqliteNappi->setVisible( field("postgres").toBool() );
 }
 
 bool UusiVelho::Tilikarttasivu::validatePage()
@@ -361,6 +368,25 @@ void UusiVelho::Tilikarttasivu::tiedostosta()
             wizard()->next();
         }
     }
+}
+
+void UusiVelho::Tilikarttasivu::tuoSqlitesta()
+{
+    QString tiedosto = QFileDialog::getOpenFileName(this, UusiVelho::tr("Valitse tuotava SQLite-tietokanta"), QString(),
+                                                    UusiVelho::tr("Kitsaan tietokanta (*.kitsas)",".kitsas on tiedostopääte - älä käännä sitä"));
+    if( tiedosto.isEmpty() )
+        return;
+
+    const auto vastaus = QMessageBox::question(this, UusiVelho::tr("Tuo SQLite-tietokanta"),
+                             UusiVelho::tr("Tietokannan %1 kaikki tiedot (tilit, tositteet, viennit, liitteet ja asetukset) "
+                                          "kopioidaan uuteen asiakkaaseen sellaisenaan, eikä velhon loppuja vaiheita enää käydä läpi.\n\n"
+                                          "Jatketaanko tuonnilla?").arg(tiedosto),
+                             QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel);
+    if( vastaus != QMessageBox::Yes )
+        return;
+
+    velho->sqliteTuontiPolku_ = tiedosto;
+    wizard()->accept();
 }
 
 
