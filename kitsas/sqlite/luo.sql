@@ -160,7 +160,7 @@ CREATE TABLE Liite
 	id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
 	tosite integer REFERENCES Tosite (id) ON DELETE CASCADE,
 	nimi text,
-	roolinimi varchar(16),
+	roolinimi varchar(32),
 	tyyppi text,
 	sha text,
 	data bytea,

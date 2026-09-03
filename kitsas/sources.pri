@@ -52,6 +52,7 @@ SOURCES += \
     $$PWD/postgres/postgresmodel.cpp \
     $$PWD/postgres/postgresvelhosivu.cpp \
     $$PWD/postgres/postgresyhteysdlg.cpp \
+    $$PWD/postgres/sqlitetuoja.cpp \
     $$PWD/kieli/kielet.cpp \
     $$PWD/kieli/kieli.cpp \
     $$PWD/kieli/kielicombo.cpp \
@@ -492,6 +493,7 @@ HEADERS += \
     $$PWD/postgres/postgresvelhosivu.h \
     $$PWD/postgres/postgresyhteys.h \
     $$PWD/postgres/postgresyhteysdlg.h \
+    $$PWD/postgres/sqlitetuoja.h \
     $$PWD/kieli/abstraktimonikielinen.h \
     $$PWD/kieli/kielet.h \
     $$PWD/kieli/kieli.h \

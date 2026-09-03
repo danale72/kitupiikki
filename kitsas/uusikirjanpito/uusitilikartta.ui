@@ -123,6 +123,17 @@
       </spacer>
      </item>
      <item>
+      <widget class="QPushButton" name="sqliteNappi">
+       <property name="text">
+        <string>Tuo SQLite...</string>
+       </property>
+       <property name="icon">
+        <iconset resource="../pic/pic.qrc">
+         <normaloff>:/pic/avaatiedosto.png</normaloff>:/pic/avaatiedosto.png</iconset>
+       </property>
+      </widget>
+     </item>
+     <item>
       <widget class="QPushButton" name="tiedostoNappi">
        <property name="text">
         <string>Käytä tilikarttatiedostoa...</string>

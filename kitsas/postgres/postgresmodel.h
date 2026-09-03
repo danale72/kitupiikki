@@ -33,6 +33,7 @@ public:
     bool avaa(const PostgresYhteys& yhteys, bool ilmoitaVirheesta = true);
     bool testaaKirjautuminen(const PostgresYhteys& yhteys);
     bool uusiKirjanpito(const PostgresYhteys& yhteys, const QVariantMap& initials, bool ilmoitaVirheesta = true);
+    bool tuoSqlitesta(const PostgresYhteys& yhteys, const QString& sqlitePolku, bool ilmoitaVirheesta = true);
 
     QList<PostgresAsiakas> listaaTietokannat(const PostgresYhteys& palvelin, bool ilmoitaVirheesta = true);
     bool luoTietokanta(const PostgresYhteys& palvelin, const QString& nimi, bool ilmoitaVirheesta = true);
@@ -55,6 +56,7 @@ private:
     bool onkoKaavioOlemassa();
     QSqlDatabase avaaHallinta(const PostgresYhteys& palvelin, bool ilmoitaVirheesta);
     bool onkoKitsasTietokanta(const PostgresYhteys& yhteys, QString* nimi = nullptr);
+    bool pudotaTietokanta(const PostgresYhteys& palvelin, const QString& nimi, bool ilmoitaVirheesta);
 
     PostgresYhteys nykyinen_;
     QVariantList viimeiset_;

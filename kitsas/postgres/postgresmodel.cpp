@@ -10,6 +10,7 @@
 
 #include "db/kirjanpito.h"
 #include "sql/sqlalustaja.h"
+#include "sqlitetuoja.h"
 
 #include <QApplication>
 #include <QMessageBox>
@@ -17,6 +18,7 @@
 #include <QSettings>
 #include <QSqlError>
 #include <QSqlQuery>
+#include <QThread>
 
 PostgresModel::PostgresModel(QObject *parent)
     : SqlModel(QStringLiteral("QPSQL"), QStringLiteral("KIRJANPITO_PG"), parent)
@@ -271,6 +273,44 @@ bool PostgresModel::luoTietokanta(const PostgresYhteys &palvelin, const QString 
     return ok;
 }
 
+bool PostgresModel::pudotaTietokanta(const PostgresYhteys &palvelin, const QString &nimi, bool ilmoitaVirheesta)
+{
+    const QString tietokanta = nimi.trimmed().toLower();
+    if( !onkoKelvollinenTietokannanNimi(tietokanta) )
+        return false;
+
+    QSqlDatabase hallinta = avaaHallinta(palvelin, ilmoitaVirheesta);
+    if( !hallinta.isOpen())
+        return false;
+
+    QSqlQuery query(hallinta);
+
+    // Juuri suljettu yhteys ei aina ehdi vapautua palvelimella heti (havaittu
+    // käytännössä: DROP DATABASE epäonnistuu "is being accessed by other users").
+    // Pakotetaan muut mahdolliset yhteydet tähän tietokantaan irti ja yritetään
+    // pudotusta muutaman kerran ennen luovuttamista, jotta epäonnistunut tuonti
+    // ei jätä lukittua "haamutietokantaa" näkyviin asiakaslistan taakse.
+    query.prepare(QStringLiteral(
+        "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+        "WHERE datname = ? AND pid <> pg_backend_pid()"));
+    query.addBindValue(tietokanta);
+    query.exec();
+
+    bool ok = false;
+    for(int yritys = 0; yritys < 5 && !ok; yritys++) {
+        if( yritys > 0 )
+            QThread::msleep(200);
+        ok = query.exec(QStringLiteral("DROP DATABASE %1").arg(tietokanta));
+    }
+
+    if( !ok && ilmoitaVirheesta )
+        qWarning() << "PostgresModel: epäonnistuneen tuonnin tietokannan" << tietokanta << "poisto epäonnistui:"
+                   << query.lastError().text();
+
+    hallinta.close();
+    return ok;
+}
+
 bool PostgresModel::onkoKaavioOlemassa()
 {
     QSqlQuery query(tietokanta_);
@@ -361,6 +401,42 @@ bool PostgresModel::uusiKirjanpito(const PostgresYhteys &yhteys, const QVariantM
     QVariantMap initMap = initials.value("init").toMap();
     if( !SqlAlustaja::kirjoitaInit(tietokanta_, initMap) ) {
         tietokanta_.close();
+        return false;
+    }
+
+    tietokanta_.close();
+    return avaa(yhteys, ilmoitaVirheesta);
+}
+
+bool PostgresModel::tuoSqlitesta(const PostgresYhteys &yhteys, const QString &sqlitePolku, bool ilmoitaVirheesta)
+{
+    if( !yhdista(yhteys, ilmoitaVirheesta) )
+        return false;
+
+    if( onkoKaavioOlemassa() ) {
+        if( ilmoitaVirheesta )
+            QMessageBox::critical(nullptr, tr("Tietokanta ei ole tyhjä"),
+                                  tr("Tietokannassa %1 on jo Kitsaan kaavio. Valitse tyhjä tietokanta tai avaa olemassa oleva kirjanpito.")
+                                  .arg(yhteys.avain()));
+        tietokanta_.close();
+        return false;
+    }
+
+    if( !SqlAlustaja::suoritaSqlResurssi(tietokanta_, QStringLiteral(":/postgres/luo.sql")) ) {
+        tietokanta_.close();
+        // Kaavio jäi kesken - poistetaan koko tietokanta, ettei rikkinäistä
+        // asiakasta jää näkyviin listaan.
+        pudotaTietokanta(yhteys, yhteys.database, false);
+        return false;
+    }
+
+    if( !SqliteTuoja::tuo(tietokanta_, sqlitePolku, ilmoitaVirheesta) ) {
+        tietokanta_.close();
+        // Tuonti epäonnistui - SqliteTuoja on jo peruuttanut oman tapahtumansa, mutta
+        // luo.sql:n luoma kaavio jäisi silti näkyviin tyhjänä, näennäisesti kelvollisena
+        // asiakkaana. Poistetaan koko tietokanta, jotta epäonnistunut tuonti ei jätä
+        // mitään jälkeä asiakaslistaan.
+        pudotaTietokanta(yhteys, yhteys.database, false);
         return false;
     }
 
