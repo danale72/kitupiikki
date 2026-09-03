@@ -15,6 +15,8 @@
 #include "model/tosite.h"
 #include "model/tositevienti.h"
 #include "postgres/postgresmodel.h"
+#include "postgres/sqlitetuoja.h"
+#include "sql/sqlalustaja.h"
 #include "sqlite/sqlitemodel.h"
 
 #include <QApplication>
@@ -67,6 +69,9 @@ private slots:
     void route_liitteet();
     void route_tositeLogic();
     void route_asiakkaatToimittajatLaskutAlv();
+
+    void sqliteTuoja_kopioiKaikkiTaulut();
+    void sqliteTuoja_hylkaaVaarinVersioidunTiedoston();
 
 private:
     void vertaa(const QVariant& sqlite, const QVariant& postgres, const QString& konteksti = QString());
@@ -656,6 +661,212 @@ void DbParityTest::route_asiakkaatToimittajatLaskutAlv()
         return map;
     };
     suoritaMolemmissa(toiminto);
+}
+
+void DbParityTest::sqliteTuoja_kopioiKaikkiTaulut()
+{
+    if (!db_.postgresKaytossa())
+        QSKIP("PostgreSQL is not available (start docker compose or set KITSAS_PG_* )");
+
+    // 1. Rakennetaan pieni mutta edustava lähde-SQLite-tiedosto: kumppani,
+    // merkkaus-tyyppinen kohdennus, kaksirivinen tosite jolla toisella
+    // viennillä on merkkaus, tavallinen tositteeseen liittyvä liite sekä
+    // tilinpäätöstekstin kaltainen "tosite=0" -liite (ks. TilinpaatosEditori).
+    QVERIFY(db_.avaaSqlite());
+
+    QVariantMap asiakas{{QStringLiteral("nimi"), QStringLiteral("Tuonti Oy")}};
+    const int kumppaniId = db_.kysy(QStringLiteral("/kumppanit"), KpKysely::POST, asiakas)
+                               .toMap().value(QStringLiteral("id")).toInt();
+    QVERIFY(kumppaniId > 0);
+
+    QVariantMap merkkausMap{{QStringLiteral("tyyppi"), Kohdennus::MERKKAUS},
+                            {QStringLiteral("nimi"), QStringLiteral("Auto")}};
+    const int merkkausId = db_.kysy(QStringLiteral("/kohdennukset"), KpKysely::POST, merkkausMap)
+                               .toMap().value(QStringLiteral("id")).toInt();
+    QVERIFY(merkkausId > 0);
+
+    QVariantList viennit;
+    viennit.append(QVariantMap{
+        {QStringLiteral("pvm"), QDate(2019, 3, 1)},
+        {QStringLiteral("tili"), 1910},
+        {QStringLiteral("debet"), 100.0},
+    });
+    viennit.append(QVariantMap{
+        {QStringLiteral("pvm"), QDate(2019, 3, 1)},
+        {QStringLiteral("tili"), 3000},
+        {QStringLiteral("kredit"), 100.0},
+        {QStringLiteral("kumppani"), kumppaniId},
+        {QStringLiteral("merkkaukset"), QVariantList{merkkausId}},
+    });
+    QVariantMap tosite;
+    tosite.insert(QStringLiteral("pvm"), QDate(2019, 3, 1));
+    tosite.insert(QStringLiteral("tyyppi"), TositeTyyppi::TULO);
+    tosite.insert(QStringLiteral("tila"), Tosite::KIRJANPIDOSSA);
+    tosite.insert(QStringLiteral("otsikko"), QStringLiteral("Tuontitesti"));
+    tosite.insert(QStringLiteral("kumppani"), kumppaniId);
+    tosite.insert(QStringLiteral("viennit"), viennit);
+    const int tositeId = db_.kysy(QStringLiteral("/tositteet"), KpKysely::POST, tosite)
+                             .toMap().value(QStringLiteral("id")).toInt();
+    QVERIFY(tositeId > 0);
+
+    const QByteArray liiteData("%PDF-1.4 tuontitesti sisalto");
+    QMap<QString, QString> meta;
+    meta.insert(QStringLiteral("Filename"), QStringLiteral("kuitti.pdf"));
+    meta.insert(QStringLiteral("Content-type"), QStringLiteral("application/pdf"));
+    db_.lahetaTiedosto(QStringLiteral("/liitteet/%1").arg(tositeId), liiteData, meta);
+
+    const QString sqlitePolku = db_.sqlitePolku();
+    db_.sulje();
+
+    // Testiavustin TestDb::lahetaTiedosto tukee vain POSTia, ei PUT-reittiä jota
+    // TilinpaatosEditori oikeasti käyttää tilinpäätöstekstin liitteelle, joten
+    // tosite=0 + roolinimi-tapaus lisätään suoraan SQL:llä. Samalla simuloidaan
+    // vanha, jo korjattu bugi: sha tallennettu QByteArray-sidonnalla eli SQLiten
+    // BLOB-tallennusluokkana TEXT-sarakkeen sijaan (ks. LiitteetRoute::hash():n ja
+    // SqliteTuoja::kopioiTaulu:n kommentit), jotta suojaava normalisointi testataan.
+    const QByteArray tpTekstiData("Tilinpaatosteksti");
+    {
+        QSqlDatabase korjaus = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), QStringLiteral("TUONTITESTI_KORJAUS"));
+        korjaus.setDatabaseName(sqlitePolku);
+        QVERIFY(korjaus.open());
+        QSqlQuery q(korjaus);
+
+        q.prepare(QStringLiteral("UPDATE Liite SET sha=? WHERE roolinimi IS NULL"));
+        q.addBindValue(QByteArray("deadbeef0123456789"));
+        QVERIFY(q.exec());
+
+        q.prepare(QStringLiteral("INSERT INTO Liite(tosite,nimi,data,tyyppi,sha,roolinimi) VALUES (0,?,?,?,?,?)"));
+        q.addBindValue(QStringLiteral("tpteksti.txt"));
+        q.addBindValue(tpTekstiData);
+        q.addBindValue(QStringLiteral("text/plain"));
+        q.addBindValue(QStringLiteral("aaaa1111"));
+        q.addBindValue(QStringLiteral("TPTEKSTI_2019-12-31"));
+        QVERIFY(q.exec());
+
+        korjaus.close();
+    }
+    QSqlDatabase::removeDatabase(QStringLiteral("TUONTITESTI_KORJAUS"));
+
+    // 2. Kohdetietokanta: tyhjä, vain kaaviolla alustettu Postgres-kanta - vastaa
+    // sitä mitä PostgresModel::tuoSqlitesta valmistelee ennen SqliteTuoja:n kutsumista.
+    const PostgresYhteys palvelin = TestDb::postgresYhteys();
+    const QString tuontiKanta = palvelin.database + QStringLiteral("_tuonti");
+    const PostgresYhteys tuontiYhteys = palvelin.asiakasYhteys(tuontiKanta);
+
+    auto poistaKohdeKanta = [&]() {
+        QSqlDatabase hallinta = QSqlDatabase::addDatabase(QStringLiteral("QPSQL"), QStringLiteral("TUONTITESTI_HALLINTA"));
+        hallinta.setHostName(palvelin.host);
+        hallinta.setPort(palvelin.port);
+        hallinta.setDatabaseName(QStringLiteral("postgres"));
+        hallinta.setUserName(palvelin.username);
+        hallinta.setPassword(palvelin.password);
+        if (hallinta.open()) {
+            QSqlQuery q(hallinta);
+            q.exec(QStringLiteral("DROP DATABASE IF EXISTS %1 WITH (FORCE)").arg(tuontiKanta));
+            hallinta.close();
+        }
+        QSqlDatabase::removeDatabase(QStringLiteral("TUONTITESTI_HALLINTA"));
+    };
+
+    poistaKohdeKanta();
+    {
+        QSqlDatabase hallinta = QSqlDatabase::addDatabase(QStringLiteral("QPSQL"), QStringLiteral("TUONTITESTI_LUONTI"));
+        hallinta.setHostName(palvelin.host);
+        hallinta.setPort(palvelin.port);
+        hallinta.setDatabaseName(QStringLiteral("postgres"));
+        hallinta.setUserName(palvelin.username);
+        hallinta.setPassword(palvelin.password);
+        QVERIFY(hallinta.open());
+        QSqlQuery q(hallinta);
+        QVERIFY(q.exec(QStringLiteral("CREATE DATABASE %1 ENCODING 'UTF8'").arg(tuontiKanta)));
+        hallinta.close();
+    }
+    QSqlDatabase::removeDatabase(QStringLiteral("TUONTITESTI_LUONTI"));
+
+    QSqlDatabase kohde = QSqlDatabase::addDatabase(QStringLiteral("QPSQL"), QStringLiteral("TUONTITESTI_KOHDE"));
+    kohde.setHostName(tuontiYhteys.host);
+    kohde.setPort(tuontiYhteys.port);
+    kohde.setDatabaseName(tuontiYhteys.database);
+    kohde.setUserName(tuontiYhteys.username);
+    kohde.setPassword(tuontiYhteys.password);
+    QVERIFY(kohde.open());
+    QVERIFY(SqlAlustaja::suoritaSqlResurssi(kohde, TestDb::postgresLuoSqlPolku()));
+
+    // 3. Itse tuonti.
+    const bool tuontiOk = SqliteTuoja::tuo(kohde, sqlitePolku, false);
+
+    if (!tuontiOk) {
+        kohde.close();
+        QSqlDatabase::removeDatabase(QStringLiteral("TUONTITESTI_KOHDE"));
+        poistaKohdeKanta();
+        QFAIL("SqliteTuoja::tuo epäonnistui");
+    }
+
+    // 4. Tarkistukset.
+    QSqlQuery q(kohde);
+
+    q.exec(QStringLiteral("SELECT COUNT(*) FROM Tosite"));
+    q.next();
+    QCOMPARE(q.value(0).toInt(), 1);
+
+    q.exec(QStringLiteral("SELECT COUNT(*) FROM Vienti"));
+    q.next();
+    QCOMPARE(q.value(0).toInt(), 2);
+
+    q.exec(QStringLiteral("SELECT COUNT(*) FROM Merkkaus"));
+    q.next();
+    QCOMPARE(q.value(0).toInt(), 1);
+
+    q.exec(QStringLiteral("SELECT COUNT(*) FROM Liite"));
+    q.next();
+    QCOMPARE(q.value(0).toInt(), 2);
+
+    // sha-normalisointi: QByteArray-sidonnalla kirjoitettu arvo on tullut takaisin
+    // puhtaana tekstinä, ei bytea-heksana.
+    QVERIFY(q.exec(QStringLiteral("SELECT sha FROM Liite WHERE roolinimi IS NULL")));
+    QVERIFY(q.next());
+    QCOMPARE(q.value(0).toString(), QStringLiteral("deadbeef0123456789"));
+
+    // Liitteen sisältö säilyy sellaisenaan (bytea, ei muunneta).
+    QVERIFY(q.exec(QStringLiteral("SELECT data FROM Liite WHERE roolinimi IS NULL")));
+    QVERIFY(q.next());
+    QCOMPARE(q.value(0).toByteArray(), liiteData);
+
+    // Vanha tosite=0 -merkintä on tulkittu NULL:ksi, koska Postgres valvoo FK:ta.
+    QVERIFY(q.exec(QStringLiteral("SELECT tosite FROM Liite WHERE roolinimi='TPTEKSTI_2019-12-31'")));
+    QVERIFY(q.next());
+    QVERIFY(q.value(0).isNull());
+
+    // Tunnistesarjat on synkronoitu tuodun aineiston yli - seuraava luonti ei törmää.
+    QVERIFY(q.exec(QStringLiteral("INSERT INTO Kumppani(nimi) VALUES ('Seuraava') RETURNING id")));
+    QVERIFY(q.next());
+    QVERIFY(q.value(0).toInt() > kumppaniId);
+
+    kohde.close();
+    QSqlDatabase::removeDatabase(QStringLiteral("TUONTITESTI_KOHDE"));
+    poistaKohdeKanta();
+}
+
+void DbParityTest::sqliteTuoja_hylkaaVaarinVersioidunTiedoston()
+{
+    // Väärää skeemaversiota olevan tiedoston pitää hylätä ennen kuin Postgresia
+    // edes kosketaan - kelvoton/oletusarvoinen QSqlDatabase riittää kohteeksi.
+    QVERIFY(db_.avaaSqlite());
+    const QString sqlitePolku = db_.sqlitePolku();
+    db_.sulje();
+
+    {
+        QSqlDatabase korjaus = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), QStringLiteral("TUONTITESTI_VANHA"));
+        korjaus.setDatabaseName(sqlitePolku);
+        QVERIFY(korjaus.open());
+        QSqlQuery q(korjaus);
+        QVERIFY(q.exec(QStringLiteral("UPDATE Asetus SET arvo='1' WHERE avain='KpVersio'")));
+        korjaus.close();
+    }
+    QSqlDatabase::removeDatabase(QStringLiteral("TUONTITESTI_VANHA"));
+
+    QVERIFY2(!SqliteTuoja::tuo(QSqlDatabase(), sqlitePolku, false),
+             "Vanhaa skeemaversiota olevan tiedoston pitäisi hylätä tuonti ilman Postgres-yhteyttä");
 }
 
 QTEST_APPLESS_MAIN(DbParityTest)

@@ -55,6 +55,8 @@ KITSAS_PG_ADMIN_DB=postgres
 
 Any time a SQLite/Postgres behavioral discrepancy is found or fixed, log it in [kitsas/postgres/MIGRATION_NOTES.md](kitsas/postgres/MIGRATION_NOTES.md) — it's the running log for this ongoing migration effort, keep it current rather than rediscovering the same gotchas.
 
+`sqliteTuoja_kopioiKaikkiTaulut` and `sqliteTuoja_hylkaaVaarinVersioidunTiedoston` in `tst_dbparity.cpp` cover `SqliteTuoja` specifically: a full round-trip through a real source SQLite file into a throwaway, schema-only target Postgres database (`<KITSAS_PG_DB>_tuonti`, created/dropped alongside the main parity database), checking row counts, marks, attachment bytes, the legacy `tosite=0` → `NULL` normalization, the QByteArray-into-text defensive re-stringify, and identity-sequence resync — plus a fast, Postgres-independent check that an old-schema-version source file is rejected before ever touching Postgres. The QPSQL driver plugin in this Qt distribution is linked against a hardcoded `/Applications/Postgres.app/...` path for `libpq` that may not exist on a given machine; if a locally-built `Kitsas_PG.app` bundle exists, set `DYLD_FALLBACK_LIBRARY_PATH` to its `Contents/Frameworks` directory (which has its own bundled `libpq.5.dylib`) before running `dbparity`, or `QPSQL driver not loaded` will make every Postgres-dependent test report Postgres as unavailable instead of actually running.
+
 ## Architecture
 
 ### Backend abstraction: `YhteysModel` → `SqlModel` → `SQLiteModel` / `PostgresModel`
@@ -89,3 +91,4 @@ Postgres support (`kitsas/postgres/`) is newer than the SQLite backend and mirro
 ## Notes
 
 - Do not rebuild/recompile the app after edits unless explicitly asked to — the user runs builds themselves in batches.
+- When building a new feature or fixing a bug, add or extend an automated test in the same pass rather than as an afterthought — don't wait to be asked separately. `unittest/dbparity` (see above) is the natural home for anything touching the SQL layer or backend parity; the smaller `unittest/*` projects suit isolated logic (e.g. `eurotest` for `Euro`, `viitetesti` for reference-number validation). If a change genuinely isn't testable this way (pure UI layout, a one-off migration script), say so explicitly rather than silently skipping tests.

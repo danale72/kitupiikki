@@ -33,6 +33,7 @@ public:
     bool alusta();
     void sulje();
     QString portablePolku() const { return portable_.path(); }
+    QString sqlitePolku() const { return sqlitePolku_; }
 
     bool avaaSqlite();
     bool avaaPostgres();
