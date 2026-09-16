@@ -333,6 +333,19 @@ border-color: rgb(170, 0, 0);</string>
           </widget>
          </item>
          <item>
+          <widget class="QPushButton" name="postgresTiedotNappi">
+           <property name="enabled">
+            <bool>false</bool>
+           </property>
+           <property name="toolTip">
+            <string>Näytä yhteyden tiedot</string>
+           </property>
+           <property name="text">
+            <string>Yhteyden tiedot</string>
+           </property>
+          </widget>
+         </item>
+         <item>
           <widget class="QLineEdit" name="postgresSuodin">
            <property name="placeholderText">
             <string>Hae asiakasta...</string>

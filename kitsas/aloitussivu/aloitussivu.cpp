@@ -115,6 +115,7 @@ AloitusSivu::AloitusSivu(QWidget *parent) :
              [] (const QModelIndex& index) { kp()->sqlite()->avaaTiedosto( index.data(SQLiteModel::PolkuRooli).toString() );} );
 
     connect( ui->postgresUusiNappi, &QPushButton::clicked, this, &AloitusSivu::postgresUusiAsiakas);
+    connect( ui->postgresTiedotNappi, &QPushButton::clicked, this, &AloitusSivu::postgresYhteysTiedot);
     connect( ui->postgresAsiakasList, &QListWidget::itemClicked, this, &AloitusSivu::postgresAvaaValittu);
     connect( ui->postgresAsiakasList, &QListWidget::customContextMenuRequested, this, &AloitusSivu::postgresAsiakasContextMenu);
     connect( ui->postgresSuodin, &QLineEdit::textChanged, this, &AloitusSivu::postgresSuodataLista);
@@ -365,7 +366,17 @@ void AloitusSivu::avaaPostgres()
     kp()->settings()->setValue("PostgresKirjautuminen", tallennettava);
 
     ui->postgresUusiNappi->setEnabled(true);
+    ui->postgresTiedotNappi->setEnabled(true);
     paivitaPostgresLista();
+}
+
+void AloitusSivu::postgresYhteysTiedot()
+{
+    QMessageBox::information(this, tr("Yhteyden tiedot"),
+        tr("Palvelin: %1\nPortti: %2\nKäyttäjä: %3")
+            .arg(pgSessioYhteys_.host)
+            .arg(pgSessioYhteys_.port)
+            .arg(pgSessioYhteys_.username));
 }
 
 void AloitusSivu::paivitaPostgresLista()
