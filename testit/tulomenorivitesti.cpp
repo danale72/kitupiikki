@@ -16,8 +16,11 @@
 */
 #include "tulomenorivitesti.h"
 
-#include "apuri/tulomenorivi.h"
+#include "apuri/apuririvi.h"
+#include "db/kirjanpito.h"
 #include "db/verotyyppimodel.h"
+#include "model/tositevienti.h"
+#include "testiapu.h"
 
 #include <QJsonDocument>
 
@@ -26,26 +29,32 @@ TuloMenoRiviTesti::TuloMenoRiviTesti(QObject *parent) : QObject(parent)
 
 }
 
+void TuloMenoRiviTesti::initTestCase()
+{
+    Kirjanpito::asetaInstanssi(new Kirjanpito);
+    TestiApu::alustaKirjanpito();
+}
+
 void TuloMenoRiviTesti::kotimaaAlvLaskenta()
 {
-    TulomenoRivi rivi;
+    ApuriRivi rivi;
 
     rivi.setAlvkoodi( AlvKoodi::MYYNNIT_NETTO );
     rivi.setAlvprosentti( 24.00);
     rivi.setNetto( 10000 );
 
-    QCOMPARE( rivi.brutto(), 12400);
+    QCOMPARE(rivi.brutto().cents(), 12400LL);
 }
 
 void TuloMenoRiviTesti::brutostaNetto()
 {
-    TulomenoRivi rivi;
+    ApuriRivi rivi;
 
     rivi.setAlvkoodi( AlvKoodi::MYYNNIT_NETTO );
     rivi.setAlvprosentti( 24.00);
     rivi.setBrutto( 12400 );
 
-    QCOMPARE( rivi.netto(), 10000);
+    QCOMPARE(rivi.netto().cents(), 10000LL);
 }
 
 void TuloMenoRiviTesti::verottomanRiviLuku()
@@ -60,10 +69,10 @@ void TuloMenoRiviTesti::verottomanRiviLuku()
                     })";
 
     QVariantMap map = QJsonDocument::fromJson(teksti).toVariant().toMap();
-    TulomenoRivi rivi(map);
+    ApuriRivi rivi{TositeVienti(map)};
 
-    QCOMPARE( rivi.netto(), 10000);
-    QCOMPARE( rivi.brutto(), 10000);
+    QCOMPARE(rivi.netto().cents(), 10000LL);
+    QCOMPARE(rivi.brutto().cents(), 10000LL);
     QCOMPARE( rivi.alvprosentti(), 0.0 );
     QCOMPARE( rivi.alvkoodi(), 0 );
     QCOMPARE( rivi.tilinumero(), 3000);
@@ -83,10 +92,10 @@ void TuloMenoRiviTesti::verollisenRivinLuku()
                     })";
 
     QVariantMap map = QJsonDocument::fromJson(teksti).toVariant().toMap();
-    TulomenoRivi rivi(map);
+    ApuriRivi rivi{TositeVienti(map)};
 
-    QCOMPARE( rivi.netto(), 10000);
-    QCOMPARE( rivi.brutto(), 12400);
+    QCOMPARE(rivi.netto().cents(), 10000LL);
+    QCOMPARE(rivi.brutto().cents(), 12400LL);
     QCOMPARE( rivi.alvprosentti(), 24.0 );
     QCOMPARE( rivi.alvkoodi(), 11 );
 }

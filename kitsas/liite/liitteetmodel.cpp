@@ -49,9 +49,15 @@ LiitteetModel::LiitteetModel(QObject *parent)
 
 LiitteetModel::~LiitteetModel()
 {
+    // Dokumentti lukee puskuria, joka osoittaa liitteen dataan, joten se on
+    // suljettava ennen kuin liitteet tuhotaan.
+    suljePdf();
+
     for(auto ptr: liitteet_)
         delete ptr;
     liitteet_.clear();
+
+    delete puskuri_;
 }
 
 int LiitteetModel::rowCount(const QModelIndex &parent) const
@@ -135,6 +141,8 @@ void LiitteetModel::lataa(const QVariantList &data)
 
 void LiitteetModel::clear()
 {
+    suljePdf();     // Ennen kuin näytetyn liitteen data vapautuu
+
     beginResetModel();
     for(auto item: liitteet_)
         delete item;
@@ -275,7 +283,7 @@ void LiitteetModel::poistaInboxistaLisattyjenTiedostot()
 void LiitteetModel::nayta(int indeksi)
 {
     naytettavaIndeksi_ = indeksi;
-    puskuri_->close();
+    suljePdf();
 
     emit valittuVaihtui(indeksi);
 
@@ -315,6 +323,7 @@ QVariantList LiitteetModel::liitettavat() const
 
 void LiitteetModel::poista(int indeksi)
 {
+    suljePdf();     // Ennen kuin poistettavan liitteen data vapautuu
 
     beginRemoveRows(QModelIndex(),indeksi, indeksi);
     Liite* liite = liitteet_.takeAt(indeksi);
@@ -414,10 +423,13 @@ void LiitteetModel::naytaKayttajalle()
         QByteArray* data = liitteet_.at(naytettavaIndeksi_)->dataPtr();
         if( !data) return;
 
+        // Irrotetaan dokumentti edellisestä liitteestä, ettei se lue
+        // vaihtuvaa tai vapautuvaa dataa (#1446)
+        suljePdf();
+
         if( data->startsWith("%PDF")) {
 //            qDebug() << "Lataus " << QDateTime::currentDateTime().toString("hh:mm:ss.zzz");
 
-            puskuri_->close();
             puskuri_->setBuffer(data);
             puskuri_->open(QIODevice::ReadOnly);
             pdfDoc_->load(puskuri_);
@@ -428,23 +440,46 @@ void LiitteetModel::naytaKayttajalle()
     }
 }
 
+void LiitteetModel::suljePdf()
+{
+    pdfDoc_->close();
+    puskuri_->close();
+    puskuri_->setBuffer(nullptr);
+}
+
 void LiitteetModel::pdfTilaVaihtui(QPdfDocument::Status status)
 {
 //    qDebug() << "Tila  " << QDateTime::currentDateTime().toString("hh:mm:ss.zzz");
-    qApp->processEvents();  // Jotta saadaan latausnäkymä
-    if( status == QPdfDocument::Status::Ready && naytettavaIndeksi_ == pdfTuontiIndeksi_) {
-        Tuonti::PdfTiedosto pdfTuonti(pdfDoc_);
+
+    // Ei processEvents: näytettävä liite voi vaihtua tai koko tosite tuhoutua
+    // kesken sisäkkäisen silmukan (#1446). Tuonti tehdään tapahtumasilmukasta,
+    // jolloin latausnäkymä ehtii piirtyä eikä kutsupinossa ole enää liitteiden
+    // näyttämisen koodia.
+    if( status != QPdfDocument::Status::Ready || naytettavaIndeksi_ != pdfTuontiIndeksi_)
+        return;
+
+    const int indeksi = pdfTuontiIndeksi_;
+    pdfTuontiIndeksi_ = -1;
+    QTimer::singleShot(0, this, [this, indeksi] { this->teePdfTuonti(indeksi); });
+}
+
+void LiitteetModel::teePdfTuonti(int indeksi)
+{
+    // Näytettävä liite on voinut vaihtua odottaessa
+    if( naytettavaIndeksi_ != indeksi ||
+        pdfDoc_->status() != QPdfDocument::Status::Ready)
+        return;
+
+    Tuonti::PdfTiedosto pdfTuonti(pdfDoc_);
 //        qDebug() << "Luettu " << QDateTime::currentDateTime().toString("hh:mm:ss.zzz");
-        QVariantMap tuotu = pdfTuonti.tuo( kp()->tuontiInfo() );
+    QVariantMap tuotu = pdfTuonti.tuo( kp()->tuontiInfo() );
 //        qDebug() << "Tuotu: " << QDateTime::currentDateTime().toString("hh:mm:ss.zzz");
-        pdfTuontiIndeksi_ = -1;
-        if( tuotu.value("tyyppi").toInt() == TositeTyyppi::TILIOTE) {
-            KpKysely *kysely = kpk("/tuontitulkki", KpKysely::POST);
-            connect( kysely, &KpKysely::vastaus, this, [this] (QVariant* var) { emit this->tuonti(var->toMap()); });
-            kysely->kysy(tuotu);
-        } else {
-            emit this->tuonti( tuotu);
-        }
+    if( tuotu.value("tyyppi").toInt() == TositeTyyppi::TILIOTE) {
+        KpKysely *kysely = kpk("/tuontitulkki", KpKysely::POST);
+        connect( kysely, &KpKysely::vastaus, this, [this] (QVariant* var) { emit this->tuonti(var->toMap()); });
+        kysely->kysy(tuotu);
+    } else {
+        emit this->tuonti( tuotu);
     }
 }
 

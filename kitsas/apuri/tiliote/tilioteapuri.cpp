@@ -209,7 +209,8 @@ void TilioteApuri::teeReset()
     if( tosite()->viennit()->tallennettavat().empty())
         lisaaRivi();
 
-    qApp->processEvents();
+    // Ei processEvents: tyyppi voi vaihtua / apuri tuhoutua tallennuksen
+    // jälkeen kesken sisäkkäisen silmukan (#1368 / #1446).
     QTimer::singleShot(50, this, &TilioteApuri::lataaHarmaat);
 }
 
@@ -320,8 +321,6 @@ void TilioteApuri::naytaTosite()
         // Varmistetaan, että oletustili yms tulee käyttöön
         if( sivu->kirjausWg()->apuri())
             sivu->kirjausWg()->apuri()->tositteelle();
-
-        qApp->processEvents();
 
         connect( sivu->kirjausWg()->tosite(), &Tosite::talletettu, this, &TilioteApuri::lataaHarmaat);
     }

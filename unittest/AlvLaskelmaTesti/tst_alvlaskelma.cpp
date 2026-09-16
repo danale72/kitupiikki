@@ -16,6 +16,8 @@
 */
 #include <QtTest>
 #include <QFile>
+#include <QDir>
+#include <QUuid>
 #include <QJsonDocument>
 #include <QApplication>
 #include <QJsonDocument>
@@ -56,6 +58,7 @@ private slots:
 
 
 protected:
+    QString kitsasTiedosto_;
 
 
 };
@@ -69,7 +72,8 @@ AlvLaskelmaTest::~AlvLaskelmaTest()
 }
 
 void AlvLaskelmaTest::initTestCase() {
-    char *argv[] = {"Test"};
+    static char appName[] = "Test";
+    static char *argv[] {appName, nullptr};
     int argc = 1;
     new QApplication(argc, argv);
     Kielet::alustaKielet(":/tr/tulkki.json");
@@ -78,12 +82,16 @@ void AlvLaskelmaTest::initTestCase() {
 
 void AlvLaskelmaTest::init()
 {
-    const QString FILE = "/tmp/alv_laskelma_testi_1.kitsas";
+    kitsasTiedosto_ = QDir::temp().absoluteFilePath(
+        QStringLiteral("alv_laskelma_testi_%1.kitsas")
+            .arg(QUuid::createUuid().toString(QUuid::WithoutBraces)));
 
-    QFile::remove(FILE);
-    QFile::copy(":/testidata/oy.kitsas",FILE);
-    QFile::setPermissions(FILE, QFileDevice::WriteUser | QFileDevice::ReadUser );
-    kp()->avaaTietokanta("/tmp/alv_laskelma_testi_1.kitsas");
+    QFile::remove(kitsasTiedosto_);
+    QVERIFY(QFile::copy(":/testidata/oy.kitsas", kitsasTiedosto_));
+    QVERIFY(QFile::setPermissions(kitsasTiedosto_, QFileDevice::WriteUser | QFileDevice::ReadUser));
+    QVERIFY(kp()->avaaTietokanta(kitsasTiedosto_, false));
+    kp()->asetukset()->aseta("Harjoitus", true);
+    kp()->asetaHarjoitteluPvm(QDate(2020, 1, 31));
 }
 
 void AlvLaskelmaTest::bruttoMyynti()
@@ -123,11 +131,16 @@ void AlvLaskelmaTest::bruttoMyynti()
     QCOMPARE( laskelma.koodattu_.value(308).cents(), 2400);
     QCOMPARE( laskelma.maksettava().cents(), 2400);
 
-    laskelma.tallenna();
+    laskelma.kirjoitaLaskelma();
+    laskelma.kirjaaVerot();
+    laskelma.valmisteleTosite();
+    QSignalSpy tallennettu(laskelma.tosite_, &Tosite::talletettu);
+    laskelma.tosite_->tallenna();
+    QTRY_VERIFY_WITH_TIMEOUT(tallennettu.count() > 0, 5000);
     kp()->tilit()->haeSaldot();
 
-    QCOMPARE( kp()->tilit()->saldo(3000), 100.0);
-    QCOMPARE( kp()->tilit()->saldo(2920), 24.0);
+    QTRY_COMPARE(kp()->tilit()->saldo(3000), 100.0);
+    QTRY_COMPARE(kp()->tilit()->saldo(2920), 24.0);
 
 }
 
@@ -167,11 +180,16 @@ void AlvLaskelmaTest::bruttoOsto()
     QCOMPARE( laskelma.koodattu_.value(308).cents(), -2400);
     QCOMPARE( laskelma.maksettava().cents(), -2400);
 
-    laskelma.tallenna();
+    laskelma.kirjoitaLaskelma();
+    laskelma.kirjaaVerot();
+    laskelma.valmisteleTosite();
+    QSignalSpy tallennettu(laskelma.tosite_, &Tosite::talletettu);
+    laskelma.tosite_->tallenna();
+    QTRY_VERIFY_WITH_TIMEOUT(tallennettu.count() > 0, 5000);
     kp()->tilit()->haeSaldot();
 
-    QCOMPARE(kp()->tilit()->saldo(4000), -100.0);
-    QCOMPARE( kp()->tilit()->saldo(2920), -24.0);
+    QTRY_COMPARE(kp()->tilit()->saldo(4000), -100.0);
+    QTRY_COMPARE(kp()->tilit()->saldo(2920), -24.0);
 }
 
 void AlvLaskelmaTest::nettoMyynti() {
@@ -219,12 +237,17 @@ void AlvLaskelmaTest::nettoMyynti() {
     QCOMPARE( laskelma.koodattu_.value(308).cents(), 2400);
     QCOMPARE( laskelma.maksettava().cents(), 2400);
 
-    laskelma.tallenna();
+    laskelma.kirjoitaLaskelma();
+    laskelma.kirjaaVerot();
+    laskelma.valmisteleTosite();
+    QSignalSpy tallennettu(laskelma.tosite_, &Tosite::talletettu);
+    laskelma.tosite_->tallenna();
+    QTRY_VERIFY_WITH_TIMEOUT(tallennettu.count() > 0, 5000);
     kp()->tilit()->haeSaldot();
 
-    QCOMPARE( kp()->tilit()->saldo(3000), 100.0);
-    QCOMPARE( kp()->tilit()->saldo(2939), 0.0);
-    QCOMPARE( kp()->tilit()->saldo(2920), 24.0);
+    QTRY_COMPARE(kp()->tilit()->saldo(3000), 100.0);
+    QTRY_COMPARE(kp()->tilit()->saldo(2939), 0.0);
+    QTRY_COMPARE(kp()->tilit()->saldo(2920), 24.0);
 
 }
 
@@ -273,12 +296,17 @@ void AlvLaskelmaTest::nettoOsto() {
     QCOMPARE( laskelma.koodattu_.value(308).cents(), -2400);
     QCOMPARE( laskelma.maksettava().cents(), -2400);
 
-    laskelma.tallenna();
+    laskelma.kirjoitaLaskelma();
+    laskelma.kirjaaVerot();
+    laskelma.valmisteleTosite();
+    QSignalSpy tallennettu(laskelma.tosite_, &Tosite::talletettu);
+    laskelma.tosite_->tallenna();
+    QTRY_VERIFY_WITH_TIMEOUT(tallennettu.count() > 0, 5000);
     kp()->tilit()->haeSaldot();
 
-    QCOMPARE( kp()->tilit()->saldo(4000), -100.0);
-    QCOMPARE( kp()->tilit()->saldo(1763), 0.0);
-    QCOMPARE( kp()->tilit()->saldo(2920), -24.0);
+    QTRY_COMPARE(kp()->tilit()->saldo(4000), -100.0);
+    QTRY_COMPARE(kp()->tilit()->saldo(1763), 0.0);
+    QTRY_COMPARE(kp()->tilit()->saldo(2920), -24.0);
 
 }
 
@@ -335,6 +363,8 @@ void AlvLaskelmaTest::suhteutuskuukaudet() {
 void AlvLaskelmaTest::cleanup()
 {
     kp()->sqlite()->sulje();
+    if (!kitsasTiedosto_.isEmpty())
+        QFile::remove(kitsasTiedosto_);
 }
 
 QTEST_APPLESS_MAIN(AlvLaskelmaTest)

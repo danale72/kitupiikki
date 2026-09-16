@@ -41,6 +41,7 @@
 
 #include <QTabWidget>
 #include <QSplitter>
+#include <QScopedPointer>
 
 
 TulomenoApuriTesti::TulomenoApuriTesti(QObject *parent) : QObject(parent)
@@ -230,7 +231,7 @@ void TulomenoApuriTesti::yksinkertainenTulotosite()
     Tosite tosite;
     tosite.lataaData( &var);
 
-    TuloMenoApuri* apuri = new TuloMenoApuri(nullptr, &tosite);
+    QScopedPointer<TuloMenoApuri> apuri(new TuloMenoApuri(nullptr, &tosite));
 
     apuri->reset();
 
@@ -248,26 +249,27 @@ void TulomenoApuriTesti::verollinenTulotosite()
     Tosite tosite;
     tosite.lataaData( &verollinenTuloTosite_);
 
-    TuloMenoApuri* apuri = new TuloMenoApuri(nullptr, &tosite);
+    QScopedPointer<TuloMenoApuri> apuri(new TuloMenoApuri(nullptr, &tosite));
 
     apuri->reset();
 
     TilinvalintaLine *tiliEdit = apuri->findChild<TilinvalintaLine*>("tiliEdit");
     KpEuroEdit *maaraEdit = apuri->findChild<KpEuroEdit*>("maaraEdit");
     KpEuroEdit *verotonEdit = apuri->findChild<KpEuroEdit*>("verotonEdit");
-    QDoubleSpinBox *alvSpin = apuri->findChild<QDoubleSpinBox*>("alvSpin");
+    QComboBox *alvProssa = apuri->findChild<QComboBox*>("alvProssa");
     QComboBox *alvCombo = apuri->findChild<QComboBox*>("alvCombo");
 
     QCOMPARE( tiliEdit->valittuTilinumero(), 7390);
     QCOMPARE( maaraEdit->asCents(), 12400);
     QCOMPARE( verotonEdit->asCents(), 10000 );
-    QCOMPARE( alvSpin->value(), 24.00);
+    QVERIFY(alvProssa);
+    QVERIFY(alvProssa->currentText().startsWith(QStringLiteral("24")));
     QCOMPARE( alvCombo->currentData(VerotyyppiModel::KoodiRooli).toInt(), AlvKoodi::MYYNNIT_NETTO);
 }
 
 void TulomenoApuriTesti::verollinenTuloKirjausWglla()
 {
-    KirjausWg* kwg = new KirjausWg();
+    QScopedPointer<KirjausWg> kwg(new KirjausWg());
 
     kwg->tosite()->lataaData( &verollinenTuloTosite_ );
 
@@ -282,13 +284,14 @@ void TulomenoApuriTesti::verollinenTuloKirjausWglla()
     TilinvalintaLine *tiliEdit = apuri->findChild<TilinvalintaLine*>("tiliEdit");
     KpEuroEdit *maaraEdit = apuri->findChild<KpEuroEdit*>("maaraEdit");
     KpEuroEdit *verotonEdit = apuri->findChild<KpEuroEdit*>("verotonEdit");
-    QDoubleSpinBox *alvSpin = apuri->findChild<QDoubleSpinBox*>("alvSpin");
+    QComboBox *alvProssa = apuri->findChild<QComboBox*>("alvProssa");
     QComboBox *alvCombo = apuri->findChild<QComboBox*>("alvCombo");
 
     QCOMPARE( tiliEdit->valittuTilinumero(), 7390);
     QCOMPARE( maaraEdit->asCents(), 12400);
     QCOMPARE( verotonEdit->asCents(), 10000 );
-    QCOMPARE( alvSpin->value(), 24.00);
+    QVERIFY(alvProssa);
+    QVERIFY(alvProssa->currentText().startsWith(QStringLiteral("24")));
     QCOMPARE( alvCombo->currentData(VerotyyppiModel::KoodiRooli).toInt(), AlvKoodi::MYYNNIT_NETTO);
 
 
@@ -296,7 +299,7 @@ void TulomenoApuriTesti::verollinenTuloKirjausWglla()
 
 void TulomenoApuriTesti::verollinenTuloKirjausSivulla()
 {
-    KirjausSivu* sivu = new KirjausSivu(nullptr, nullptr);
+    QScopedPointer<KirjausSivu> sivu(new KirjausSivu(nullptr));
 
     KirjausWg *kwg = sivu->findChild<KirjausWg*>("kirjausWg");
     QVERIFY( kwg != nullptr);
@@ -314,13 +317,14 @@ void TulomenoApuriTesti::verollinenTuloKirjausSivulla()
     TilinvalintaLine *tiliEdit = apuri->findChild<TilinvalintaLine*>("tiliEdit");
     KpEuroEdit *maaraEdit = apuri->findChild<KpEuroEdit*>("maaraEdit");
     KpEuroEdit *verotonEdit = apuri->findChild<KpEuroEdit*>("verotonEdit");
-    QDoubleSpinBox *alvSpin = apuri->findChild<QDoubleSpinBox*>("alvSpin");
+    QComboBox *alvProssa = apuri->findChild<QComboBox*>("alvProssa");
     QComboBox *alvCombo = apuri->findChild<QComboBox*>("alvCombo");
 
     QCOMPARE( tiliEdit->valittuTilinumero(), 7390);
     QCOMPARE( maaraEdit->asCents(), 12400);
     QCOMPARE( verotonEdit->asCents(), 10000 );
-    QCOMPARE( alvSpin->value(), 24.00);
+    QVERIFY(alvProssa);
+    QVERIFY(alvProssa->currentText().startsWith(QStringLiteral("24")));
     QCOMPARE( alvCombo->currentData(VerotyyppiModel::KoodiRooli).toInt(), AlvKoodi::MYYNNIT_NETTO);
 
 
@@ -328,7 +332,7 @@ void TulomenoApuriTesti::verollinenTuloKirjausSivulla()
 
 void TulomenoApuriTesti::menonMuodostusTesti()
 {
-    KirjausSivu* sivu = new KirjausSivu(nullptr, nullptr);
+    QScopedPointer<KirjausSivu> sivu(new KirjausSivu(nullptr));
     sivu->show();
 
     KirjausWg *kwg = sivu->findChild<KirjausWg*>("kirjausWg");
@@ -385,13 +389,10 @@ void TulomenoApuriTesti::menonMuodostusTesti()
 
 void TulomenoApuriTesti::kateisSarjaan()
 {
-    KirjausSivu* sivu = new KirjausSivu(nullptr, nullptr);
+    QScopedPointer<KirjausSivu> sivu(new KirjausSivu(nullptr));
     sivu->show();
 
     KirjausWg *kwg = sivu->findChild<KirjausWg*>("kirjausWg");
-    QLineEdit* sarjaEdit = sivu->findChild<QLineEdit*>("sarjaEdit");
-    QVERIFY(sarjaEdit->isVisible());
-
     QComboBox *tositetyyppiCombo = kwg->findChild<QComboBox*>("tositetyyppiCombo");
     tositetyyppiCombo->setCurrentText("Meno");
 
@@ -400,11 +401,10 @@ void TulomenoApuriTesti::kateisSarjaan()
     QVERIFY( apuri  != nullptr );
 
     QComboBox *maksutapaCombo = kwg->findChild<QComboBox*>("maksutapaCombo");
+    QVERIFY(maksutapaCombo);
     maksutapaCombo->setCurrentText("Käteinen");
 
-    // QTest::qWait(2000);
-
-    QCOMPARE(sarjaEdit->text(),"K");
+    QCOMPARE(kwg->tosite()->sarja(), QStringLiteral("K"));
 
 }
 

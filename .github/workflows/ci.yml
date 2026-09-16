@@ -20,6 +20,9 @@ jobs:
             qt6-base-dev-tools \
             libgl-dev
 
+      # Lightweight Qt-base-only tests. App-linked regressions that need
+      # webengine/pdf/core5compat/libzip live in jobs: db-parity, tiliote-uaf
+      # (unittest/TilioteUafTesti — not runnable with qt6-base-dev alone).
       - name: Build and run unit tests
         env:
           QT_QPA_PLATFORM: offscreen
@@ -117,6 +120,58 @@ jobs:
           qmake ../../unittest/dbparity/dbparity.pro -spec linux-g++ "CONFIG+=release"
           make -j"$(nproc)"
           ./dbparity
+
+  # App-linked regression for #1368 / PR #1446 (TilioteKirjaaja UAF on Sulje).
+  # Needs full Qt modules via apptest.pri — same stack as dbparity/build.
+  tiliote-uaf:
+    name: Tiliote UAF regression
+    runs-on: ubuntu-24.04
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            libzip-dev \
+            libgl-dev \
+            libxkbcommon-x11-0 \
+            libxcb-cursor0 \
+            libxcb-icccm4 \
+            libxcb-image0 \
+            libxcb-keysyms1 \
+            libxcb-randr0 \
+            libxcb-render-util0 \
+            libxcb-shape0 \
+            libxcb-xinerama0 \
+            libnss3 \
+            libnspr4 \
+            libdbus-1-3 \
+            libasound2t64
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.7.3"
+          cache: true
+          modules: >-
+            qtwebengine
+            qtwebchannel
+            qtpositioning
+            qt5compat
+            qtpdf
+
+      - name: Build and run TilioteUafTesti
+        run: |
+          set -euo pipefail
+          mkdir -p build-tests/TilioteUafTesti
+          cd build-tests/TilioteUafTesti
+          qmake ../../unittest/TilioteUafTesti/TilioteUafTesti.pro -spec linux-g++ "CONFIG+=release"
+          make -j"$(nproc)"
+          ./TilioteUafTesti
 
   build:
     name: Build Kitsas

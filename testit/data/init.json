@@ -2,6 +2,7 @@
     "asetukset": {
         "AlvIlmoitus": "2018-12-31",
         "AlvKausi": "1.0",
+        "AlvVelvollinen": "1",
         "Harjoitus": "1",
         "KitsasVersio": "2.0",
         "Kotipaikka": "Testilä",

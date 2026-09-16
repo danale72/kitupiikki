@@ -6,6 +6,7 @@
 
 class KitsasInterface;
 class CacheLiite;
+class TilioteUafTesti;
 
 class LiiteCache : public QObject
 {
@@ -21,6 +22,7 @@ public:
     void tyhjenna();
     void lisaaTallennettu(int liiteId, CacheLiite* liite);
     void poistaPoistettu(int liiteId);
+    int maara() const { return liitteet_.size(); }
 
 signals:
     void liiteHaettu(int liiteId);
@@ -44,6 +46,8 @@ protected:
     qsizetype koko_ = 0L;
 
     qsizetype rajaKoko_ = 1024L * 1024L * 80L; // 80 Mt
+
+    friend class TilioteUafTesti;
 
 };
 

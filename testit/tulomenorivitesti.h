@@ -26,6 +26,7 @@ public:
     explicit TuloMenoRiviTesti(QObject *parent = nullptr);
 
 private slots:
+    void initTestCase();
     void kotimaaAlvLaskenta();
     void brutostaNetto();
     void verottomanRiviLuku();

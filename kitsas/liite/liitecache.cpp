@@ -3,6 +3,8 @@
 #include "cacheliite.h"
 #include <QVariant>
 #include <QJsonDocument>
+#include <QSet>
+#include <utility>
 
 #include "db/kitsasinterface.h"
 #include "db/yhteysmodel.h"
@@ -174,13 +176,19 @@ void LiiteCache::karkeen(CacheLiite *liite)
 
 void LiiteCache::tyhjenna()
 {
-    QHashIterator<int, CacheLiite*> iter(liitteet_);
-    while(iter.hasNext()) {
-        iter.next();
-        if( iter.value()->lukossa()) {
-            iter.value()->setTila(CacheLiite::KELVOTON);
+    QSet<CacheLiite*> uniikit;
+    for (CacheLiite *liite : std::as_const(liitteet_)) {
+        if (liite)
+            uniikit.insert(liite);
+    }
+
+    for (CacheLiite *liite : uniikit) {
+        liite->asetaEdellinen(nullptr);
+        liite->asetaSeuraava(nullptr);
+        if (liite->lukossa()) {
+            liite->setTila(CacheLiite::KELVOTON);
         } else {
-            delete iter.value();
+            delete liite;
         }
     }
     liitteet_.clear();
@@ -191,6 +199,17 @@ void LiiteCache::tyhjenna()
 
 void LiiteCache::lisaaTallennettu(int liiteId, CacheLiite *liite)
 {
+    if (!liite)
+        return;
+
+    auto iter = liitteet_.begin();
+    while (iter != liitteet_.end()) {
+        if (iter.value() == liite && iter.key() != liiteId)
+            iter = liitteet_.erase(iter);
+        else
+            ++iter;
+    }
+
     liitteet_.insert(liiteId, liite);
     karkeen( liite );
 }

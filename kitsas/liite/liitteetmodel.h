@@ -65,7 +65,17 @@ protected:
     void valimuistiLiite(int liiteId);
     void naytaKayttajalle();
 
+    /**
+     * @brief Irrottaa pdf-dokumentin näytetyn liitteen tavuista
+     *
+     * QPdfDocument lukee puskuria laiskasti, ja puskuri osoittaa suoraan
+     * välimuistiliitteen tavuihin. Dokumentti on siksi suljettava aina ennen
+     * kuin näytettävä liite vaihtuu tai liitteen data vapautuu (#1446).
+     */
+    void suljePdf();
+
     void pdfTilaVaihtui(QPdfDocument::Status status);
+    void teePdfTuonti(int indeksi);
     void tuoLiite(const QString &tyyppi, const QByteArray &sisalto);
 
     void tarkastaKaikkiLiitteet();

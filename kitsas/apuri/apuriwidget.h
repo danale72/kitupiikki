@@ -37,6 +37,14 @@ public:
     bool resetoidaanko() const;
     void asetaViennit(const QVariantList& viennit);
 
+    /**
+     * @brief Poistaa apurin käytöstä ja tuhoaa sen tapahtumasilmukan kautta
+     *
+     * Apuria ei saa tuhota suoralla delete-kutsulla, koska apurin oma koodi
+     * voi olla vielä kutsupinossa, kun tositetyyppi vaihtuu (#1368).
+     */
+    void vanhene();
+
 public slots:
     virtual void reset();
     virtual bool tositteelle();

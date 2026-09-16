@@ -31,5 +31,6 @@ void TestiApu::alustaKirjanpito()
     QVariant map = QJsonDocument::fromJson(ba).toVariant();
 
     kp()->sqlite()->lataaInit( &map );
+    kp()->asetaHarjoitteluPvm(QDate(2019, 3, 15));
 
 }

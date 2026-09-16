@@ -21,8 +21,10 @@
 #include <QWidget>
 #include <QSortFilterProxyModel>
 #include <QInputDialog>
+#include <QPointer>
 
 #include "model/tosite.h"
+#include "apuri/apuriwidget.h"
 #include "ui_kirjaus.h"
 
 
@@ -31,7 +33,6 @@ class QAction;
 class SelausWg;
 
 class Tosite;
-class ApuriWidget;
 class KiertoWidget;
 class KommentitWidget;
 class TallennettuWidget;
@@ -87,6 +88,11 @@ private slots:
 
     void vaihdaTositeTyyppi();
     void tositeTyyppiVaihtui(int tyyppiKoodi);
+
+    /** Irrottaa nykyisen apurin välilehdiltä ja vanhentaa sen */
+    void irrotaApuri();
+    /** Ottaa uuden apurin (tai nullptr) käyttöön omalla välilehdellään */
+    void asennaApuri(ApuriWidget* uusi);
 
     void tunnisteVaihtui(int tunniste);
 
@@ -188,7 +194,9 @@ protected:
     QSortFilterProxyModel *tyyppiProxy_;
 
     Tosite* tosite_;
-    ApuriWidget* apuri_;
+    /* QPointer nollautuu itsestään, kun viivästetty tuhoaminen
+     * (ApuriWidget::vanhene) toteutuu, joten apuri_-tarkastukset pitävät. */
+    QPointer<ApuriWidget> apuri_;
 
     QWidget* viennitTab_;
     QWidget* memoTab_;

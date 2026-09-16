@@ -60,6 +60,7 @@ protected:
     QString polku_;
     LiiteTila tila_ = HAETAAN;
     CacheLiite* cache_ = nullptr;
+    bool pyyntoKaynnissa_ = false;
 };
 
 #endif // LIITE_H

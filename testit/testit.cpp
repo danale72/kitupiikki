@@ -1,5 +1,6 @@
 #include <QTest>
 #include <QApplication>
+#include <QFileInfo>
 
 #include <map>
 #include <memory>
@@ -26,7 +27,7 @@ int main(int argc, char *argv[])
 
 
     // Mahdollisuus testin valintaan
-    if( arguments.size() > 3 && arguments[1] == "-select") {
+    if( arguments.size() >= 3 && arguments[1] == "-select") {
 
         QString testname = arguments.at(2);
         auto iter = tests.begin();
@@ -43,7 +44,19 @@ int main(int argc, char *argv[])
 
   int status = 0;
   for( auto& test : tests) {
-      status |= QTest::qExec( test.second.get(), arguments );
+      QStringList args = arguments;
+      for (int i = 0; i + 1 < args.size(); ++i) {
+          if (args.at(i) == "-o") {
+              const QStringList osat = args.at(i + 1).split(',');
+              const QFileInfo info(osat.value(0));
+              QString uniq = info.dir().filePath(test.first + "-" + info.fileName());
+              if (osat.size() > 1)
+                  uniq += "," + osat.mid(1).join(',');
+              args[i + 1] = uniq;
+              break;
+          }
+      }
+      status |= QTest::qExec( test.second.get(), args );
   }
 
   return status;

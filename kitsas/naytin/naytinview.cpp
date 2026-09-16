@@ -451,7 +451,11 @@ void NaytinView::vaihdaNaytin(Naytin::AbstraktiNaytin *naytin)
         connect( naytin, &Naytin::AbstraktiNaytin::eiSisaltoa, this, &NaytinView::eiSisaltoa);
     }
 
-    qApp->processEvents();
+    // Ei processEvents: sen aikana ehtii tulla uusi näyttimen vaihto, joka
+    // tuhoaa juuri asennetun näyttimen kutsupinon alta (#1446). Leiskan
+    // aktivointi riittää antamaan widgetille koon esim. zoomFit-kutsulle
+    // suorittamatta muita tapahtumia.
+    leiska_->activate();
 
     emit sisaltoVaihtunut();
 }

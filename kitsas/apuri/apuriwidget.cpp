@@ -17,6 +17,7 @@
 #include "apuriwidget.h"
 #include "model/tosite.h"
 #include <QDebug>
+#include <QDialog>
 #include "model/tositeviennit.h"
 
 ApuriWidget::ApuriWidget(QWidget *parent, Tosite *pTosite) : QWidget(parent), pTosite_(pTosite)
@@ -58,6 +59,27 @@ bool ApuriWidget::resetoidaanko() const
 {
     return resetointiKaynnissa_ ||
             pTosite_->resetoidaanko();
+}
+
+void ApuriWidget::vanhene()
+{
+    // Estää tositteelle()-kirjoitukset, kunnes deleteLater toteutuu
+    resetointiKaynnissa_ = true;
+    hide();
+    disconnect();                   // apurin lähettämät signaalit
+    if (pTosite_)
+        pTosite_->disconnect(this);
+
+    // Qt 6 ei salli nullptr-jokeria disconnectissa; katkaistaan
+    // lapsi→apuri (TilioteKirjaaja::rejected, malli, UI, KpKysely).
+    const auto lapset = findChildren<QObject *>();
+    for (QObject *lapsi : lapset)
+        lapsi->disconnect(this);
+
+    for (QDialog *d : findChildren<QDialog *>())
+        d->hide();
+
+    deleteLater();
 }
 
 void ApuriWidget::asetaViennit(const QVariantList &viennit)

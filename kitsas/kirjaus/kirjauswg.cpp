@@ -413,10 +413,7 @@ void KirjausWg::pohjaksi()
     ui.pvmEdit->setDate(kp()->paivamaara());
     ui.otsikkoEdit->setText(tosite()->otsikko());
     if( dlg.exec() == QDialog::Accepted) {
-        if( apuri_) {
-            delete apuri_;
-            apuri_ = 0;
-        }
+        irrotaApuri();
         tosite_->pohjaksi( ui.pvmEdit->date(), ui.otsikkoEdit->text(), ui.sailytaErat->isChecked() );
         tositeTyyppiVaihtui( tosite()->tyyppi() );
         tosite()->tarkasta();
@@ -928,12 +925,7 @@ void KirjausWg::vaihdaTositeTyyppi()
 void KirjausWg::tositeTyyppiVaihtui(int tyyppiKoodi)
 {
     // Tässä voisi laittaa muutenkin apurit paikalleen
-    if( apuri_ )
-    {
-        ui->tabWidget->removeTab( ui->tabWidget->indexOf( apuri_) );
-        delete apuri_;
-    }
-    apuri_ = nullptr;
+    irrotaApuri();
 
     // Liitetiedoilla ei ole vientejä
     ui->tabWidget->setTabEnabled( ui->tabWidget->indexOf(viennitTab_) , tyyppiKoodi != TositeTyyppi::LIITETIETO);
@@ -941,16 +933,17 @@ void KirjausWg::tositeTyyppiVaihtui(int tyyppiKoodi)
     // Varasto ei toistaiseksi käytössä
     // ui->tabWidget->setTabEnabled( ui->tabWidget->indexOf(varastoTab_), false);
 
+    ApuriWidget* uusiApuri = nullptr;
     if( tyyppiKoodi == TositeTyyppi::TULO || tyyppiKoodi == TositeTyyppi::MENO
             || tyyppiKoodi == TositeTyyppi::KULULASKU || tyyppiKoodi == TositeTyyppi::SAAPUNUTVERKKOLASKU)
     {
-        apuri_ = new TuloMenoApuri(this, tosite_);
+        uusiApuri = new TuloMenoApuri(this, tosite_);
     } else if( tyyppiKoodi == TositeTyyppi::SIIRTO) {
-        apuri_ = new SiirtoApuri(this, tosite_);
+        uusiApuri = new SiirtoApuri(this, tosite_);
     } else if( tyyppiKoodi == TositeTyyppi::TILIOTE ) {
-        apuri_ = new TilioteApuri(this, tosite_);
+        uusiApuri = new TilioteApuri(this, tosite_);
     } else if( tyyppiKoodi == TositeTyyppi::PALKKA) {
-        apuri_ = new PalkkaApuri(this, tosite_);
+        uusiApuri = new PalkkaApuri(this, tosite_);
     }
 
     bool lisattavatyyppi = kp()->tositeTyypit()->onkolisattavissa(tyyppiKoodi);
@@ -963,12 +956,7 @@ void KirjausWg::tositeTyyppiVaihtui(int tyyppiKoodi)
 
     paivitaSarja();
 
-    if( apuri_)
-    {
-        ui->tabWidget->insertTab(0, apuri_, QIcon(":/pic/apuri64.png"), tr("Kirjaa"));
-        ui->tabWidget->setCurrentIndex(0);
-        apuri_->reset();                
-    }
+    asennaApuri( uusiApuri );
 
     if( tyyppiKoodi == TositeTyyppi::LIITETIETO)
         ui->tabWidget->setCurrentIndex(1);
@@ -980,6 +968,25 @@ void KirjausWg::tositeTyyppiVaihtui(int tyyppiKoodi)
 
     if( ui->otsikkoEdit->text().startsWith("Tiliote") && tyyppiKoodi != TositeTyyppi::TILIOTE && !tosite()->resetoidaanko())
         ui->otsikkoEdit->clear();
+}
+
+void KirjausWg::irrotaApuri()
+{
+    if( apuri_ ) {
+        ui->tabWidget->removeTab( ui->tabWidget->indexOf( apuri_ ) );
+        apuri_->vanhene();
+        apuri_ = nullptr;
+    }
+}
+
+void KirjausWg::asennaApuri(ApuriWidget *uusi)
+{
+    apuri_ = uusi;
+    if( apuri_ ) {
+        ui->tabWidget->insertTab(0, apuri_, QIcon(":/pic/apuri64.png"), tr("Kirjaa"));
+        ui->tabWidget->setCurrentIndex(0);
+        apuri_->reset();
+    }
 }
 
 void KirjausWg::tunnisteVaihtui(int tunniste)

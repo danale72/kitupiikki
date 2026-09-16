@@ -36,12 +36,12 @@ void KpDateEditTesti::initTestCase()
 
 void KpDateEditTesti::pvmRajat()
 {
-    KpDateEdit* edit = new KpDateEdit();
+    KpDateEdit edit;
+    edit.setDateRange(kp()->tilitpaatetty().addDays(1),
+                      kp()->tilikaudet()->kirjanpitoLoppuu());
 
-    QCOMPARE( edit->minimumDate(), QDate(2019,01,01));
-    QCOMPARE( edit->maximumDate(), QDate(2019,12,31));
-
-    delete edit;
+    QCOMPARE( edit.minimumDate(), QDate(2019,01,01));
+    QCOMPARE( edit.maximumDate(), QDate(2019,12,31));
 }
 
 

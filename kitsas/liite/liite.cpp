@@ -93,6 +93,10 @@ QByteArray *Liite::dataPtr() const
 
 void Liite::liita(bool ocr)
 {
+    if (pyyntoKaynnissa_ || tila_ == LIITETAAN || tila_ == LIITETTY)
+        return;
+
+    pyyntoKaynnissa_ = true;
     vaihdaTila(LIITETAAN);
     KpKysely* liitekysely = kpk("/liitteet", KpKysely::POST);
 
@@ -110,6 +114,10 @@ void Liite::liita(bool ocr)
 
 void Liite::tallenna(int tositeId)
 {
+    if (pyyntoKaynnissa_ || tila_ != TALLENNETTAVA)
+        return;
+
+    pyyntoKaynnissa_ = true;
     KpKysely* liitekysely = rooli().isEmpty() ?
                 kpk(QString("/liitteet/%1").arg(tositeId), KpKysely::POST) :
                 kpk(QString("/liitteet/%1/%2").arg(tositeId).arg(rooli()), KpKysely::PUT);
@@ -156,6 +164,7 @@ void Liite::poistaInboxistaLisattyTiedosto(const QString& siirtokansio)
 
 void Liite::liitetty(const QVariant &reply, int lisattyId)
 {
+    pyyntoKaynnissa_ = false;
     liiteId_ = lisattyId;
     vaihdaTila(LIITETTY);
 
@@ -168,6 +177,7 @@ void Liite::liitetty(const QVariant &reply, int lisattyId)
 
 void Liite::tallennettu(const QVariant *data)
 {
+    pyyntoKaynnissa_ = false;
     QVariantMap map = data->toMap();
 
     liiteId_ = map.value("liiteId").toInt();
@@ -180,6 +190,7 @@ void Liite::tallennettu(const QVariant *data)
 
 void Liite::tallennusVirhe(int virhe, const QString selitys)
 {
+    pyyntoKaynnissa_ = false;
     QMessageBox::critical(nullptr, tr("Liitteen tallentaminen epäonnistui"),
                                    tr("Liitteen tallentamisessa tapahtui virhe %1 : %2")
                           .arg(virhe).arg(selitys));
