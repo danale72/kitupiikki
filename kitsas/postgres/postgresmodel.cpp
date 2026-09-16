@@ -263,7 +263,53 @@ bool PostgresModel::luoTietokanta(const PostgresYhteys &palvelin, const QString 
         return false;
 
     QSqlQuery query(hallinta);
-    const bool ok = query.exec(QStringLiteral("CREATE DATABASE %1 ENCODING 'UTF8'").arg(tietokanta));
+    bool ok = query.exec(QStringLiteral("CREATE DATABASE %1 ENCODING 'UTF8'").arg(tietokanta));
+
+    // 42P04 = duplicate_database. Tähän nimeen voi jo osua tietokanta, joka on jäänne
+    // aiemmasta luonti- tai SQLite-tuontiyrityksestä, joka ei ehtinyt (esim. ohjelman
+    // kaatuminen) tai onnistunut peruuttamaan itseään - tuoSqlitesta() pudottaa kannan
+    // virhetilanteessa, mutta pudotus voi itsekin epäonnistua tai jäädä kokonaan
+    // suorittamatta. Erotetaan siis "nimi on jo käytössä oikealla kirjanpidolla" siitä,
+    // että kannassa ei ole valmista Kitsaan kaaviota - jälkimmäisessä tapauksessa
+    // tarjotaan jäänteen poistoa ja luontia uudelleen, ettei käyttäjä jää jumiin.
+    if( !ok && query.lastError().nativeErrorCode() == QStringLiteral("42P04") ) {
+        hallinta.close();
+
+        if( onkoKitsasTietokanta(palvelin.asiakasYhteys(tietokanta)) ) {
+            if( ilmoitaVirheesta )
+                QMessageBox::critical(nullptr, tr("Uusi asiakas"),
+                                      tr("Tietokanta %1 on jo olemassa.").arg(tietokanta));
+            return false;
+        }
+
+        if( !ilmoitaVirheesta )
+            return false;
+
+        const auto vastaus = QMessageBox::question(nullptr, tr("Uusi asiakas"),
+            tr("Tietokanta %1 on jo olemassa, mutta siinä ei ole valmista Kitsaan kirjanpitoa. "
+               "Kyseessä on todennäköisesti jäänne aiemmasta keskeytyneestä luonti- tai "
+               "tuontiyrityksestä.\n\nPoistetaanko se ja luodaan uudelleen?").arg(tietokanta),
+            QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+        if( vastaus != QMessageBox::Yes )
+            return false;
+
+        if( !pudotaTietokanta(palvelin, tietokanta, ilmoitaVirheesta) )
+            return false;
+
+        hallinta = avaaHallinta(palvelin, ilmoitaVirheesta);
+        if( !hallinta.isOpen())
+            return false;
+
+        QSqlQuery uudelleen(hallinta);
+        ok = uudelleen.exec(QStringLiteral("CREATE DATABASE %1 ENCODING 'UTF8'").arg(tietokanta));
+        if( !ok && ilmoitaVirheesta )
+            QMessageBox::critical(nullptr, tr("Uusi asiakas"),
+                                  tr("Tietokannan %1 luominen epäonnistui.\n%2")
+                                  .arg(tietokanta, uudelleen.lastError().text()));
+        hallinta.close();
+        return ok;
+    }
+
     if( !ok && ilmoitaVirheesta )
         QMessageBox::critical(nullptr, tr("Uusi asiakas"),
                               tr("Tietokannan %1 luominen epäonnistui.\n%2")
