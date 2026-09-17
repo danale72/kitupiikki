@@ -439,16 +439,16 @@ void AloitusSivu::postgresUusiAsiakas()
         return;
     }
 
-    bool loytyi = false;
-    for( int i = 0; i < ui->postgresAsiakasList->count(); ++i ) {
-        if( ui->postgresAsiakasList->item(i)->data(Qt::UserRole).toString() == nimi ) {
-            loytyi = true;
-            break;
-        }
-    }
-    if( loytyi ) {
+    // Näkyvä asiakaslista voi olla vanhentunut tai puutteellinen (ks. CLAUDE.md:
+    // ei-Kitsas-kantojen välimuisti), joten tarkistetaan tietokannan nimen
+    // olemassaolo suoraan palvelimelta ennen velhon käynnistämistä. Jos nimi on
+    // jo käytössä - Kitsas-kirjanpitona tai minä tahansa muuna kantana - luonti
+    // perutaan heti eikä velhoa käynnistetä lainkaan. Näin luoTietokanta()/
+    // tuoSqlitesta() -ketjun jäännepoisto ei koskaan pääse käsiksi tähän jo
+    // olemassa olleeseen kantaan, koska sitä ei edes yritetä luoda.
+    if( kp()->postgres()->tietokantaOlemassa(pgSessioYhteys_, nimi) ) {
         QMessageBox::warning(this, tr("Uusi asiakas"),
-                             tr("Asiakas nimeltä %1 on jo olemassa.").arg(nimi));
+                             tr("Tietokanta nimeltä %1 on jo olemassa palvelimella. Valitse toinen nimi.").arg(nimi));
         return;
     }
 

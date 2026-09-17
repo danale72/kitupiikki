@@ -73,7 +73,7 @@ actual stored `kumppani` table. Plain unquoted string interpolation (safe
 here — names come from the fixed TABLES list, not user input) is what
 actually matches how the app itself queries these tables.
 
-### 2. Balance/saldo calculations regressed by a wrong "fix" (FIXED, was briefly broken)
+### 2. Balance/saldo calculations regressed by a wrong "fix" (FIXED, was broken twice)
 
 **Where:** `kitsas/sqlite/routes/saldotroute.cpp`, 6 occurrences.
 
@@ -90,13 +90,45 @@ is uniformly 4 digits) — not `tili >= 3`, which wrongly includes accounts
 like 1910 (a balance-sheet bank account) in what should be an
 income-statement-only filter. Caught by a second Copilot review pass on
 PR #2, confirmed by direct comparison against real account numbers before
-re-fixing. Corrected to `tili >= 3000` / `< 3000`.
+re-fixing. Corrected (at the time) to `tili >= 3000` / `< 3000`.
+
+**Second regression (found via a real customer import, "Buplace Oy"):** the
+"4-digit assumption" flagged in the lesson below as a caveat turned out to
+be a real bug, not just a theoretical one. Real books have user-created
+*sub-accounts* that extend a standard 4-digit account with extra trailing
+digits, e.g. account `29412` (a custom sub-account of `2941`, "Siirtovelat",
+tyyppi `BS`/Velat — an ordinary balance-sheet liability). Numerically
+`29412 >= 3000`, so `tili >= 3000` routed it into the income-statement
+bucket and `tili < 3000` excluded it from the balance-sheet bucket
+entirely — it vanished from "Muut velat" on the tase report *and* its
+balance polluted the tulos (income statement) calculation as if it were
+revenue/expense, in both `kitsas/tilikartat/*/raportit.json` line matching
+(unaffected — that part already does correct string-prefix matching on the
+account number) and the underlying `/saldot` data feeding it. Reproduced
+identically on SQLite and Postgres — this route is shared verbatim between
+backends, so it was never a backend-parity issue, just a latent bug that
+only became visible once a book with a real 5-digit sub-account was
+inspected. Confirmed via `unittest/dbparity`
+(`route_saldotSisaltaaViisinumeroisenVelkatilin`) and against a live
+customer database (`Vienti`/`Tili` row counts and sums for the affected
+account, plus the whole-ledger debit=credit total, matched the source
+`.kitsas` file exactly — ruling out `SqliteTuoja` import loss as the cause).
+
+**Fix:** reverted all 6 occurrences to the original `CAST(tili as text)
+>= '3'` / `< '3'` form, matching the sibling routes
+(`tilikaudetroute.cpp`, `eraroute.cpp`, `budjettiroute.cpp`) that were never
+"fixed" and so never had this problem. This correctly treats any account
+number by its leading digit regardless of how many trailing digits a
+sub-account adds.
 
 **Lesson for this file specifically:** don't "fix" a SQLite→Postgres
 portability concern here without checking what numeric threshold the
 existing string comparison actually produces against real chart-of-accounts
 data first — the string comparison may be intentional (if unusual) rather
-than accidental.
+than accidental. In this case it was: the "it only works because every
+account is 4 digits" caveat from the first fix wasn't a footnote, it was
+the actual bug waiting to happen, and it happened as soon as a customer
+book with a real sub-account was imported.
 
 ## Schema differences to account for in a migration tool
 

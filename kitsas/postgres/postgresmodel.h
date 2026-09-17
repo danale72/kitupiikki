@@ -37,6 +37,7 @@ public:
 
     QList<PostgresAsiakas> listaaTietokannat(const PostgresYhteys& palvelin, bool ilmoitaVirheesta = true);
     bool luoTietokanta(const PostgresYhteys& palvelin, const QString& nimi, bool ilmoitaVirheesta = true);
+    bool tietokantaOlemassa(const PostgresYhteys& palvelin, const QString& nimi, bool ilmoitaVirheesta = true);
     static bool onkoKelvollinenTietokannanNimi(const QString& nimi);
 
     void lataaViimeiset();
@@ -52,10 +53,16 @@ private slots:
     void lisaaViimeisiin();
 
 private:
+    // Kannan skeeman tarkistuksen tulos: yhteyden/kyselyn epäonnistuminen on
+    // pidettävä erillään "yhteys onnistui, mutta Kitsaan kaaviota ei ole"
+    // -tuloksesta, koska vain jälkimmäinen on turvallista tulkita poistettavaksi
+    // jäänteeksi (ks. luoTietokanta()).
+    enum class Tietokantaprobe { YhteysEpaonnistui, EiKitsasTietokanta, OnKitsasTietokanta };
+
     bool yhdista(const PostgresYhteys& yhteys, bool ilmoitaVirheesta);
     bool onkoKaavioOlemassa();
     QSqlDatabase avaaHallinta(const PostgresYhteys& palvelin, bool ilmoitaVirheesta);
-    bool onkoKitsasTietokanta(const PostgresYhteys& yhteys, QString* nimi = nullptr);
+    Tietokantaprobe probaaTietokanta(const PostgresYhteys& yhteys, QString* nimi = nullptr);
     bool pudotaTietokanta(const PostgresYhteys& palvelin, const QString& nimi, bool ilmoitaVirheesta);
 
     PostgresYhteys nykyinen_;

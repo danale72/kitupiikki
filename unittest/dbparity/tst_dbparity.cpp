@@ -69,9 +69,14 @@ private slots:
     void route_liitteet();
     void route_tositeLogic();
     void route_asiakkaatToimittajatLaskutAlv();
+    void route_saldotSisaltaaViisinumeroisenVelkatilin();
 
     void sqliteTuoja_kopioiKaikkiTaulut();
     void sqliteTuoja_hylkaaVaarinVersioidunTiedoston();
+
+    void postgresLuoTietokanta_paallekkainenNimiAntaaTunnistettavanVirhekoodin();
+    void postgresTietokantaOlemassa_tunnistaaOlemassaOlevanKannan();
+    void postgresLuoTietokanta_olemassaOlevaaKitsasKantaaEiPoisteta();
 
 private:
     void vertaa(const QVariant& sqlite, const QVariant& postgres, const QString& konteksti = QString());
@@ -663,6 +668,46 @@ void DbParityTest::route_asiakkaatToimittajatLaskutAlv()
     suoritaMolemmissa(toiminto);
 }
 
+void DbParityTest::route_saldotSisaltaaViisinumeroisenVelkatilin()
+{
+    // Regressiotesti: käyttäjä voi luoda oman alatilin vakiotilikartan tilin alle,
+    // esim. tili 29412 tilin 2941 (Siirtovelat) alle. SaldotRoute::get() rajaa taseen
+    // tilit lausekkeella "tili < 3000" (ks. MIGRATION_NOTES.md kohta "Balance/saldo
+    // calculations regressed by a wrong fix") - numeerinen raja pätee vain nelinumeroisiin
+    // tileihin, joten viisinumeroinen 29412 (29412 >= 3000) suljetaan väärin pois taseen
+    // saldoista eikä näy raportilla missään tilikartan otsikon alla ("Muut velat" ym.
+    // otsikot kohdistavat tilit merkkijonovertailulla eivätkä sinänsä ole ongelma, ks.
+    // kitsas/tilikartat/yritys/raportit.json "L": "292..294 *").
+    const auto toiminto = [this]() -> QVariant {
+        QVariantMap tili;
+        tili.insert(QStringLiteral("numero"), 29412);
+        tili.insert(QStringLiteral("tyyppi"), QStringLiteral("BJ"));
+        tili.insert(QStringLiteral("nimi"), QStringLiteral("Siirtovelka - asiakaskohtainen"));
+        db_.kysy(QStringLiteral("/tilit"), KpKysely::PUT, tili);
+
+        QVariantList viennit;
+        viennit.append(QVariantMap{
+            {QStringLiteral("pvm"), QDate(2019, 6, 1)},
+            {QStringLiteral("tili"), 1910},
+            {QStringLiteral("debet"), 50.0},
+        });
+        viennit.append(QVariantMap{
+            {QStringLiteral("pvm"), QDate(2019, 6, 1)},
+            {QStringLiteral("tili"), 29412},
+            {QStringLiteral("kredit"), 50.0},
+        });
+        lisaaTosite(QStringLiteral("Viisinumeroinen velkatili"), TositeTyyppi::TULO, viennit);
+
+        return db_.kysy(QStringLiteral("/saldot?tase&pvm=2019-12-31"));
+    };
+    const QVariantMap saldot = suoritaMolemmissa(toiminto).toMap();
+    QVERIFY2(saldot.contains(QStringLiteral("29412")),
+             "Viisinumeroinen velkatili 29412 puuttuu taseen saldoista molemmilla "
+             "tietokannoilla - SaldotRoute::get() jättää sen ulos numeerisella "
+             "'tili < 3000' -rajauksella, vaikka kyseessä on tavallinen alle 3000-tilin "
+             "sisällä oleva alatili.");
+}
+
 void DbParityTest::sqliteTuoja_kopioiKaikkiTaulut()
 {
     if (!db_.postgresKaytossa())
@@ -867,6 +912,244 @@ void DbParityTest::sqliteTuoja_hylkaaVaarinVersioidunTiedoston()
 
     QVERIFY2(!SqliteTuoja::tuo(QSqlDatabase(), sqlitePolku, false),
              "Vanhaa skeemaversiota olevan tiedoston pitäisi hylätä tuonti ilman Postgres-yhteyttä");
+}
+
+void DbParityTest::postgresLuoTietokanta_paallekkainenNimiAntaaTunnistettavanVirhekoodin()
+{
+    if (!db_.postgresKaytossa())
+        QSKIP("PostgreSQL is not available (start docker compose or set KITSAS_PG_* )");
+
+    // Regressiotesti PostgresModel::luoTietokanta():n "jäänne edellisestä
+    // keskeytyneestä tuonnista" -tunnistukselle: jos SqliteTuoja::tuo() kaatuu tai
+    // sen oma pudotaTietokanta()-siivous epäonnistuu, samannimisen asiakkaan
+    // uudelleenluonti törmää CREATE DATABASE:n "already exists" -virheeseen.
+    // luoTietokanta() erottaa tämän tilanteen oikeasta nimikonfliktista lukemalla
+    // QSqlError::nativeErrorCode():n - testataan tässä suoraan palvelimelta, ettei
+    // Qt:n QPSQL-ajuri ole muuttanut SQLSTATE-koodia, josta koko tunnistus riippuu.
+    const PostgresYhteys palvelin = TestDb::postgresYhteys();
+    const QString testiKanta = palvelin.database + QStringLiteral("_luotesti");
+
+    auto avaaHallinta = [&]() {
+        QSqlDatabase hallinta = QSqlDatabase::addDatabase(QStringLiteral("QPSQL"), QStringLiteral("LUOTESTI_HALLINTA"));
+        hallinta.setHostName(palvelin.host);
+        hallinta.setPort(palvelin.port);
+        hallinta.setDatabaseName(QStringLiteral("postgres"));
+        hallinta.setUserName(palvelin.username);
+        hallinta.setPassword(palvelin.password);
+        hallinta.open();
+        return hallinta;
+    };
+    auto poistaTestiKanta = [&]() {
+        QSqlDatabase hallinta = avaaHallinta();
+        if (hallinta.isOpen()) {
+            QSqlQuery q(hallinta);
+            q.exec(QStringLiteral("DROP DATABASE IF EXISTS %1 WITH (FORCE)").arg(testiKanta));
+            hallinta.close();
+        }
+        QSqlDatabase::removeDatabase(QStringLiteral("LUOTESTI_HALLINTA"));
+    };
+
+    poistaTestiKanta();
+
+    // 1. Simuloidaan "haamukanta": skeema on luotu (kuten tuoSqlitesta tekee ennen
+    // SqliteTuoja::tuo():n kutsumista), mutta mitään dataa ei ole tuotu - Asetuksessa
+    // ei siis ole KpVersio-riviä, aivan kuten kesken kaatuneen tuonnin jäljiltä.
+    {
+        QSqlDatabase hallinta = avaaHallinta();
+        QVERIFY(hallinta.isOpen());
+        QSqlQuery q(hallinta);
+        QVERIFY(q.exec(QStringLiteral("CREATE DATABASE %1 ENCODING 'UTF8'").arg(testiKanta)));
+        hallinta.close();
+    }
+    QSqlDatabase::removeDatabase(QStringLiteral("LUOTESTI_HALLINTA"));
+
+    QSqlDatabase haamu = QSqlDatabase::addDatabase(QStringLiteral("QPSQL"), QStringLiteral("LUOTESTI_HAAMU"));
+    haamu.setHostName(palvelin.host);
+    haamu.setPort(palvelin.port);
+    haamu.setDatabaseName(testiKanta);
+    haamu.setUserName(palvelin.username);
+    haamu.setPassword(palvelin.password);
+    QVERIFY(haamu.open());
+    QVERIFY(SqlAlustaja::suoritaSqlResurssi(haamu, TestDb::postgresLuoSqlPolku()));
+
+    QSqlQuery tarkistus(haamu);
+    QVERIFY(tarkistus.exec(QStringLiteral("SELECT arvo FROM Asetus WHERE avain='KpVersio'")));
+    QVERIFY2(!tarkistus.next(),
+             "Haamukannassa ei pitäisi olla KpVersio-riviä - juuri tämä puuttuminen "
+             "on merkki siitä, ettei tuonti koskaan ehtinyt valmiiksi.");
+    haamu.close();
+    QSqlDatabase::removeDatabase(QStringLiteral("LUOTESTI_HAAMU"));
+
+    // 2. Sama nimi uudelleen: CREATE DATABASE epäonnistuu, ja virhekoodin pitää olla
+    // juuri 42P04 (duplicate_database) - tähän luoTietokanta() nojaa erotellakseen
+    // "jäänne" tapauksen muista virheistä.
+    {
+        QSqlDatabase hallinta = avaaHallinta();
+        QVERIFY(hallinta.isOpen());
+        QSqlQuery q(hallinta);
+        QVERIFY(!q.exec(QStringLiteral("CREATE DATABASE %1 ENCODING 'UTF8'").arg(testiKanta)));
+        QCOMPARE(q.lastError().nativeErrorCode(), QStringLiteral("42P04"));
+        hallinta.close();
+    }
+    QSqlDatabase::removeDatabase(QStringLiteral("LUOTESTI_HALLINTA"));
+
+    // 3. Siivous onnistuu ja nimi vapautuu uudelleen käyttöön, kuten luoTietokanta()
+    // tekee käyttäjän hyväksynnän jälkeen.
+    poistaTestiKanta();
+    {
+        QSqlDatabase hallinta = avaaHallinta();
+        QVERIFY(hallinta.isOpen());
+        QSqlQuery q(hallinta);
+        QVERIFY(q.exec(QStringLiteral("CREATE DATABASE %1 ENCODING 'UTF8'").arg(testiKanta)));
+        hallinta.close();
+    }
+    QSqlDatabase::removeDatabase(QStringLiteral("LUOTESTI_HALLINTA"));
+
+    poistaTestiKanta();
+}
+
+void DbParityTest::postgresTietokantaOlemassa_tunnistaaOlemassaOlevanKannan()
+{
+    if (!db_.postgresKaytossa())
+        QSKIP("PostgreSQL is not available (start docker compose or set KITSAS_PG_* )");
+
+    // Regressiotesti PostgresModel::tietokantaOlemassa():lle - "uusi asiakas" -velho
+    // kutsuu tätä ennen velhon käynnistämistä, jotta olemassa olevaa (Kitsas- tai
+    // muuta) tietokantaa ei koskaan yritetä luoda uudelleen eikä sen jäänteenpoisto-
+    // varmistus (luoTietokanta():n 42P04-haara) pääse edes käyntiin oikean kannan
+    // kohdalla. Testataan tässä suoraan PostgresModelin julkista rajapintaa.
+    const PostgresYhteys palvelin = TestDb::postgresYhteys();
+    const QString testiKanta = palvelin.database + QStringLiteral("_olemassatesti");
+
+    auto avaaHallinta = [&]() {
+        QSqlDatabase hallinta = QSqlDatabase::addDatabase(QStringLiteral("QPSQL"), QStringLiteral("OLEMASSATESTI_HALLINTA"));
+        hallinta.setHostName(palvelin.host);
+        hallinta.setPort(palvelin.port);
+        hallinta.setDatabaseName(QStringLiteral("postgres"));
+        hallinta.setUserName(palvelin.username);
+        hallinta.setPassword(palvelin.password);
+        hallinta.open();
+        return hallinta;
+    };
+    auto poistaTestiKanta = [&]() {
+        QSqlDatabase hallinta = avaaHallinta();
+        if (hallinta.isOpen()) {
+            QSqlQuery q(hallinta);
+            q.exec(QStringLiteral("DROP DATABASE IF EXISTS %1 WITH (FORCE)").arg(testiKanta));
+            hallinta.close();
+        }
+        QSqlDatabase::removeDatabase(QStringLiteral("OLEMASSATESTI_HALLINTA"));
+    };
+
+    poistaTestiKanta();
+
+    PostgresModel malli;
+    QVERIFY2(!malli.tietokantaOlemassa(palvelin, testiKanta, false),
+             "Tietokantaa ei pitäisi vielä olla olemassa");
+
+    {
+        QSqlDatabase hallinta = avaaHallinta();
+        QVERIFY(hallinta.isOpen());
+        QSqlQuery q(hallinta);
+        QVERIFY(q.exec(QStringLiteral("CREATE DATABASE %1 ENCODING 'UTF8'").arg(testiKanta)));
+        hallinta.close();
+    }
+    QSqlDatabase::removeDatabase(QStringLiteral("OLEMASSATESTI_HALLINTA"));
+
+    QVERIFY2(malli.tietokantaOlemassa(palvelin, testiKanta, false),
+             "Juuri luotu tietokanta pitäisi löytyä - myös ilman Kitsaan kaaviota");
+
+    poistaTestiKanta();
+}
+
+void DbParityTest::postgresLuoTietokanta_olemassaOlevaaKitsasKantaaEiPoisteta()
+{
+    if (!db_.postgresKaytossa())
+        QSKIP("PostgreSQL is not available (start docker compose or set KITSAS_PG_* )");
+
+    // Varmistetaan, ettei luoTietokanta() koskaan poista tai koske olemassa olevaan
+    // valmiiseen Kitsas-asiakaskantaan, vaikka CREATE DATABASE törmäisi 42P04:ään -
+    // eli että probaaTietokanta()-tuloksen OnKitsasTietokanta-haara todella vain
+    // ilmoittaa virheen eikä koskaan tarjoa poistoa (poistoa tarjotaan vain
+    // yksiselitteiselle EiKitsasTietokanta-tulokselle).
+    const PostgresYhteys palvelin = TestDb::postgresYhteys();
+    const QString testiKanta = palvelin.database + QStringLiteral("_kitsastesti");
+
+    auto avaaHallinta = [&]() {
+        QSqlDatabase hallinta = QSqlDatabase::addDatabase(QStringLiteral("QPSQL"), QStringLiteral("KITSASTESTI_HALLINTA"));
+        hallinta.setHostName(palvelin.host);
+        hallinta.setPort(palvelin.port);
+        hallinta.setDatabaseName(QStringLiteral("postgres"));
+        hallinta.setUserName(palvelin.username);
+        hallinta.setPassword(palvelin.password);
+        hallinta.open();
+        return hallinta;
+    };
+    auto poistaTestiKanta = [&]() {
+        QSqlDatabase hallinta = avaaHallinta();
+        if (hallinta.isOpen()) {
+            QSqlQuery q(hallinta);
+            q.exec(QStringLiteral("DROP DATABASE IF EXISTS %1 WITH (FORCE)").arg(testiKanta));
+            hallinta.close();
+        }
+        QSqlDatabase::removeDatabase(QStringLiteral("KITSASTESTI_HALLINTA"));
+    };
+
+    poistaTestiKanta();
+
+    {
+        QSqlDatabase hallinta = avaaHallinta();
+        QVERIFY(hallinta.isOpen());
+        QSqlQuery q(hallinta);
+        QVERIFY(q.exec(QStringLiteral("CREATE DATABASE %1 ENCODING 'UTF8'").arg(testiKanta)));
+        hallinta.close();
+    }
+    QSqlDatabase::removeDatabase(QStringLiteral("KITSASTESTI_HALLINTA"));
+
+    // Rakennetaan "valmis" Kitsas-asiakaskanta: kaavio plus KpVersio-rivi, aivan kuten
+    // uusiKirjanpito()/uusivelho tekee oikean asiakkaan luonnissa - toisin kuin
+    // edellisen testin "haamukanta", tämä EI saa koskaan tulla poistetuksi.
+    QSqlDatabase kanta = QSqlDatabase::addDatabase(QStringLiteral("QPSQL"), QStringLiteral("KITSASTESTI_KANTA"));
+    kanta.setHostName(palvelin.host);
+    kanta.setPort(palvelin.port);
+    kanta.setDatabaseName(testiKanta);
+    kanta.setUserName(palvelin.username);
+    kanta.setPassword(palvelin.password);
+    QVERIFY(kanta.open());
+    QVERIFY(SqlAlustaja::suoritaSqlResurssi(kanta, TestDb::postgresLuoSqlPolku()));
+    {
+        QSqlQuery q(kanta);
+        QVERIFY(q.exec(QStringLiteral("INSERT INTO Asetus (avain, arvo) VALUES ('KpVersio', '1')")));
+    }
+    kanta.close();
+    QSqlDatabase::removeDatabase(QStringLiteral("KITSASTESTI_KANTA"));
+
+    PostgresModel malli;
+    QVERIFY2(!malli.luoTietokanta(palvelin, testiKanta, false),
+             "Olemassa olevan Kitsas-kannan uudelleenluonti pitäisi hylätä");
+
+    // Kanta ja sen KpVersio-rivi pitää löytyä muuttumattomana - luoTietokanta() ei
+    // saa pudottaa sitä ilmoitaVirheesta=false -tilassakaan.
+    QVERIFY2(malli.tietokantaOlemassa(palvelin, testiKanta, false),
+             "Olemassa olevaa Kitsas-kantaa ei saa poistaa nimikonfliktin yhteydessä");
+
+    QSqlDatabase tarkistus = QSqlDatabase::addDatabase(QStringLiteral("QPSQL"), QStringLiteral("KITSASTESTI_TARKISTUS"));
+    tarkistus.setHostName(palvelin.host);
+    tarkistus.setPort(palvelin.port);
+    tarkistus.setDatabaseName(testiKanta);
+    tarkistus.setUserName(palvelin.username);
+    tarkistus.setPassword(palvelin.password);
+    QVERIFY(tarkistus.open());
+    {
+        QSqlQuery q(tarkistus);
+        QVERIFY(q.exec(QStringLiteral("SELECT arvo FROM Asetus WHERE avain='KpVersio'")));
+        QVERIFY2(q.next(), "KpVersio-rivin pitäisi olla yhä tallella");
+        QCOMPARE(q.value(0).toString(), QStringLiteral("1"));
+    }
+    tarkistus.close();
+    QSqlDatabase::removeDatabase(QStringLiteral("KITSASTESTI_TARKISTUS"));
+
+    poistaTestiKanta();
 }
 
 QTEST_APPLESS_MAIN(DbParityTest)
