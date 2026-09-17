@@ -103,24 +103,76 @@ SEED_SKIP = {
     "Kumppani": [("nimi", "Verohallinto")],
 }
 
+# Tosite.kumppani and Vienti.kumppani can point at a Kumppani row that was
+# later deleted in the source SQLite file — SQLite doesn't enforce the FK,
+# Postgres always does. Rather than aborting the whole migration, these are
+# nulled out (a legitimate "no counterparty" value in the schema) and
+# reported. Kumppani is migrated earlier in TABLE_ORDER, so its rows already
+# exist in the target by the time these tables run.
+KUMPPANI_REF_TABLES = {"Tosite", "Vienti"}
+
+# Vienti.tili can be 0, or point at an account no longer in the chart of
+# accounts. tili=0 in particular is a legitimate "no account chosen yet"
+# value for a draft (LUONNOS) voucher line — see model/tosite.cpp's
+# TILIPUUTTUU check (`not kp()->tilit()->tili(vienti.tili())`), which reads a
+# NULL back as 0 via toInt(), so nulling it here preserves that validation
+# behavior exactly. SQLite never enforced this FK; Postgres always does.
+# Tili is migrated first in TABLE_ORDER, so its rows already exist in the
+# target by the time Vienti runs.
+TILI_REF_TABLES = {"Vienti"}
+
+
+def strip_json_nuls(value):
+    """Recursively remove embedded NUL characters from JSON string values.
+    Postgres's jsonb type can never hold a NUL byte, even though \\u0000 is
+    syntactically legal JSON (see the NUL-byte note below) — mirrors
+    poistaNulit() in sqlitetuoja.cpp. Returns (value, had_nul)."""
+    if isinstance(value, str):
+        if "\x00" in value:
+            return value.replace("\x00", ""), True
+        return value, False
+    if isinstance(value, dict):
+        cleaned = {}
+        had_nul = False
+        for k, v in value.items():
+            cv, ch = strip_json_nuls(v)
+            cleaned[k] = cv
+            had_nul = had_nul or ch
+        return cleaned, had_nul
+    if isinstance(value, list):
+        cleaned = []
+        had_nul = False
+        for v in value:
+            cv, ch = strip_json_nuls(v)
+            cleaned.append(cv)
+            had_nul = had_nul or ch
+        return cleaned, had_nul
+    return value, False
+
 
 def sanitize_jsonb(value):
     """Tositeloki.data is strict jsonb in Postgres but loosely-typed in
     SQLite (see MIGRATION_NOTES.md). Map anything that isn't valid JSON,
-    including '', to SQL NULL rather than letting Postgres reject the row."""
+    including '', to SQL NULL rather than letting Postgres reject the row.
+    Also strips any embedded NUL characters found in string values (valid
+    JSON per spec, but PostgreSQL's jsonb parser rejects them outright since
+    its text type can't represent a NUL byte). Returns (value, had_nul)."""
     if value is None:
-        return None
+        return None, False
     if isinstance(value, bytes):
         value = value.decode("utf-8", errors="replace")
     value = value.strip()
     if not value:
-        return None
+        return None, False
     try:
-        json.loads(value)
+        parsed = json.loads(value)
     except (ValueError, TypeError):
         print(f"  WARNING: dropping malformed jsonb value: {value[:80]!r}", file=sys.stderr)
-        return None
-    return value
+        return None, False
+    cleaned, had_nul = strip_json_nuls(parsed)
+    if not had_nul:
+        return value, False
+    return json.dumps(cleaned, ensure_ascii=False), True
 
 
 def as_text(value):
@@ -131,6 +183,25 @@ def as_text(value):
     if isinstance(value, bytes):
         return value.decode("utf-8", errors="replace")
     return value
+
+
+def decode_and_strip_nul(value):
+    """Any column can come back as bytes if SQLite stored it via a legacy
+    QByteArray bind into a text-affinity column (MIGRATION_NOTES.md bug #1),
+    which can also carry embedded NUL bytes from old encoding bugs (e.g. a
+    mangled tiliote-import reference number). PostgreSQL's text-backed types
+    (text, varchar, json, jsonb) can never store a NUL byte, so decode any
+    bytes to text and strip embedded NULs before binding — mirrors the
+    generic QByteArray/NUL handling in kopioiTaulu() in sqlitetuoja.cpp.
+    Returns (value, changed)."""
+    changed = False
+    if isinstance(value, bytes):
+        value = value.decode("utf-8", errors="replace")
+        changed = True
+    if isinstance(value, str) and "\x00" in value:
+        value = value.replace("\x00", "")
+        changed = True
+    return value, changed
 
 
 def fetch_rows(sconn, table):
@@ -170,17 +241,59 @@ def migrate_table(sconn, pconn, table):
 
     pcur = pconn.cursor()
 
+    valid_kumppani_ids = None
+    if table in KUMPPANI_REF_TABLES:
+        pcur.execute("SELECT id FROM Kumppani")
+        valid_kumppani_ids = {r[0] for r in pcur.fetchall()}
+
+    valid_tili_numbers = None
+    if table in TILI_REF_TABLES:
+        pcur.execute("SELECT numero FROM Tili")
+        valid_tili_numbers = {r[0] for r in pcur.fetchall()}
+
+    orphan_kumppani = 0
+    orphan_tili = 0
+    sanitized_fields = 0
     values = []
     for row in rows:
         record = []
         for col in columns:
             v = row[col]
-            if table == "Tositeloki" and col == "data":
-                v = sanitize_jsonb(v)
+            is_jsonb_col = (table == "Tositeloki" and col == "data")
+            is_binary_col = (table == "Liite" and col == "data")
+            if is_jsonb_col:
+                v, had_nul = sanitize_jsonb(v)
+                if had_nul:
+                    sanitized_fields += 1
             elif col == "json":
                 v = as_text(v)
+            elif col == "kumppani" and valid_kumppani_ids is not None \
+                    and v is not None and v not in valid_kumppani_ids:
+                v = None
+                orphan_kumppani += 1
+            elif col == "tili" and valid_tili_numbers is not None \
+                    and v is not None and v not in valid_tili_numbers:
+                v = None
+                orphan_tili += 1
+
+            if not is_jsonb_col and not is_binary_col:
+                v, changed = decode_and_strip_nul(v)
+                if changed:
+                    sanitized_fields += 1
             record.append(v)
         values.append(record)
+
+    if orphan_kumppani:
+        print(f"  WARNING: {table}: {orphan_kumppani} row(s) referenced a Kumppani "
+              f"that no longer exists — kumppani left NULL on those rows")
+    if orphan_tili:
+        print(f"  WARNING: {table}: {orphan_tili} row(s) referenced a Tili account "
+              f"not in the chart of accounts (e.g. tili=0 on a draft voucher line) "
+              f"— tili left NULL on those rows")
+    if sanitized_fields:
+        print(f"  WARNING: {table}: {sanitized_fields} field(s) had pre-existing corrupt "
+              f"data (bytes bound into a text column and/or embedded NUL bytes, e.g. a "
+              f"mangled tiliote-import reference) — sanitized before import")
 
     col_list = ", ".join(columns)
     placeholders = ", ".join(["%s"] * len(columns))

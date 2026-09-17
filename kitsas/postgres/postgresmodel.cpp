@@ -373,7 +373,13 @@ bool PostgresModel::pudotaTietokanta(const PostgresYhteys &palvelin, const QStri
     if( !onkoKelvollinenTietokannanNimi(tietokanta) )
         return false;
 
-    QSqlDatabase hallinta = avaaHallinta(palvelin, ilmoitaVirheesta);
+    // Hallintayhteyden pitää osoittaa neutraaliin "postgres"-kantaan, ei ikinä
+    // pudotettavaan kantaan itseensä - jos kutsuja antaa palvelin.database:n olevan
+    // sama kuin nimi (esim. tuoSqlitesta() peruessa asiakasyhteydellä), Postgres
+    // kieltäytyisi DROP DATABASE:sta ("cannot drop the currently open database"),
+    // ja epäonnistuminen jäisi tässä ilmoitaVirheesta=false -kutsuissa täysin
+    // huomaamatta.
+    QSqlDatabase hallinta = avaaHallinta(palvelin.hallintaYhteys(), ilmoitaVirheesta);
     if( !hallinta.isOpen())
         return false;
 
