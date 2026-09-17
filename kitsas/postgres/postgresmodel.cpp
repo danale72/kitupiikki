@@ -191,12 +191,17 @@ QList<PostgresAsiakas> PostgresModel::listaaTietokannat(const PostgresYhteys &pa
         if( eiKitsas.contains(dbNimi) )
             continue;
         QString nimi;
-        if( onkoKitsasTietokanta(palvelin.asiakasYhteys(dbNimi), &nimi) ) {
+        const Tietokantaprobe tila = probaaTietokanta(palvelin.asiakasYhteys(dbNimi), &nimi);
+        if( tila == Tietokantaprobe::OnKitsasTietokanta ) {
             PostgresAsiakas asiakas;
             asiakas.tietokanta = dbNimi;
             asiakas.nimi = nimi.isEmpty() ? dbNimi : nimi;
             asiakkaat.append(asiakas);
-        } else {
+        } else if( tila == Tietokantaprobe::EiKitsasTietokanta ) {
+            // Vain yksiselitteisesti ei-Kitsas-tulos muistetaan pysyvästi -
+            // yhteyden/kyselyn epäonnistuminen (esim. tilapäinen katko tai
+            // puuttuvat oikeudet) ei saa jäädyttää kantaa pysyvästi listan
+            // ulkopuolelle.
             eiKitsas.append(dbNimi);
             eiKitsasMuuttui = true;
         }
@@ -210,7 +215,7 @@ QList<PostgresAsiakas> PostgresModel::listaaTietokannat(const PostgresYhteys &pa
     return asiakkaat;
 }
 
-bool PostgresModel::onkoKitsasTietokanta(const PostgresYhteys &yhteys, QString *nimi)
+PostgresModel::Tietokantaprobe PostgresModel::probaaTietokanta(const PostgresYhteys &yhteys, QString *nimi)
 {
     const QString yhteysnimi = QStringLiteral("KIRJANPITO_PG_PROBE");
     if( QSqlDatabase::contains(yhteysnimi) ) {
@@ -229,23 +234,35 @@ bool PostgresModel::onkoKitsasTietokanta(const PostgresYhteys &yhteys, QString *
     probe.setUserName(yhteys.username);
     probe.setPassword(yhteys.password);
 
-    bool kelpaa = false;
+    Tietokantaprobe tulos = Tietokantaprobe::YhteysEpaonnistui;
+
     if( probe.open() ) {
         QSqlQuery query(probe);
-        query.exec(QStringLiteral("SELECT arvo FROM Asetus WHERE avain='KpVersio'"));
-        kelpaa = query.next();
-
-        if( kelpaa && nimi ) {
-            QSqlQuery nimiKysely(probe);
-            nimiKysely.exec(QStringLiteral("SELECT arvo FROM Asetus WHERE avain='Nimi'"));
-            if( nimiKysely.next())
-                *nimi = nimiKysely.value(0).toString();
+        if( query.exec(QStringLiteral("SELECT arvo FROM Asetus WHERE avain='KpVersio'")) ) {
+            if( query.next() ) {
+                tulos = Tietokantaprobe::OnKitsasTietokanta;
+                if( nimi ) {
+                    QSqlQuery nimiKysely(probe);
+                    nimiKysely.exec(QStringLiteral("SELECT arvo FROM Asetus WHERE avain='Nimi'"));
+                    if( nimiKysely.next())
+                        *nimi = nimiKysely.value(0).toString();
+                }
+            } else {
+                tulos = Tietokantaprobe::EiKitsasTietokanta;
+            }
+        } else if( query.lastError().nativeErrorCode() == QStringLiteral("42P01") ) {
+            // undefined_table: kannassa ei ole Asetus-taulua lainkaan, eli
+            // kannassa yksiselitteisesti ei ole Kitsaan kaaviota. Muu kyselyvirhe
+            // (esim. puuttuvat oikeudet) jätetään YhteysEpaonnistui-tilaan, koska
+            // sitä ei voi erottaa oikeasta, tilapäisesti tavoittamattomasta
+            // Kitsas-kannasta.
+            tulos = Tietokantaprobe::EiKitsasTietokanta;
         }
         probe.close();
     }
     probe = QSqlDatabase();
     QSqlDatabase::removeDatabase(yhteysnimi);
-    return kelpaa;
+    return tulos;
 }
 
 bool PostgresModel::luoTietokanta(const PostgresYhteys &palvelin, const QString &nimi, bool ilmoitaVirheesta)
@@ -272,10 +289,23 @@ bool PostgresModel::luoTietokanta(const PostgresYhteys &palvelin, const QString 
     // suorittamatta. Erotetaan siis "nimi on jo käytössä oikealla kirjanpidolla" siitä,
     // että kannassa ei ole valmista Kitsaan kaaviota - jälkimmäisessä tapauksessa
     // tarjotaan jäänteen poistoa ja luontia uudelleen, ettei käyttäjä jää jumiin.
+    // Jos kannan tilaa ei voitu yksiselitteisesti selvittää (yhteys tai kysely
+    // epäonnistui), EI tarjota poistoa - se voisi pudottaa täysin ulkopuolisen,
+    // tilapäisesti tavoittamattoman kannan.
     if( !ok && query.lastError().nativeErrorCode() == QStringLiteral("42P04") ) {
         hallinta.close();
 
-        if( onkoKitsasTietokanta(palvelin.asiakasYhteys(tietokanta)) ) {
+        const Tietokantaprobe tila = probaaTietokanta(palvelin.asiakasYhteys(tietokanta));
+
+        if( tila == Tietokantaprobe::YhteysEpaonnistui ) {
+            if( ilmoitaVirheesta )
+                QMessageBox::critical(nullptr, tr("Uusi asiakas"),
+                                      tr("Tietokanta %1 on jo olemassa, eikä sen tilaa voitu tarkistaa. "
+                                         "Valitse toinen nimi tai selvitä tietokannan tila palvelimelta.").arg(tietokanta));
+            return false;
+        }
+
+        if( tila == Tietokantaprobe::OnKitsasTietokanta ) {
             if( ilmoitaVirheesta )
                 QMessageBox::critical(nullptr, tr("Uusi asiakas"),
                                       tr("Tietokanta %1 on jo olemassa.").arg(tietokanta));
@@ -317,6 +347,24 @@ bool PostgresModel::luoTietokanta(const PostgresYhteys &palvelin, const QString 
 
     hallinta.close();
     return ok;
+}
+
+bool PostgresModel::tietokantaOlemassa(const PostgresYhteys &palvelin, const QString &nimi, bool ilmoitaVirheesta)
+{
+    const QString tietokanta = nimi.trimmed().toLower();
+
+    QSqlDatabase hallinta = avaaHallinta(palvelin, ilmoitaVirheesta);
+    if( !hallinta.isOpen())
+        return false;
+
+    QSqlQuery query(hallinta);
+    query.prepare(QStringLiteral("SELECT 1 FROM pg_database WHERE datname = ?"));
+    query.addBindValue(tietokanta);
+    query.exec();
+    const bool loytyi = query.next();
+
+    hallinta.close();
+    return loytyi;
 }
 
 bool PostgresModel::pudotaTietokanta(const PostgresYhteys &palvelin, const QString &nimi, bool ilmoitaVirheesta)
