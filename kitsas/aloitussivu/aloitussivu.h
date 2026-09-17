@@ -75,6 +75,7 @@ public slots:
     void avaaTietokanta();
     void avaaPostgres();
     void postgresUusiAsiakas();
+    void postgresYhteysTiedot();
     void postgresAvaaValittu(QListWidgetItem* item);
     void postgresAsiakasContextMenu(const QPoint& pos);
     void postgresSuodataLista(const QString& teksti);
