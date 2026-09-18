@@ -77,6 +77,7 @@ private slots:
     void postgresLuoTietokanta_paallekkainenNimiAntaaTunnistettavanVirhekoodin();
     void postgresTietokantaOlemassa_tunnistaaOlemassaOlevanKannan();
     void postgresLuoTietokanta_olemassaOlevaaKitsasKantaaEiPoisteta();
+    void postgresTuoSqlitesta_siivoaaEpaonnistuneenTuonninJaljet();
 
 private:
     void vertaa(const QVariant& sqlite, const QVariant& postgres, const QString& konteksti = QString());
@@ -760,6 +761,38 @@ void DbParityTest::sqliteTuoja_kopioiKaikkiTaulut()
     meta.insert(QStringLiteral("Content-type"), QStringLiteral("application/pdf"));
     db_.lahetaTiedosto(QStringLiteral("/liitteet/%1").arg(tositeId), liiteData, meta);
 
+    // Toinen kumppani ja sitä käyttävä tosite/vienti, joiden kumppani poistetaan
+    // suoraan SQL:llä ennen tuontia - simuloi tuotannossa havaittua tilannetta,
+    // jossa SQLite on päästänyt kumppanin poiston läpi vaikka siihen viitattiin
+    // vielä tositteelta/vienniltä (SQLite ei valvo FK-rajoitteita oletuksena).
+    QVariantMap poistettavaAsiakas{{QStringLiteral("nimi"), QStringLiteral("Poistettava Oy")}};
+    const int poistettavaKumppaniId = db_.kysy(QStringLiteral("/kumppanit"), KpKysely::POST, poistettavaAsiakas)
+                               .toMap().value(QStringLiteral("id")).toInt();
+    QVERIFY(poistettavaKumppaniId > kumppaniId);
+
+    QVariantList roikkuvatViennit;
+    roikkuvatViennit.append(QVariantMap{
+        {QStringLiteral("pvm"), QDate(2019, 4, 1)},
+        {QStringLiteral("tili"), 1910},
+        {QStringLiteral("debet"), 50.0},
+    });
+    roikkuvatViennit.append(QVariantMap{
+        {QStringLiteral("pvm"), QDate(2019, 4, 1)},
+        {QStringLiteral("tili"), 3000},
+        {QStringLiteral("kredit"), 50.0},
+        {QStringLiteral("kumppani"), poistettavaKumppaniId},
+    });
+    QVariantMap roikkuvaTosite;
+    roikkuvaTosite.insert(QStringLiteral("pvm"), QDate(2019, 4, 1));
+    roikkuvaTosite.insert(QStringLiteral("tyyppi"), TositeTyyppi::TULO);
+    roikkuvaTosite.insert(QStringLiteral("tila"), Tosite::KIRJANPIDOSSA);
+    roikkuvaTosite.insert(QStringLiteral("otsikko"), QStringLiteral("Roikkuva kumppani"));
+    roikkuvaTosite.insert(QStringLiteral("kumppani"), poistettavaKumppaniId);
+    roikkuvaTosite.insert(QStringLiteral("viennit"), roikkuvatViennit);
+    const int roikkuvaTositeId = db_.kysy(QStringLiteral("/tositteet"), KpKysely::POST, roikkuvaTosite)
+                             .toMap().value(QStringLiteral("id")).toInt();
+    QVERIFY(roikkuvaTositeId > 0);
+
     const QString sqlitePolku = db_.sqlitePolku();
     db_.sulje();
 
@@ -786,6 +819,44 @@ void DbParityTest::sqliteTuoja_kopioiKaikkiTaulut()
         q.addBindValue(QStringLiteral("text/plain"));
         q.addBindValue(QStringLiteral("aaaa1111"));
         q.addBindValue(QStringLiteral("TPTEKSTI_2019-12-31"));
+        QVERIFY(q.exec());
+
+        q.prepare(QStringLiteral("DELETE FROM Kumppani WHERE id=?"));
+        q.addBindValue(poistettavaKumppaniId);
+        QVERIFY(q.exec());
+
+        // Simuloi tuotannossa havaittu tili=0-tilanne: luonnostilaisen viennin
+        // "tiliä ei ole vielä valittu" -merkintä (ks. Tosite::TILIPUUTTUU), jota
+        // SQLite ei ole koskaan estänyt tallentumasta.
+        q.prepare(QStringLiteral("UPDATE Vienti SET tili=0 WHERE tosite=? AND tili=1910"));
+        q.addBindValue(roikkuvaTositeId);
+        QVERIFY(q.exec());
+
+        // Simuloi tuotannossa havaittu, vuosien takainen tiliotteen tuonnin
+        // koodausbugi: Vienti.arkistotunnus tallentui BLOB-muodossa upotettuine
+        // NUL-tavuineen (sama QByteArray-sidonta-vika kuin sha-kentässä yllä).
+        // Postgresin text-pohjaiset tyypit eivät voi koskaan sisältää tavua 0x00.
+        const QByteArray viallinenArkistotunnus =
+                QByteArrayLiteral("REF") + QByteArray(3, '\0') + QByteArrayLiteral("TAIL");
+        q.prepare(QStringLiteral("UPDATE Vienti SET arkistotunnus=? WHERE tosite=? AND tili=3000"));
+        q.addBindValue(viallinenArkistotunnus);
+        q.addBindValue(roikkuvaTositeId);
+        QVERIFY(q.exec());
+
+        // Sama vika näkyy myös Tositeloki.data-lokissa, mutta oikein JSON-koodattuna:
+        // kunnollinen JSON-kirjoittaja on paennut upotetun NUL-merkin syntaktisesti
+        // pätevällä Unicode-pakotuksella. QJsonDocument::fromJson hyväksyy tämän
+        // (JSON-spesifikaatio sallii sen), mutta Postgresin jsonb-jäsennin ei silti
+        // pysty muodostamaan siitä text-arvoa (ks. SqliteTuoja::siivoaJsonb).
+        const QString takakeno = QStringLiteral("\\");
+        const QString unicodeNolla = takakeno + QStringLiteral("u0000");
+        const QString vikaData = QStringLiteral("{\"arkistotunnus\":\"REF") + unicodeNolla
+                + unicodeNolla + unicodeNolla + QStringLiteral("TAIL\"}");
+        q.prepare(QStringLiteral("INSERT INTO Tositeloki(tosite,aika,data,tila) VALUES (?,?,?,?)"));
+        q.addBindValue(roikkuvaTositeId);
+        q.addBindValue(QStringLiteral("2019-04-01 12:00:00"));
+        q.addBindValue(vikaData);
+        q.addBindValue(Tosite::KIRJANPIDOSSA);
         QVERIFY(q.exec());
 
         korjaus.close();
@@ -852,11 +923,11 @@ void DbParityTest::sqliteTuoja_kopioiKaikkiTaulut()
 
     q.exec(QStringLiteral("SELECT COUNT(*) FROM Tosite"));
     q.next();
-    QCOMPARE(q.value(0).toInt(), 1);
+    QCOMPARE(q.value(0).toInt(), 2);
 
     q.exec(QStringLiteral("SELECT COUNT(*) FROM Vienti"));
     q.next();
-    QCOMPARE(q.value(0).toInt(), 2);
+    QCOMPARE(q.value(0).toInt(), 4);
 
     q.exec(QStringLiteral("SELECT COUNT(*) FROM Merkkaus"));
     q.next();
@@ -881,6 +952,41 @@ void DbParityTest::sqliteTuoja_kopioiKaikkiTaulut()
     QVERIFY(q.exec(QStringLiteral("SELECT tosite FROM Liite WHERE roolinimi='TPTEKSTI_2019-12-31'")));
     QVERIFY(q.next());
     QVERIFY(q.value(0).isNull());
+
+    // Poistettuun kumppaniin viittaava tosite/vienti: tuonti ei kaadu FK-rikkeeseen,
+    // vaan roikkuva kumppani-viittaus on tulkittu NULL:ksi.
+    QVERIFY(q.exec(QStringLiteral("SELECT kumppani FROM Tosite WHERE otsikko='Roikkuva kumppani'")));
+    QVERIFY(q.next());
+    QVERIFY(q.value(0).isNull());
+
+    QVERIFY(q.exec(QStringLiteral(
+        "SELECT kumppani FROM Vienti WHERE tosite=(SELECT id FROM Tosite WHERE otsikko='Roikkuva kumppani') AND tili=3000")));
+    QVERIFY(q.next());
+    QVERIFY(q.value(0).isNull());
+
+    // Luonnostilaisen viennin tili=0 ("tiliä ei vielä valittu"): tuonti ei kaadu
+    // vienti_tili_fkey-rikkeeseen, vaan puuttuva tili on tulkittu NULL:ksi.
+    QVERIFY(q.exec(QStringLiteral(
+        "SELECT tili FROM Vienti WHERE tosite=(SELECT id FROM Tosite WHERE otsikko='Roikkuva kumppani') AND debetsnt>0")));
+    QVERIFY(q.next());
+    QVERIFY(q.value(0).isNull());
+
+    // Vienti.arkistotunnus: BLOB-muodossa tallentuneet upotetut NUL-tavut on siivottu
+    // pois, muu sisältö säilyy - rivi ei kaadu vaikka Postgres ei voisi tallentaa
+    // alkuperäistä arvoa sellaisenaan.
+    QVERIFY(q.exec(QStringLiteral(
+        "SELECT arkistotunnus FROM Vienti WHERE tosite=(SELECT id FROM Tosite WHERE otsikko='Roikkuva kumppani') AND tili=3000")));
+    QVERIFY(q.next());
+    QCOMPARE(q.value(0).toString(), QStringLiteral("REFTAIL"));
+
+    // Tositeloki.data: syntaktisesti pätevä mutta Postgresille kelpaamaton
+    // Unicode-pakotus nollamerkille on siivottu JSON-rakenteen sisältä, eikä koko riviä ole
+    // hylätty NULL:ksi niin kuin aidosti virheelliselle JSONille tehdään.
+    QVERIFY(q.exec(QStringLiteral(
+        "SELECT data->>'arkistotunnus' FROM Tositeloki WHERE tosite=%1 AND jsonb_exists(data, 'arkistotunnus')")
+        .arg(roikkuvaTositeId)));
+    QVERIFY(q.next());
+    QCOMPARE(q.value(0).toString(), QStringLiteral("REFTAIL"));
 
     // Tunnistesarjat on synkronoitu tuodun aineiston yli - seuraava luonti ei törmää.
     QVERIFY(q.exec(QStringLiteral("INSERT INTO Kumppani(nimi) VALUES ('Seuraava') RETURNING id")));
@@ -1148,6 +1254,87 @@ void DbParityTest::postgresLuoTietokanta_olemassaOlevaaKitsasKantaaEiPoisteta()
     }
     tarkistus.close();
     QSqlDatabase::removeDatabase(QStringLiteral("KITSASTESTI_TARKISTUS"));
+
+    poistaTestiKanta();
+}
+
+void DbParityTest::postgresTuoSqlitesta_siivoaaEpaonnistuneenTuonninJaljet()
+{
+    if (!db_.postgresKaytossa())
+        QSKIP("PostgreSQL is not available (start docker compose or set KITSAS_PG_* )");
+
+    // Regressiotesti: PostgresModel::tuoSqlitesta() pudottaa epäonnistuneen tuonnin
+    // luoman tyhjän kaavion aina pudotaTietokanta()-kutsulla, jolle annetaan asiakkaan
+    // OMA yhteys (jonka .database on jo asetettu kohdekannaksi), ei palvelintason
+    // yhteyttä. pudotaTietokanta() ei kuitenkaan saa yhdistää suoraan pudotettavaan
+    // kantaan, koska Postgres kieltäytyy DROP DATABASE:sta yhteydeltä joka on itse
+    // kiinni siinä kannassa ("cannot drop the currently open database") - minkä vuoksi
+    // siivous jäi tuotannossa täysin hiljaisesti suorittamatta juuri tässä polussa
+    // (ks. postgresmodel.cpp:n pudotaTietokanta() ja MIGRATION_NOTES.md).
+    const PostgresYhteys palvelin = TestDb::postgresYhteys();
+    const QString testiKanta = palvelin.database + QStringLiteral("_tuoepaonn");
+    const PostgresYhteys asiakasYhteys = palvelin.asiakasYhteys(testiKanta);
+
+    auto avaaHallinta = [&]() {
+        QSqlDatabase hallinta = QSqlDatabase::addDatabase(QStringLiteral("QPSQL"), QStringLiteral("TUOEPAONN_HALLINTA"));
+        hallinta.setHostName(palvelin.host);
+        hallinta.setPort(palvelin.port);
+        hallinta.setDatabaseName(QStringLiteral("postgres"));
+        hallinta.setUserName(palvelin.username);
+        hallinta.setPassword(palvelin.password);
+        hallinta.open();
+        return hallinta;
+    };
+    auto poistaTestiKanta = [&]() {
+        QSqlDatabase hallinta = avaaHallinta();
+        if (hallinta.isOpen()) {
+            QSqlQuery q(hallinta);
+            q.exec(QStringLiteral("DROP DATABASE IF EXISTS %1 WITH (FORCE)").arg(testiKanta));
+            hallinta.close();
+        }
+        QSqlDatabase::removeDatabase(QStringLiteral("TUOEPAONN_HALLINTA"));
+    };
+    auto onkoOlemassa = [&]() {
+        QSqlDatabase hallinta = avaaHallinta();
+        bool loytyi = false;
+        if (hallinta.isOpen()) {
+            QSqlQuery q(hallinta);
+            q.prepare(QStringLiteral("SELECT 1 FROM pg_database WHERE datname = ?"));
+            q.addBindValue(testiKanta);
+            q.exec();
+            loytyi = q.next();
+            hallinta.close();
+        }
+        QSqlDatabase::removeDatabase(QStringLiteral("TUOEPAONN_HALLINTA"));
+        return loytyi;
+    };
+
+    poistaTestiKanta();
+
+    // Lähdetiedosto, jonka skeemaversio ei täsmää - SqliteTuoja::tuo() hylkää sen
+    // heti, mutta vasta SEN JÄLKEEN kun tuoSqlitesta() on jo luonut tyhjän kaavion
+    // kohteeseen (aivan kuten mikä tahansa muukin SqliteTuoja::tuo():n virhe tekisi).
+    QVERIFY(db_.avaaSqlite());
+    const QString sqlitePolku = db_.sqlitePolku();
+    db_.sulje();
+    {
+        QSqlDatabase korjaus = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), QStringLiteral("TUOEPAONN_VANHA"));
+        korjaus.setDatabaseName(sqlitePolku);
+        QVERIFY(korjaus.open());
+        QSqlQuery q(korjaus);
+        QVERIFY(q.exec(QStringLiteral("UPDATE Asetus SET arvo='1' WHERE avain='KpVersio'")));
+        korjaus.close();
+    }
+    QSqlDatabase::removeDatabase(QStringLiteral("TUOEPAONN_VANHA"));
+
+    PostgresModel malli;
+    QVERIFY2(!malli.tuoSqlitesta(asiakasYhteys, sqlitePolku, false),
+             "Väärän skeemaversion tiedoston tuonnin pitäisi epäonnistua");
+
+    QVERIFY2(!onkoOlemassa(),
+             "tuoSqlitesta():n pitäisi pudottaa epäonnistuneen tuonnin luoma tyhjä kanta - "
+             "jos tämä jää olemassa, pudotaTietokanta() yhdisti virheellisesti suoraan "
+             "pudotettavaan kantaan palvelimen hallintakannan sijaan.");
 
     poistaTestiKanta();
 }
