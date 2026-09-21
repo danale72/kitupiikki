@@ -18,6 +18,7 @@
 #include "postgres/sqlitetuoja.h"
 #include "sql/sqlalustaja.h"
 #include "sqlite/sqlitemodel.h"
+#include "uusikirjanpito/uusivelho.h"
 
 #include <QApplication>
 #include <QCryptographicHash>
@@ -60,6 +61,8 @@ private slots:
     void route_asetukset();
     void route_tilit();
     void route_init();
+    void uusiKirjanpito_velhonMuotoisillaTiedoillaTilikaudetOvatEhjat();
+    void velho_postgresPolkuKulkeeTilikausisivunKautta();
     void route_kohdennukset();
     void route_ryhmat();
     void route_kumppanit();
@@ -70,6 +73,7 @@ private slots:
     void route_tositeLogic();
     void route_asiakkaatToimittajatLaskutAlv();
     void route_saldotSisaltaaViisinumeroisenVelkatilin();
+    void route_eratListaaAvoimetTaseEratMolemmissa();
 
     void sqliteTuoja_kopioiKaikkiTaulut();
     void sqliteTuoja_hylkaaVaarinVersioidunTiedoston();
@@ -478,6 +482,85 @@ void DbParityTest::route_init()
     suoritaMolemmissa(toiminto);
 }
 
+void DbParityTest::uusiKirjanpito_velhonMuotoisillaTiedoillaTilikaudetOvatEhjat()
+{
+    // Rakennetaan init-data samassa muodossa kuin UusiVelho::data() +
+    // TilikausiSivu::validatePage(): oikea tilikartta, tilikausien päivät
+    // ISO-merkkijonoina ja asetuksissa QDate-arvoja. Kaksi tilikautta, jolloin
+    // luodaan myös tilinavaustosite.
+    UusiVelho velho;
+    QVERIFY(velho.lataaKartta(QStringLiteral(":/tilikartat/yritys.kitsaskartta")));
+    velho.asetukset_.insert(QStringLiteral("Nimi"), QStringLiteral("Velho Oy"));
+    velho.asetukset_.insert(QStringLiteral("Tilinavaus"), 2);
+    velho.asetukset_.insert(QStringLiteral("TilinavausPvm"), QDate(2025, 12, 31));
+    velho.asetukset_.insert(QStringLiteral("TilitPaatetty"), QStringLiteral("2025-12-31"));
+    velho.asetukset_.insert(QStringLiteral("AlvAlkaa"), QDate(2026, 1, 1));
+    velho.tilikaudet_ = QVariantList{
+        QVariantMap{{QStringLiteral("alkaa"), QStringLiteral("2025-01-01")},
+                    {QStringLiteral("loppuu"), QStringLiteral("2025-12-31")}},
+        QVariantMap{{QStringLiteral("alkaa"), QStringLiteral("2026-01-01")},
+                    {QStringLiteral("loppuu"), QStringLiteral("2026-12-31")}}};
+    const QVariantMap alustus = velho.data();
+
+    const auto luku = [this]() {
+        QVariantMap tulos;
+        tulos.insert(QStringLiteral("tilikaudet"),
+                     TestDb::dump(db_.sql(), QStringLiteral("SELECT alkaa, loppuu, json FROM Tilikausi ORDER BY alkaa")));
+        tulos.insert(QStringLiteral("avaustosite"),
+                     TestDb::dump(db_.sql(), QStringLiteral("SELECT pvm, tyyppi, tila, tunniste, otsikko FROM Tosite ORDER BY id")));
+        tulos.insert(QStringLiteral("tilikausiAsetukset"),
+                     TestDb::dump(db_.sql(), QStringLiteral("SELECT avain, arvo FROM Asetus WHERE avain IN "
+                                                            "('Tilinavaus','TilinavausPvm','TilitPaatetty','AlvAlkaa') ORDER BY avain")));
+        tulos.insert(QStringLiteral("tilit"),
+                     TestDb::dump(db_.sql(), QStringLiteral("SELECT COUNT(*) AS lkm FROM Tili")));
+        return tulos;
+    };
+
+    if (!db_.postgresKaytossa()) {
+        QTest::qSkip("PostgreSQL is not available", __FILE__, __LINE__);
+        return;
+    }
+    QVERIFY(db_.avaaSqlite(alustus));
+    const QVariantMap sqlite = luku();
+    db_.sulje();
+    QVERIFY(db_.avaaPostgres(alustus));
+    const QVariantMap postgres = luku();
+    db_.sulje();
+
+    QCOMPARE(sqlite.value(QStringLiteral("tilikaudet")).toList().count(), 2);
+    QCOMPARE(sqlite.value(QStringLiteral("avaustosite")).toList().count(), 1);
+    QCOMPARE(postgres.value(QStringLiteral("tilikaudet")).toList().count(), 2);
+    vertaa(sqlite, postgres);
+}
+
+void DbParityTest::velho_postgresPolkuKulkeeTilikausisivunKautta()
+{
+    // Ajetaan velhoa samoin kuin UusiVelho::uusiPostgresAsiakas() (alkaa
+    // VARMISTA-sivulta, "postgres" päällä) mutta ilman modaalista exec()-kutsua.
+    UusiVelho velho;
+    velho.setField(QStringLiteral("pilveen"), false);
+    velho.setField(QStringLiteral("postgres"), true);
+    velho.setField(QStringLiteral("pgHost"), QStringLiteral("localhost"));
+    velho.setField(QStringLiteral("pgPort"), 5432);
+    velho.setField(QStringLiteral("pgDatabase"), QStringLiteral("asiakas"));
+    velho.setField(QStringLiteral("nimi"), QStringLiteral("Velho Oy"));
+    velho.setStartId(UusiVelho::VARMISTA);
+    velho.restart();
+
+    QList<int> kaydyt;
+    for (int i = 0; i < 20 && velho.currentId() != UusiVelho::LOPPU; ++i) {
+        kaydyt.append(velho.currentId());
+        const int ennen = velho.currentId();
+        velho.next();
+        if (velho.currentId() == ennen)
+            break;
+    }
+    qInfo() << "Velhon sivut:" << kaydyt << "loppui sivulle" << velho.currentId();
+    QVERIFY2(kaydyt.contains(UusiVelho::TILIKAUSI), "Velho ohitti tilikausisivun");
+    QCOMPARE(velho.tilikaudet_.count(), 2);
+    QCOMPARE(velho.data().value(QStringLiteral("init")).toMap().value(QStringLiteral("tilikaudet")).toList().count(), 2);
+}
+
 void DbParityTest::route_kohdennukset()
 {
     const auto toiminto = [this]() -> QVariant {
@@ -707,6 +790,61 @@ void DbParityTest::route_saldotSisaltaaViisinumeroisenVelkatilin()
              "tietokannoilla - SaldotRoute::get() jättää sen ulos numeerisella "
              "'tili < 3000' -rajauksella, vaikka kyseessä on tavallinen alle 3000-tilin "
              "sisällä oleva alatili.");
+}
+
+void DbParityTest::route_eratListaaAvoimetTaseEratMolemmissa()
+{
+    // Regressiotesti: "Valitse tase-erä" -dialogin lista (/erat) oli tyhjä Postgresilla,
+    // koska kysely valitsi ei-koostettuja sarakkeita (a.selite, tosite.pvm...) ilman että ne
+    // olivat GROUP BY:ssä. SQLite sallii tämän, PostgreSQL palauttaa virheen ja reitti
+    // palautti tyhjän listan. Ks. MIGRATION_NOTES.md.
+    const auto toiminto = [this]() -> QVariant {
+        const auto rivi = [](const QString& tunniste, int tili, double debet, double kredit, int eraId) {
+            QVariantMap vienti{
+                {QStringLiteral("pvm"), QDate(2019, 3, 1)},
+                {QStringLiteral("tili"), tili},
+                {QStringLiteral("selite"), tunniste},
+            };
+            if (debet > 0)
+                vienti.insert(QStringLiteral("debet"), debet);
+            if (kredit > 0)
+                vienti.insert(QStringLiteral("kredit"), kredit);
+            if (eraId)
+                vienti.insert(QStringLiteral("era"), QVariantMap{{QStringLiteral("id"), eraId}});
+            return vienti;
+        };
+
+        // Uusi erä: 100 € myyntisaamista (era.id -1 = UUSI_ERA)
+        lisaaTosite(QStringLiteral("Lasku"), TositeTyyppi::TULO,
+                    {rivi(QStringLiteral("Myyntilasku"), 1700, 100.0, 0.0, -1),
+                     rivi(QStringLiteral("Myynti"), 3000, 0.0, 100.0, 0)});
+
+        const QVariantList avoimet = db_.kysy(QStringLiteral("/erat?tili=1700")).toList();
+        if (!QTest::qVerify(avoimet.count() == 1, "avoimet.count() == 1",
+                            "Avoin tase-erä puuttuu /erat-listalta", __FILE__, __LINE__))
+            return {};
+        const int eraId = avoimet.first().toMap().value(QStringLiteral("id")).toInt();
+        if (!QTest::qVerify(eraId > 0, "eraId > 0", "", __FILE__, __LINE__))
+            return {};
+
+        // Osasuoritus 40 € samalle erälle
+        lisaaTosite(QStringLiteral("Maksu"), TositeTyyppi::TULO,
+                    {rivi(QStringLiteral("Osasuoritus"), 1910, 40.0, 0.0, 0),
+                     rivi(QStringLiteral("Osasuoritus"), 1700, 0.0, 40.0, eraId)});
+
+        QVariantMap ulos;
+        ulos.insert(QStringLiteral("avoimet"), db_.kysy(QStringLiteral("/erat?tili=1700")));
+        ulos.insert(QStringLiteral("kaikki"), db_.kysy(QStringLiteral("/erat?tili=1700&kaikki")));
+        return ulos;
+    };
+    const QVariantMap ulos = suoritaMolemmissa(toiminto).toMap();
+    if (ulos.isEmpty())
+        return; // Postgres ei käytettävissä, tapaus ohitettu
+
+    const QVariantList avoimet = ulos.value(QStringLiteral("avoimet")).toList();
+    QCOMPARE(avoimet.count(), 1);
+    QCOMPARE(avoimet.first().toMap().value(QStringLiteral("avoin")).toDouble(), 60.0);
+    QCOMPARE(avoimet.first().toMap().value(QStringLiteral("selite")).toString(), QStringLiteral("Myyntilasku"));
 }
 
 void DbParityTest::sqliteTuoja_kopioiKaikkiTaulut()

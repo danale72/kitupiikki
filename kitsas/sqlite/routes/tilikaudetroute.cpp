@@ -156,7 +156,7 @@ QVariant TilikaudetRoute::post(const QString &polku, const QVariant &data)
 
     query.exec(QString("SELECT sarja, MAX(tunniste) FROM Tosite "
                "WHERE pvm < '%1' AND pvm >= '%2' AND tila >= 100 "
-                "GROUP BY tunniste").arg(alkaa).arg(kausialkaa.toString(Qt::ISODate)));
+                "GROUP BY sarja").arg(alkaa).arg(kausialkaa.toString(Qt::ISODate)));
     while( query.next()) {
         int min = query.value(1).toInt() + 1;
         numerot.insert(query.value(0).toString(), min);

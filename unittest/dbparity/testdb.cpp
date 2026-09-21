@@ -405,25 +405,25 @@ void TestDb::sulje()
     kp()->yhteysAvattu(nullptr);
 }
 
-bool TestDb::avaaSqlite()
+bool TestDb::avaaSqlite(const QVariantMap& alustus)
 {
     sulje();
     QFile::remove(sqlitePolku_);
-    if (!kp()->sqlite()->uusiKirjanpito(sqlitePolku_, initials())) {
+    if (!kp()->sqlite()->uusiKirjanpito(sqlitePolku_, alustus)) {
         qWarning() << "SQLite uusiKirjanpito failed for" << sqlitePolku_;
         return false;
     }
     return kp()->sqlite()->avaaTiedosto(sqlitePolku_, false);
 }
 
-bool TestDb::avaaPostgres()
+bool TestDb::avaaPostgres(const QVariantMap& alustus)
 {
     sulje();
     if (!postgresKaytossa_)
         return false;
     if (!pudotaJaLuoPostgresTietokanta())
         return false;
-    return kp()->postgres()->uusiKirjanpito(postgresYhteys(), initials(), false);
+    return kp()->postgres()->uusiKirjanpito(postgresYhteys(), alustus, false);
 }
 
 QVariant TestDb::kysy(const QString& polku, KpKysely::Metodi metodi, const QVariant& data)

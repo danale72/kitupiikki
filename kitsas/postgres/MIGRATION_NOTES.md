@@ -261,6 +261,47 @@ escapes, then asserts both come back post-import as `"REFTAIL"` — the
 garbage-but-real surrounding text preserved, only the un-storable NUL bytes
 removed.
 
+### 6. `GROUP BY` with non-aggregated columns and `text < integer` in shared routes (FIXED)
+
+**Symptom:** on Kitsas PG, "Muokkaa vientiä" → "Valitse tase-erä" (used for
+1700/1701 receivables, and every other account with erä tracking) showed an
+empty list. Nothing was wrong with the data.
+
+**Cause:** `EraRoute::get()` (`/erat`) selected `a.selite`, `tosite.pvm`,
+`tosite.tunniste`, `kumppani.nimi` etc. while grouping only by
+`vienti.eraid`. SQLite silently returns an arbitrary row's value for such
+"bare" columns; PostgreSQL rejects the statement (`column "a.selite" must
+appear in the GROUP BY clause or be used in an aggregate function`). The
+route ignores a failed `exec()` and returns an empty list, so the UI just
+showed nothing. Reproduced against the real `corosar_oy` database by running
+the exact query in a read-only transaction.
+
+Same class of problem, found by testing every query in the route against
+Postgres:
+
+- `EraRoute::listaErittely()` — same `GROUP BY` problem. It also took
+  `tosite.pvm/sarja/tunniste` from an *arbitrary member row of the group*
+  (the voucher of whichever payment SQLite happened to pick) rather than the
+  voucher that opened the erä; it now joins the opening voucher (`et`).
+- `EraRoute::erittely()` (tase-erittely report) — `CAST (tili AS text) < 3`
+  compares text with an integer. SQLite coerces the literal to text;
+  Postgres raises `operator does not exist: text < integer`. Now
+  `< '3'`, like every other place that uses this string comparison (see #2).
+- `TilikaudetRoute::post("numerointi")` — `SELECT sarja, MAX(tunniste) …
+  GROUP BY tunniste`. Failed on Postgres (so renumbering mid-year restarted
+  every series at 1); the intent was per-series maximum, so now `GROUP BY
+  sarja`.
+
+**Rule of thumb:** every non-aggregated column in a `SELECT` with `GROUP BY`
+must be listed in the `GROUP BY`, and never compare text columns with
+unquoted numeric literals. Routes swallow query errors, so a violation shows
+up as an empty result rather than an error.
+
+Covered by `route_eratListaaAvoimetTaseEratMolemmissa` in `unittest/dbparity`
+(erä `/erat` list incl. partially settled erä). `erittely` and `numerointi`
+depend on `kp()` state the test fixture does not provide and were verified by
+running the rewritten SQL directly on Postgres only.
+
 ## Schema differences to account for in a migration tool
 
 ### Auto-increment: `AUTOINCREMENT` (SQLite) vs `GENERATED ... AS IDENTITY` (Postgres)
