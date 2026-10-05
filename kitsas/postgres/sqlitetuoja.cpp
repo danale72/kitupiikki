@@ -10,10 +10,14 @@
 #include "sql/sqlmodel.h"
 
 #include <QApplication>
+#include <QJsonArray>
 #include <QJsonDocument>
+#include <QJsonObject>
 #include <QJsonParseError>
+#include <QJsonValue>
 #include <QMessageBox>
 #include <QProgressDialog>
+#include <QSet>
 #include <QSqlError>
 #include <QSqlQuery>
 #include <QUuid>
@@ -59,12 +63,51 @@ const QStringList IDENTITEETTITAULUT = {
     QStringLiteral("Liite"), QStringLiteral("Tuote")
 };
 
+// Postgresin text-pohjaiset tyypit (text, varchar, json, jsonb - kaikki niistä)
+// eivät voi koskaan sisältää tavua 0x00, koska Postgres käyttää niiden sisäisenä
+// esityksenä C-merkkijonoja. SQLite ei tunne tätä rajoitusta lainkaan, joten
+// vanha data (esim. tiliotteen tuonnin viitekentän koodausbugi vuosien takaa) on
+// voinut tallentua NUL-tavuja sisältävänä ilman että kukaan on koskaan huomannut.
+// JSON-merkkijonon sisällä tämä näkyy täysin validina Unicode-pakotuksena nollamerkille (JSON-
+// spesifikaatio sallii sen), mutta Postgresin jsonb-jäsennin ei silti pysty
+// muodostamaan siitä text-arvoa, ja INSERT epäonnistuu. poistaNulit() käy JSONin
+// rekursiivisesti läpi ja poistaa upotetut NUL-merkit merkkijonoarvoista.
+QJsonValue poistaNulit(const QJsonValue& arvo, bool* muutettu)
+{
+    switch( arvo.type()) {
+    case QJsonValue::String: {
+        QString teksti = arvo.toString();
+        if( teksti.contains(QChar(0))) {
+            teksti.remove(QChar(0));
+            *muutettu = true;
+        }
+        return teksti;
+    }
+    case QJsonValue::Object: {
+        const QJsonObject alkuperainen = arvo.toObject();
+        QJsonObject puhdas;
+        for( auto it = alkuperainen.constBegin(); it != alkuperainen.constEnd(); ++it)
+            puhdas.insert(it.key(), poistaNulit(it.value(), muutettu));
+        return puhdas;
+    }
+    case QJsonValue::Array: {
+        const QJsonArray alkuperainen = arvo.toArray();
+        QJsonArray puhdas;
+        for( const QJsonValue& alkio : alkuperainen)
+            puhdas.append(poistaNulit(alkio, muutettu));
+        return puhdas;
+    }
+    default:
+        return arvo;
+    }
+}
+
 // Tositeloki.data on ainoa aidosti jsonb-tyyppinen sarake. SQLiten "jsonb"-tyyppimääre
 // ei vastaa mitään SQLiten tunnistamaa affiniteettia, joten se päätyy NUMERIC-affiniteettiin:
 // jos sisältö sattuu näyttämään puhtaalta numerolta, SQLite saattaa tallentaa sen numerona
 // tekstin sijaan. Postgres taas vaatii aidosti kelvollista JSONia joka rivillä. Palautetaan
 // aina merkkijonona, tai NULL jos sisältö on tyhjä tai ei jäsenny JSONiksi.
-QVariant siivoaJsonb(const QVariant& arvo)
+QVariant siivoaJsonb(const QVariant& arvo, bool* sisalsiNulin)
 {
     if( arvo.isNull())
         return QVariant();
@@ -72,15 +115,25 @@ QVariant siivoaJsonb(const QVariant& arvo)
     if( teksti.isEmpty())
         return QVariant();
     QJsonParseError virhe;
-    QJsonDocument::fromJson(teksti.toUtf8(), &virhe);
+    const QJsonDocument dokumentti = QJsonDocument::fromJson(teksti.toUtf8(), &virhe);
     if( virhe.error != QJsonParseError::NoError) {
         qWarning() << "SqliteTuoja: Tositeloki.data ei ole kelvollista JSONia, tallennetaan NULL:" << virhe.errorString();
         return QVariant();
     }
-    return teksti;
+
+    bool muutettu = false;
+    const QJsonValue juuri = dokumentti.isArray() ? QJsonValue(dokumentti.array()) : QJsonValue(dokumentti.object());
+    const QJsonValue puhdas = poistaNulit(juuri, &muutettu);
+    if( !muutettu )
+        return teksti;
+
+    if( sisalsiNulin )
+        *sisalsiNulin = true;
+    const QJsonDocument puhdasDokumentti = puhdas.isArray() ? QJsonDocument(puhdas.toArray()) : QJsonDocument(puhdas.toObject());
+    return QString::fromUtf8(puhdasDokumentti.toJson(QJsonDocument::Compact));
 }
 
-bool kopioiTaulu(QSqlDatabase& sqlite, QSqlDatabase& postgres, const Taulu& taulu, QString* virhe)
+bool kopioiTaulu(QSqlDatabase& sqlite, QSqlDatabase& postgres, const Taulu& taulu, QString* virhe, QStringList* huomiot)
 {
     QSqlQuery lue(sqlite);
     if( !lue.exec(QStringLiteral("SELECT %1 FROM %2").arg(taulu.sarakkeet.join(','), taulu.nimi)) ) {
@@ -100,15 +153,72 @@ bool kopioiTaulu(QSqlDatabase& sqlite, QSqlDatabase& postgres, const Taulu& taul
     const int tositeSarake = onLiite ? taulu.sarakkeet.indexOf(QLatin1String("tosite")) : -1;
     const int liiteDataSarake = onLiite ? taulu.sarakkeet.indexOf(QLatin1String("data")) : -1;
 
+    // Tosite.kumppani ja Vienti.kumppani voivat lähdetiedostossa viitata kumppaniin,
+    // joka on sittemmin poistettu - SQLite ei valvo FK-rajoitteita, joten tällainen
+    // roikkuva viittaus on päässyt syntymään ja jäänyt huomaamatta. Postgres valvoo
+    // rajoitteen aina, joten roikkuva kumppani-viittaus tulkitaan tuonnissa NULL:ksi
+    // (sama merkitys kuin "ei kumppania"), ja tapaus kootaan huomiot-listaan
+    // näytettäväksi käyttäjälle tuonnin lopuksi.
+    const bool onKumppaniviite = (taulu.nimi == QLatin1String("Tosite") || taulu.nimi == QLatin1String("Vienti"));
+    const int kumppaniSarake = onKumppaniviite ? taulu.sarakkeet.indexOf(QLatin1String("kumppani")) : -1;
+    QSet<qlonglong> kelvollisetKumppanit;
+    if( kumppaniSarake >= 0 ) {
+        QSqlQuery kumppanit(postgres);
+        if( kumppanit.exec(QStringLiteral("SELECT id FROM Kumppani")) ) {
+            while( kumppanit.next())
+                kelvollisetKumppanit.insert(kumppanit.value(0).toLongLong());
+        }
+    }
+    int roikkuviaKumppaneita = 0;
+
+    // Vienti.tili voi olla 0 tai viitata tiliin, jota tilikartassa ei (enää) ole.
+    // Tämä on osin tarkoituksellista: tili=0 on luonnostilaisen (LUONNOS) viennin
+    // "tiliä ei ole vielä valittu" -tila, jonka Tosite::paivitaVirheet() tulkitsee
+    // TILIPUUTTUU-merkinnäksi (ks. tosite.cpp, !kp()->tilit()->tili(vienti.tili())) -
+    // SQLite ei ole koskaan valvonut tätä FK-rajoitetta, joten tällaiset rivit ovat
+    // päässeet syntymään ja jääneet tallennetuiksi. Postgres valvoo rajoitteen aina,
+    // joten puuttuva/roikkuva tili tulkitaan tuonnissa NULL:ksi. Koska data(TILI:n)
+    // lukija tulkitsee NULL:n takaisin 0:ksi (QVariant().toInt()==0), TILIPUUTTUU-
+    // logiikka toimii tuonnin jälkeenkin täsmälleen samoin kuin alkuperäisellä
+    // tili=0-arvolla.
+    const bool onTiliviite = (taulu.nimi == QLatin1String("Vienti"));
+    const int tiliSarake = onTiliviite ? taulu.sarakkeet.indexOf(QLatin1String("tili")) : -1;
+    QSet<qlonglong> kelvollisetTilit;
+    if( tiliSarake >= 0 ) {
+        QSqlQuery tilit(postgres);
+        if( tilit.exec(QStringLiteral("SELECT numero FROM Tili")) ) {
+            while( tilit.next())
+                kelvollisetTilit.insert(tilit.value(0).toLongLong());
+        }
+    }
+    int roikkuviaTilinumeroita = 0;
+
+    // Yleinen varmistus kaikille muille sarakkeille kuin Tositeloki.data (jolle on jo
+    // oma, JSON-rakenteen säilyttävä käsittely yllä): mikä tahansa teksti voi periaatteessa
+    // sisältää vanhan koodausbugin jäljiltä upotettuja NUL-tavuja (ks. siivoaJsonb:n kommentti
+    // - sama rajoitus koskee kaikkia Postgresin text-pohjaisia tyyppejä, ei vain jsonb:tä).
+    // Liite.data (aito binääridata) jätetään koskemattomaksi, koska se pysyy QByteArray-
+    // tyyppisenä eikä koskaan kulje tämän merkkijonokäsittelyn kautta.
+    int siivottujaNulillisiaKenttia = 0;
+
     QList<QVariantList> rivit;
     while( lue.next()) {
         QVariantList rivi;
         for(int i=0; i < taulu.sarakkeet.count(); i++) {
             QVariant arvo = lue.value(i);
+            bool tositelokiNulitPoistettu = false;
             if( onTositeloki && i == jsonbSarake ) {
-                arvo = siivoaJsonb(arvo);
+                arvo = siivoaJsonb(arvo, &tositelokiNulitPoistettu);
+                if( tositelokiNulitPoistettu )
+                    siivottujaNulillisiaKenttia++;
             } else if( onLiite && i == tositeSarake && arvo.toInt() == 0 ) {
                 arvo = QVariant();
+            } else if( i == kumppaniSarake && !arvo.isNull() && !kelvollisetKumppanit.contains(arvo.toLongLong()) ) {
+                arvo = QVariant();
+                roikkuviaKumppaneita++;
+            } else if( i == tiliSarake && !arvo.isNull() && !kelvollisetTilit.contains(arvo.toLongLong()) ) {
+                arvo = QVariant();
+                roikkuviaTilinumeroita++;
             } else if( !(onLiite && i == liiteDataSarake) && arvo.typeId() == QMetaType::QByteArray ) {
                 // Liite.data on skeeman ainoa aidosti binäärinen sarake. Jos SQLite
                 // palauttaa jonkin toisen sarakkeen silti QByteArray-tyyppisenä, se on
@@ -120,9 +230,37 @@ bool kopioiTaulu(QSqlDatabase& sqlite, QSqlDatabase& postgres, const Taulu& taul
                 // sarjallista sitä bytea-heksana kohdesarakkeeseen.
                 arvo = QString::fromUtf8(arvo.toByteArray());
             }
+            if( !tositelokiNulitPoistettu && arvo.typeId() == QMetaType::QString ) {
+                QString teksti = arvo.toString();
+                if( teksti.contains(QChar(0))) {
+                    teksti.remove(QChar(0));
+                    arvo = teksti;
+                    siivottujaNulillisiaKenttia++;
+                }
+            }
             rivi.append(arvo);
         }
         rivit.append(rivi);
+    }
+
+    if( roikkuviaKumppaneita > 0 && huomiot ) {
+        huomiot->append(QObject::tr("Taulussa %1 oli %2 riviä, joiden kumppani-viittaus ei löytynyt "
+                                    "(kumppani on ilmeisesti poistettu myöhemmin) - kumppani jätettiin näiltä riveiltä tyhjäksi.")
+                        .arg(taulu.nimi).arg(roikkuviaKumppaneita));
+    }
+
+    if( roikkuviaTilinumeroita > 0 && huomiot ) {
+        huomiot->append(QObject::tr("Taulussa %1 oli %2 riviä, joiden tiliä ei löytynyt tilikartasta "
+                                    "(luonnostilainen vienti, jolle tiliä ei ole vielä valittu, tai tili on sittemmin poistettu) - "
+                                    "tili jätettiin näiltä riveiltä tyhjäksi.")
+                        .arg(taulu.nimi).arg(roikkuviaTilinumeroita));
+    }
+
+    if( siivottujaNulillisiaKenttia > 0 && huomiot ) {
+        huomiot->append(QObject::tr("Taulussa %1 oli %2 kenttää, joissa oli vanhastaan vioittunutta dataa "
+                                    "(mm. tiliotteen tuonnista peräisin oleva viite, jossa upotettuja NUL-tavuja) "
+                                    "- Postgres ei voi tallentaa niitä, joten kentät siivottiin tuonnissa.")
+                        .arg(taulu.nimi).arg(siivottujaNulillisiaKenttia));
     }
 
     if( rivit.isEmpty())
@@ -246,6 +384,7 @@ bool SqliteTuoja::tuo(QSqlDatabase postgres, const QString &sqlitePolku, bool il
         return lopeta(false);
     }
 
+    QStringList huomiot;
     int vaihe = 0;
     for(const Taulu& taulu : TAULUT) {
         edistyminen.setLabelText(QObject::tr("Tuodaan taulua %1...").arg(taulu.nimi));
@@ -253,7 +392,7 @@ bool SqliteTuoja::tuo(QSqlDatabase postgres, const QString &sqlitePolku, bool il
         qApp->processEvents();
 
         QString virhe;
-        if( !kopioiTaulu(sqlite, postgres, taulu, &virhe) ) {
+        if( !kopioiTaulu(sqlite, postgres, taulu, &virhe, &huomiot) ) {
             postgres.rollback();
             ilmoita(QObject::tr("Virhe taulua %1 tuotaessa:\n%2").arg(taulu.nimi, virhe));
             return lopeta(false);
@@ -294,5 +433,17 @@ bool SqliteTuoja::tuo(QSqlDatabase postgres, const QString &sqlitePolku, bool il
     }
 
     edistyminen.setValue(TAULUT.count() + 1);
+
+    if( !huomiot.isEmpty() ) {
+        // Lokitetaan aina kuten virheetkin, ja näytetään käyttäjälle vain jos
+        // valintaikkunoita ei ole tukahdutettu.
+        for( const QString& huomautus : huomiot )
+            qWarning() << "SqliteTuoja:" << huomautus;
+        if( ilmoitaVirheesta )
+            QMessageBox::warning(nullptr, QObject::tr("Tuonti onnistui huomautuksin"),
+                                 QObject::tr("Tuonti onnistui, mutta seuraavat asiat huomioi:\n\n%1")
+                                 .arg(huomiot.join(QStringLiteral("\n"))));
+    }
+
     return lopeta(true);
 }

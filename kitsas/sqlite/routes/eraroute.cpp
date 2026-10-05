@@ -52,7 +52,10 @@ QVariant EraRoute::get(const QString &polku, const QUrlQuery &urlquery)
     if( urlquery.hasQueryItem("asiakas"))
         kysymys.append(QString("AND a.kumppani=%1 ").arg(urlquery.queryItemValue("asiakas")));
 
-    kysymys.append("GROUP BY vienti.eraid ");
+    // Kaikki ei-koostetut sarakkeet (a.*, tosite.*, kumppani.nimi) ovat riippuvaisia eraid:stä,
+    // mutta PostgreSQL vaatii ne silti eksplisiittisesti GROUP BY:hin (SQLite sallii ilman)
+    kysymys.append("GROUP BY vienti.eraid, a.selite, tosite.pvm, a.tili, tosite.tunniste, tosite.sarja, "
+                   "tosite.tyyppi, a.kumppani, kumppani.nimi ");
     if( !urlquery.hasQueryItem("kaikki") )
                    kysymys.append("HAVING sum(vienti.debetsnt) <> sum(vienti.kreditsnt) OR sum(vienti.debetsnt) IS NULL OR sum(vienti.kreditsnt) IS NULL");
 
@@ -95,7 +98,7 @@ QVariant EraRoute::erittely(const QDate &mista, const QDate &pvm)
     kysely.exec( QString("SELECT tili, SUM(debetsnt), SUM(kreditsnt) FROM vienti "
                               "JOIN Tosite ON Vienti.tosite=Tosite.id WHERE "
                               "Vienti.pvm <= '%1' AND Tosite.tila >= 100 "
-                              "AND CAST (tili AS text) < 3 GROUP BY tili").arg(pvm.toString(Qt::ISODate)) );
+                              "AND CAST (tili AS text) < '3' GROUP BY tili").arg(pvm.toString(Qt::ISODate)) );
     while( kysely.next()) {
         QString tilinro = kysely.value(0).toString();
         Tili* tili = kp()->tilit()->tili( tilinro.toInt() );
@@ -112,7 +115,7 @@ QVariant EraRoute::erittely(const QDate &mista, const QDate &pvm)
     kysely.exec( QString("SELECT tili, SUM(debetsnt), SUM(kreditsnt) FROM vienti "
                               "JOIN Tosite ON Vienti.tosite=Tosite.id WHERE "
                               "Vienti.pvm < '%1' AND Tosite.tila >= 100 "
-                              "AND CAST (tili AS text) < 3 GROUP BY tili").arg(mista.toString(Qt::ISODate)) );
+                              "AND CAST (tili AS text) < '3' GROUP BY tili").arg(mista.toString(Qt::ISODate)) );
     while( kysely.next()) {
         QString tilinro = kysely.value(0).toString();
         Tili* tili = kp()->tilit()->tili( tilinro.toInt() );
@@ -310,13 +313,17 @@ QVariant EraRoute::listaErittely(Tili *tili, const QDate & /* mista */, const QD
     QVariantList erat;
     Euro erittelematta = loppusaldo;
 
-    apukysely.exec(QString("select vienti.eraid, sum(vienti.debetsnt) as sd, sum(vienti.kreditsnt) as sk, a.selite, tosite.pvm, "
-                           "tosite.sarja, tosite.tunniste, Vienti.pvm, Kumppani.nimi AS Kumppani "
+    // Erän päivämäärä, sarja ja tunniste haetaan erän aloittavan viennin tositteelta (et), ei
+    // summattavilta viennit-riveiltä, ja kaikki ei-koostetut sarakkeet on GROUP BY:ssä PostgreSQL:n takia
+    apukysely.exec(QString("select vienti.eraid, sum(vienti.debetsnt) as sd, sum(vienti.kreditsnt) as sk, a.selite, et.pvm, "
+                           "et.sarja, et.tunniste, a.pvm, Kumppani.nimi AS Kumppani "
                            "FROM Vienti "
                            "join Vienti as a on vienti.eraid = a.id "
                            "join Tosite on vienti.tosite=tosite.id "
+                           "join Tosite as et on a.tosite=et.id "
                            "LEFT OUTER JOIN Kumppani ON a.kumppani=Kumppani.id "
-                           "WHERE vienti.tili=%1 AND vienti.pvm <= '%2'  AND Tosite.tila >= 100 GROUP BY vienti.eraid, a.selite, a.pvm, a.tili "
+                           "WHERE vienti.tili=%1 AND vienti.pvm <= '%2'  AND Tosite.tila >= 100 "
+                           "GROUP BY vienti.eraid, a.selite, a.pvm, a.tili, et.pvm, et.sarja, et.tunniste, Kumppani.nimi "
                            "HAVING sum(vienti.debetsnt) <> sum(vienti.kreditsnt) OR sum(vienti.debetsnt) IS NULL OR sum(vienti.kreditsnt) IS NULL;"
                            ).arg(tili->numero()).arg(mihin.toString(Qt::ISODate)));
 

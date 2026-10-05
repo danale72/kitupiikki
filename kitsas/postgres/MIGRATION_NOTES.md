@@ -130,6 +130,178 @@ account is 4 digits" caveat from the first fix wasn't a footnote, it was
 the actual bug waiting to happen, and it happened as soon as a customer
 book with a real sub-account was imported.
 
+### 3. Dangling `Tosite`/`Vienti.kumppani` references not enforced by SQLite (FIXED)
+
+**Where:** `kopioiTaulu()` in `kitsas/postgres/sqlitetuoja.cpp`
+(`SqliteTuoja`), mirrored in `migrate_table()` in
+`kitsas/postgres/migrate_sqlite_to_pg.py`.
+
+**Cause:** Both `Tosite.kumppani` and `Vienti.kumppani` are nullable foreign
+keys to `Kumppani(id)`. SQLite doesn't enforce FK constraints by default, so
+a `.kitsas` file can accumulate rows whose `kumppani` points at a
+`Kumppani` row that was deleted later — invisible under SQLite, but
+Postgres enforces the constraint on every insert. Hit in practice on a real
+customer file (`Edlen.kitsas`): `INSERT INTO vienti ... violates foreign key
+constraint "vienti_kumppani_fkey" ... Key (kumppani)=(34) is not present in
+table "kumppani"`, which aborted the whole import.
+
+**Fix applied:** same treatment as the existing `Liite.tosite=0` case just
+below — a dangling `kumppani` reference is a legitimate "no counterparty"
+value, not corrupt data worth failing the import over. Both importers now
+check each `Tosite`/`Vienti` row's `kumppani` against the target's actual
+`Kumppani.id` set (already imported earlier in table order) and null out
+any value that doesn't match, instead of erroring. The C++ importer
+collects a summary ("N rows had a kumppani reference that no longer
+existed") and shows it in a message box at the end of a successful import
+instead of failing silently or aborting; the Python script prints an
+equivalent warning per table.
+
+### 4. Dangling `Vienti.tili` references not enforced by SQLite (FIXED)
+
+**Where:** `kopioiTaulu()` in `kitsas/postgres/sqlitetuoja.cpp` (`SqliteTuoja`),
+mirrored in `migrate_table()` in `kitsas/postgres/migrate_sqlite_to_pg.py`.
+
+**Cause:** `Vienti.tili` is a nullable FK to `Tili(numero)`. SQLite doesn't
+enforce it, so a `.kitsas` file can contain `Vienti` rows whose `tili` is `0`
+or otherwise not present in `Tili` — invisible under SQLite, but Postgres
+enforces the constraint on every insert. Hit in practice on a real customer
+file (`OLEKSENO.kitsas`): `INSERT INTO vienti ... violates foreign key
+constraint "vienti_tili_fkey" ... Key (tili)=(0) is not present in table
+"tili"`, which aborted the whole import.
+
+`tili=0` specifically is not corrupt data — it's the legitimate "no account
+chosen yet" state for a draft (`Tosite::LUONNOS`) voucher line, e.g. one leg
+of a bank-statement import (`TositeTyyppi::TUONTI`) the bookkeeper hasn't
+categorized yet. `model/tosite.cpp`'s `paivitaVirheet()` already checks for
+exactly this (`!kp()->tilit()->tili(vienti.tili())`) and raises
+`Tosite::TILIPUUTTUU`, which `kirjauswg.cpp` treats as an acceptable
+draft-only state rather than a hard error.
+
+**Fix applied:** same treatment as the `Tosite`/`Vienti.kumppani` case above
+— a `Vienti.tili` value not present in the target's `Tili.numero` set (which
+includes `0`, since no `Tili` row is ever seeded with that number) is nulled
+out instead of failing the import, and counted into the same
+huomiot/warning summary shown at the end. Verified this doesn't change
+validation behavior: `TositeVienti::tili()` reads the column via
+`data(TILI).toInt()`, and `QVariant().toInt()` is `0`, so a `NULL` tili is
+read back as `0` and still trips `TILIPUUTTUU` exactly as the original
+`tili=0` value did. Covered by `sqliteTuoja_kopioiKaikkiTaulut` in
+`unittest/dbparity` (same draft voucher used for the kumppani-dangling
+case, with one leg's `tili` forced to `0` via raw SQL before import).
+
+Only `Vienti.tili` is handled this way — `Budjetti.tili` is part of that
+table's primary key (`PRIMARY KEY (tilikausi, kohdennus, tili)`, so it can't
+be nulled without dropping the row) and `Vakioviite.tili` has no equivalent
+"not yet chosen" semantics in the app; neither has been observed to hit
+this in practice, so they're left as hard failures for now if it ever comes
+up.
+
+### 5. Embedded NUL bytes in old, already-corrupted text data (FIXED)
+
+**Where:** `siivoaJsonb()`/`poistaNulit()` and the generic per-cell check in
+`kopioiTaulu()` in `kitsas/postgres/sqlitetuoja.cpp` (`SqliteTuoja`), mirrored
+in `sanitize_jsonb()`/`strip_json_nuls()`/`decode_and_strip_nul()` in
+`kitsas/postgres/migrate_sqlite_to_pg.py`.
+
+**Cause:** PostgreSQL's text-backed types (`text`, `varchar`, `json`,
+`jsonb`) can **never** store byte `0x00` under any circumstances — its
+internal representation is a C string. SQLite has no such restriction at
+all. Hit in practice on a real customer file (`SannaHirvonenTmi.kitsas`):
+`INSERT INTO tositeloki ... ERROR: unsupported Unicode escape sequence ...
+DETAIL: \u0000 cannot be converted to text`, which aborted the import.
+
+Root cause was a single genuinely corrupted `Vienti.arkistotunnus` value
+(a tiliote-import bank reference code), evidently mangled years ago by an
+encoding bug elsewhere (`pdftiliote/`, unrelated to `SqliteTuoja`): 8
+characters of a reference like `202404085936192V6420A` had become 3 garbage
+multi-byte characters plus 5 raw `0x00` bytes. SQLite stored it unquestioned.
+This single corruption surfaced in two different forms, both fatal to
+Postgres:
+- **`Vienti.arkistotunnus` itself** — the column had been written via a
+  `QByteArray` bind into a text-affinity column (the same class of legacy
+  bug as bug #1 above), so it came back from SQLite as raw bytes containing
+  literal `0x00`.
+- **Two `Tositeloki.data` audit-log snapshots** captured at save time — there
+  a compliant JSON writer had correctly escaped the embedded NULs as the
+  6-character sequence `\u0000`, which is syntactically **valid** JSON per
+  spec. `QJsonDocument::fromJson()` parses it fine, so the existing
+  malformed-JSON-to-NULL check in `siivoaJsonb()` didn't catch it — the
+  failure only happens deep in Postgres's own jsonb parser, when it tries to
+  materialize the escape into an actual (impossible) NUL-containing text
+  value.
+
+**Fix applied:** `siivoaJsonb()` now keeps the parsed `QJsonDocument` (rather
+than discarding it after just checking for a parse error) and recursively
+walks it via `poistaNulit()`, stripping any embedded NUL character found in
+a string value and re-serializing only if something changed (cheap
+no-op/unchanged-text path otherwise). Separately, `kopioiTaulu()` now runs a
+generic check on every non-binary cell after all the existing per-column
+transformations: any `QString` value containing an embedded NUL has it
+stripped. Together these cover both places the same corruption showed up.
+Both are additive/lossy-only-on-the-corrupt-byte sanitization, not a
+null-out-the-whole-value policy like bugs #3/#4 above, since the surrounding
+content (e.g. the rest of the reference code) is still real, useful data.
+Counted into the same `huomiot`/warning summary. `Liite.data` (genuine
+binary) is explicitly excluded from the generic string check since it never
+becomes a `QString` in the first place.
+
+The Python script's version additionally had to gain the "any column can
+come back as raw `bytes` if written via a legacy `QByteArray` bind"
+decode-to-text step generically (`decode_and_strip_nul()`) — the C++
+importer already had this for the QByteArray case (bug #1's follow-up), but
+the Python script previously only applied it to the `json` column
+specifically, not every column, so it would have hit a `bytes`-into-`text`
+type mismatch on `arkistotunnus` independent of the NUL-byte issue.
+
+Covered by `sqliteTuoja_kopioiKaikkiTaulut` in `unittest/dbparity`: forces
+one `Vienti.arkistotunnus` to a `QByteArray` with embedded NUL bytes (same
+`QByteArray`-bind mechanism as the `sha` case above), and inserts a
+`Tositeloki` row with a hand-built JSON string containing valid `\u0000`
+escapes, then asserts both come back post-import as `"REFTAIL"` — the
+garbage-but-real surrounding text preserved, only the un-storable NUL bytes
+removed.
+
+### 6. `GROUP BY` with non-aggregated columns and `text < integer` in shared routes (FIXED)
+
+**Symptom:** on Kitsas PG, "Muokkaa vientiä" → "Valitse tase-erä" (used for
+1700/1701 receivables, and every other account with erä tracking) showed an
+empty list. Nothing was wrong with the data.
+
+**Cause:** `EraRoute::get()` (`/erat`) selected `a.selite`, `tosite.pvm`,
+`tosite.tunniste`, `kumppani.nimi` etc. while grouping only by
+`vienti.eraid`. SQLite silently returns an arbitrary row's value for such
+"bare" columns; PostgreSQL rejects the statement (`column "a.selite" must
+appear in the GROUP BY clause or be used in an aggregate function`). The
+route ignores a failed `exec()` and returns an empty list, so the UI just
+showed nothing. Reproduced against the real `corosar_oy` database by running
+the exact query in a read-only transaction.
+
+Same class of problem, found by testing every query in the route against
+Postgres:
+
+- `EraRoute::listaErittely()` — same `GROUP BY` problem. It also took
+  `tosite.pvm/sarja/tunniste` from an *arbitrary member row of the group*
+  (the voucher of whichever payment SQLite happened to pick) rather than the
+  voucher that opened the erä; it now joins the opening voucher (`et`).
+- `EraRoute::erittely()` (tase-erittely report) — `CAST (tili AS text) < 3`
+  compares text with an integer. SQLite coerces the literal to text;
+  Postgres raises `operator does not exist: text < integer`. Now
+  `< '3'`, like every other place that uses this string comparison (see #2).
+- `TilikaudetRoute::post("numerointi")` — `SELECT sarja, MAX(tunniste) …
+  GROUP BY tunniste`. Failed on Postgres (so renumbering mid-year restarted
+  every series at 1); the intent was per-series maximum, so now `GROUP BY
+  sarja`.
+
+**Rule of thumb:** every non-aggregated column in a `SELECT` with `GROUP BY`
+must be listed in the `GROUP BY`, and never compare text columns with
+unquoted numeric literals. Routes swallow query errors, so a violation shows
+up as an empty result rather than an error.
+
+Covered by `route_eratListaaAvoimetTaseEratMolemmissa` in `unittest/dbparity`
+(erä `/erat` list incl. partially settled erä). `erittely` and `numerointi`
+depend on `kp()` state the test fixture does not provide and were verified by
+running the rewritten SQL directly on Postgres only.
+
 ## Schema differences to account for in a migration tool
 
 ### Auto-increment: `AUTOINCREMENT` (SQLite) vs `GENERATED ... AS IDENTITY` (Postgres)

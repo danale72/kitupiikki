@@ -35,8 +35,8 @@ public:
     QString portablePolku() const { return portable_.path(); }
     QString sqlitePolku() const { return sqlitePolku_; }
 
-    bool avaaSqlite();
-    bool avaaPostgres();
+    bool avaaSqlite(const QVariantMap& alustus = initials());
+    bool avaaPostgres(const QVariantMap& alustus = initials());
 
     bool postgresKaytossa() const { return postgresKaytossa_; }
     QString postgresVirhe() const { return postgresVirhe_; }
