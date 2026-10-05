@@ -52,13 +52,9 @@ int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
     a.setApplicationVersion(KITSAS_VERSIO);
-#if defined(KITSAS_PG_BUILD)
-    a.setOrganizationDomain("kitsas-pg.fi");
-    a.setOrganizationName("Kitsas oy (PG-testi)");
-#else
-    a.setOrganizationDomain("kitsas.fi");
-    a.setOrganizationName("Kitsas oy");
-#endif
+    a.setOrganizationDomain("danale72.github.io");
+    a.setOrganizationName("Kiswas PG");
+    a.setApplicationName("Kiswas PG");
 
 #if defined (Q_OS_LINUX)
     qputenv("QTWEBENGINE_CHROMIUM_FLAGS","--disable-gpu");
@@ -118,11 +114,6 @@ int main(int argc, char *argv[])
     parser.addVersionOption();
     parser.process(a);
 
-#if defined(KITSAS_PG_BUILD)
-    a.setApplicationName("Kitsas PG");
-#else
-    a.setApplicationName( parser.isSet("pro") || PRO_VERSIO ? "Kitsas Pro" : "Kitsas");
-#endif
 #ifndef Q_OS_MACX
     a.setWindowIcon( parser.isSet("pro") || PRO_VERSIO ? QIcon(":/pic/propossu-64.png") : QIcon(":/pic/Possu64.png") );
 #endif

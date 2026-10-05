@@ -1,0 +1,23 @@
+Kiswas PG
+
+This is an unofficial modified version of Kitsas
+(https://github.com/artoh/kitupiikki).
+
+Copyright (C) Arto Hyvättinen and Kitsas Oy
+Additional copyright for this fork's changes: Alexei Danilov (danale72), 2026.
+
+Maintainer of this fork: Alexei Danilov (danale72) <comradexivanov@gmail.com>
+
+This program is free software under GNU GPL 3 or later.
+See LICENSE for the full text and additional terms.
+
+This is a modified version. Kitsas Oy does not support or
+take responsibility for this software.
+The name Kitsas Oy is not used as the identity of this fork.
+
+Changes in this fork:
+- PostgreSQL backend for local / self-hosted books (alternative to SQLite)
+- SQLite-to-PostgreSQL migration tooling
+- PostgreSQL JSON column binding fixes
+- GitHub Actions CI and unit-test build fixes
+- macOS build workflow

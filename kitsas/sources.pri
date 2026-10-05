@@ -398,6 +398,7 @@ SOURCES += \
     kirjaus/siirrydlg.cpp \
     tools/kpdateedit.cpp \
     validator/ytunnusvalidator.cpp \
+    validator/maksuviestivalidator.cpp \
     laskutus/laskusivu.cpp \
     naytin/naytinview.cpp \
     naytin/naytinikkuna.cpp \
@@ -843,6 +844,7 @@ HEADERS += \
     kirjaus/siirrydlg.h \
     tools/kpdateedit.h \
     validator/ytunnusvalidator.h \
+    validator/maksuviestivalidator.h \
     laskutus/laskusivu.h \
     naytin/naytinview.h \
     naytin/naytinikkuna.h \

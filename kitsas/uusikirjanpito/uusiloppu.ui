@@ -27,7 +27,7 @@
    <item>
     <widget class="QLabel" name="pilviLabel">
      <property name="text">
-      <string>Kirjanpitosi tallennetaan Kitsas Oy:n Suomessa sijaitsevalle palvelimelle. Kaiken varalta kirjanpitosi varmuuskopioidaan joka päivä. Pääset kirjanpitoosi, kun olet kirjautunut Kitsaan käyttäjätunnuksellasi ja sinulla on toimiva nettiyhteys.</string>
+      <string>Pilvitallennus kuuluu alkuperäisen Kitsas-ohjelman erilliseen pilvipalveluun. Tämä muokattu versio ei tarjoa eikä tue sitä. Käytä paikallista tallennusta (SQLite tai PostgreSQL), ellei sinulla ole omaa, erillistä pilviyhteyttä.</string>
      </property>
      <property name="wordWrap">
       <bool>true</bool>

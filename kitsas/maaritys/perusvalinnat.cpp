@@ -137,7 +137,7 @@ void Perusvalinnat::naytaVastuu(bool harjoitus)
         QMessageBox::warning(this,
                              tr("Vastuu kirjanpidosta"),
                              tr("Olet itse vastuussa kirjanpitosi oikeellisuudesta ja laillisuudesta sekä siitä, että kaikki verot maksetaan asianmukaisesti.\n\n"
-                                "Ohjelmalla ei ole mitään takuuta. Kitsas Oy ei myöskään anna oikeudellista neuvontaa kirjanpidosta tai verotuksesta.\n\n"
+                                "Ohjelmalla ei ole mitään takuuta. Tämä muokattu versio ei anna oikeudellista neuvontaa kirjanpidosta tai verotuksesta.\n\n"
                                 "Käänny tarvittaessa kirjanpidon ammattilaisen puoleen"));
     }
 }
