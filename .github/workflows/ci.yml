@@ -166,6 +166,17 @@ jobs:
           make -j"$(nproc)"
           test -x kitsas
 
+      - name: Build and run stability tests
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          set -euo pipefail
+          mkdir -p build-tests/vakaustesti
+          cd build-tests/vakaustesti
+          qmake ../../unittest/vakaustesti/vakaustesti.pro -spec linux-g++ "CONFIG+=release"
+          make -j"$(nproc)"
+          ./vakaustesti
+
   build-macos:
     name: Build Kitsas (macOS)
     runs-on: macos-14
