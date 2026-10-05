@@ -79,7 +79,7 @@ void UusiMaksuDialog::validate()
         ui->euroEdit->euro().cents() > 0 && (
             (ui->viiteRadio->isChecked() && ViiteValidator::kelpaako(ui->viiteEdit->text())) ||
             (ui->viestiRadio->isChecked() && ui->viestiEdit->hasAcceptableInput() &&
-                !ui->viestiEdit->text().isEmpty())
+                !ui->viestiEdit->text().trimmed().isEmpty())
     );
     ui->buttonBox->button(QDialogButtonBox::Ok)->setEnabled(isValid);
 }

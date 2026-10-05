@@ -10,8 +10,8 @@
     </message>
     <message>
         <location filename="../aloitussivu/aboutdialog.ui" line="14"/>
-        <source>Tietoja Kitsaasta</source>
-        <translation>Om Kitsas</translation>
+        <source>Tietoja Kiswas PG:stä</source>
+        <translation>Om Kiswas PG</translation>
     </message>
     <message>
         <source>Copyright © Arto Hyvättinen 2017 - 2019&lt;br/&gt;
@@ -31,13 +31,13 @@ Copyright © Arto Hyvättinen och Kitsas Oy 2019 - 2024&lt;br/&gt;
     </message>
     <message>
         <location filename="../aloitussivu/aboutdialog.ui" line="44"/>
-        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Copyright © Arto Hyvättinen 2017 - 2019&lt;br/&gt;Copyright © Arto Hyvättinen ja Kitsas Oy 2019 - 2025&lt;br/&gt;&lt;a href=&quot;https://kitsas.fi&quot;&gt;&lt;span style=&quot; text-decoration: underline; color:#0000ff;&quot;&gt;kitsas.fi&lt;/span&gt;&lt;/a&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation type="unfinished"></translation>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Copyright © Arto Hyvättinen 2017 - 2019&lt;br/&gt;Copyright © Arto Hyvättinen ja Kitsas Oy 2019 - 2025&lt;br/&gt;Kiswas PG:n muutokset © fork-ylläpitäjät&lt;br/&gt;&lt;a href=&quot;https://kitsas.fi&quot;&gt;&lt;span style=&quot; text-decoration: underline; color:#0000ff;&quot;&gt;kitsas.fi&lt;/span&gt;&lt;/a&gt; (alkuperäinen projekti)&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Copyright © Arto Hyvättinen 2017 - 2019&lt;br/&gt;Copyright © Arto Hyvättinen och Kitsas Oy 2019 - 2025&lt;br/&gt;Ändringar i Kiswas PG © forkens underhållare&lt;br/&gt;&lt;a href=&quot;https://kitsas.fi&quot;&gt;&lt;span style=&quot; text-decoration: underline; color:#0000ff;&quot;&gt;kitsas.fi&lt;/span&gt;&lt;/a&gt; (ursprungligt projekt)&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../aloitussivu/aboutdialog.ui" line="54"/>
-        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Ohjelmaa saa käyttää, kopioida, levittää ja muokata maksutta GNU General Public License 3:n ehtojen mukaisesti, katso tarkemmin &lt;a href=&quot;https://kitsas.fi/docs/lisenssi&quot;&gt;&lt;span style=&quot; text-decoration: underline; color:#2980b9;&quot;&gt;https://kitsas.fi/docs/lisenssi&lt;/span&gt;&lt;/a&gt;, jossa myös tiedot ohjelman käyttämien avoimen lähdekoodin komponenttien käyttöehdoista. &lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Ohjelmalla ei ole mitään takuuta!&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Programmet fås använda, kopiera och redigera avgiftsfritt enligt villkoren av  GNU General Public License 3. se mer precis &lt;a href=&quot;https://kitsas.fi/docs/lisenssi&quot;&gt;&lt;span style=&quot; text-decoration: underline; color:#2980b9;&quot;&gt;https://kitsas.fi/docs/lisenssi&lt;/span&gt;&lt;/a&gt;, där finns också information om användarvillkoden av de öppen källkod komponenterna som programmet använder.&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Programmet har ingen garanti!&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Tämä on epävirallinen muokattu versio. Kitsas Oy ei tue eikä vastaa tästä ohjelmistosta.&lt;/p&gt;&lt;p&gt;Ohjelmaa saa käyttää, kopioida, levittää ja muokata maksutta GNU General Public License 3:n ehtojen mukaisesti, katso tarkemmin &lt;a href=&quot;https://kitsas.fi/docs/lisenssi&quot;&gt;&lt;span style=&quot; text-decoration: underline; color:#2980b9;&quot;&gt;https://kitsas.fi/docs/lisenssi&lt;/span&gt;&lt;/a&gt;, jossa myös tiedot ohjelman käyttämien avoimen lähdekoodin komponenttien käyttöehdoista. &lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Ohjelmalla ei ole mitään takuuta!&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Detta är en inofficiell modifierad version. Kitsas Oy stöder inte och ansvarar inte för denna programvara.&lt;/p&gt;&lt;p&gt;Programmet fås använda, kopiera och redigera avgiftsfritt enligt villkoren av  GNU General Public License 3. se mer precis &lt;a href=&quot;https://kitsas.fi/docs/lisenssi&quot;&gt;&lt;span style=&quot; text-decoration: underline; color:#2980b9;&quot;&gt;https://kitsas.fi/docs/lisenssi&lt;/span&gt;&lt;/a&gt;, där finns också information om användarvillkoden av de öppen källkod komponenterna som programmet använder.&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Programmet har ingen garanti!&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../aloitussivu/aboutdialog.ui" line="82"/>
@@ -2979,10 +2979,10 @@ Till registret kopieras flera filer så det är att rekommendera att skapa en ny
     </message>
     <message>
         <location filename="../maaritys/verkkolasku/finvoicevelhoalku.ui" line="32"/>
-        <source>Ota käyttöön Kitsaan integroitu verkkolaskutus.
-Kitsas Oy laskuttaa lähetetyistä ja vastaanotetuista verkkolaskuista &lt;a href=&quot;https://kitsas.fi/hinnat&quot;&gt;hinnastonsa&lt;/a&gt; mukaisesti. Verkkolaskupalvelun tuottaa Maventa.</source>
-        <translation>Ta i bruk integredad nätfaktureringen i Kitsas
-Kitsas Oy fakturerar sckikade ochimkommande nätfakturor enligt sin &lt;a href=&quot;https://kitsas.fi/hinnat&quot;&gt;prislista&lt;/a&gt; .  Nätfakturatjänsten producerars av Maventa.</translation>
+        <source>Ota käyttöön integroitu verkkolaskutus.
+Integroitu verkkolaskutus kuuluu alkuperäisen Kitsas-pilvipalvelun yhteyteen. Tämä muokattu versio ei tarjoa eikä laskuta kyseistä palvelua. Verkkolaskuoperaattori on Maventa.</source>
+        <translation>Ta i bruk integrerad nätfakturering.
+Integrerad nätfakturering hör till den ursprungliga Kitsas-molntjänsten. Denna modifierade version erbjuder inte och fakturerar inte den tjänsten. Nätfakturaoperatören är Maventa.</translation>
     </message>
     <message>
         <location filename="../maaritys/verkkolasku/finvoicevelhoalku.ui" line="49"/>
@@ -9797,12 +9797,12 @@ sosiaalipalkat</source>
         <location filename="../maaritys/perusvalinnat.cpp" line="139"/>
         <source>Olet itse vastuussa kirjanpitosi oikeellisuudesta ja laillisuudesta sekä siitä, että kaikki verot maksetaan asianmukaisesti.
 
-Ohjelmalla ei ole mitään takuuta. Kitsas Oy ei myöskään anna oikeudellista neuvontaa kirjanpidosta tai verotuksesta.
+Ohjelmalla ei ole mitään takuuta. Tämä muokattu versio ei anna oikeudellista neuvontaa kirjanpidosta tai verotuksesta.
 
 Käänny tarvittaessa kirjanpidon ammattilaisen puoleen</source>
         <translation>Du är själv ansvarig för riktigheten och lagligheten i din bokföring och för att säkerställa att alla skatter betalas korrekt.
 
-Programmet har ingen som helst garanti. Kitsas Oy tillhandahåller inte heller juridisk rådgivning om redovisning eller beskattning.
+Programmet har ingen som helst garanti. Denna modifierade version tillhandahåller inte juridisk rådgivning om redovisning eller beskattning.
 
 Om det behövs, vända sig till en redovisningspersonal</translation>
     </message>
@@ -15977,8 +15977,8 @@ Spara skattedeklarationen och eventuella skattekalkyler.</translation>
     </message>
     <message>
         <location filename="../uusikirjanpito/uusialoitus.ui" line="80"/>
-        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Kirjanpito tallennetaan pilveen suomalaiselle palvelimelle. Kirjanpidolla voi olla useampi samanaikainen käyttäjä. Kitsas Oy huolehtii kirjanpidon päivittäisestä varmuuskopioinnista.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Bokföringen sparas i molnet på en finländsk server. Flera olika användare kan samtidigt arbeta med bokföringen. Kitsas Oy sköter om att bokföringen säkerhetskopieras varje dag.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Pilvipalvelu on alkuperäisen Kitsas-ohjelman erillinen tuote. Tämä muokattu versio ei tarjoa eikä tue kyseistä pilvipalvelua. Paikallinen tallennus (SQLite tai PostgreSQL) on tämän forkin ensisijainen tapa.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Molntjänsten är en separat produkt i det ursprungliga Kitsas-programmet. Denna modifierade version erbjuder inte och stöder inte den molntjänsten. Lokal lagring (SQLite eller PostgreSQL) är det primära sättet för denna fork.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../uusikirjanpito/uusialoitus.ui" line="97"/>
@@ -16079,8 +16079,8 @@ Spara skattedeklarationen och eventuella skattekalkyler.</translation>
     </message>
     <message>
         <location filename="../uusikirjanpito/uusiloppu.ui" line="30"/>
-        <source>Kirjanpitosi tallennetaan Kitsas Oy:n Suomessa sijaitsevalle palvelimelle. Kaiken varalta kirjanpitosi varmuuskopioidaan joka päivä. Pääset kirjanpitoosi, kun olet kirjautunut Kitsaan käyttäjätunnuksellasi ja sinulla on toimiva nettiyhteys.</source>
-        <translation>Din bokföring sparas på Kitsas Oy:s server som finns i Finland. Din bokföring säkerhetskopieras varje dag. Du kommer åt din bokföring då du har loggat in på Kitsas med ditt användarnamn och har en fungerande nätuppkoppling.</translation>
+        <source>Pilvitallennus kuuluu alkuperäisen Kitsas-ohjelman erilliseen pilvipalveluun. Tämä muokattu versio ei tarjoa eikä tue sitä. Käytä paikallista tallennusta (SQLite tai PostgreSQL), ellei sinulla ole omaa, erillistä pilviyhteyttä.</source>
+        <translation>Molnlagring hör till det ursprungliga Kitsas-programmets separata molntjänst. Denna modifierade version erbjuder inte och stöder inte den. Använd lokal lagring (SQLite eller PostgreSQL) om du inte har en egen, separat molnanslutning.</translation>
     </message>
     <message>
         <location filename="../uusikirjanpito/uusiloppu.ui" line="44"/>
@@ -16460,8 +16460,8 @@ Spara skattedeklarationen och eventuella skattekalkyler.</translation>
     </message>
     <message>
         <location filename="../uusikirjanpito/uusivastuu.ui" line="20"/>
-        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Olet itse vastuussa kirjanpitosi oikeellisuudesta ja laillisuudesta sekä siitä, että kaikki verot maksetaan asianmukaisesti.&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Ohjelmalla ei ole mitään takuuta.&lt;/span&gt; Kitsas Oy ei myöskään anna oikeudellista neuvontaa kirjanpidosta tai verotuksesta.&lt;/p&gt;&lt;p&gt;Käänny tarvittaessa kirjanpidon ammattilaisen puoleen.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Du är själv ansvarig för riktigheten och lagligheten i din bokföring och för att alla skatter betalas korrekt.&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Programmet har ingen garanti.&lt;/span&gt; Kitsas Oy tillhandahåller inte heller någon juridisk rådgivning gällande bokföring och beskattning.&lt;/p&gt;&lt;p&gt;Vänd dig vid behov till en profesionell bokförare.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Olet itse vastuussa kirjanpitosi oikeellisuudesta ja laillisuudesta sekä siitä, että kaikki verot maksetaan asianmukaisesti.&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Ohjelmalla ei ole mitään takuuta.&lt;/span&gt; Tämä muokattu versio ei anna oikeudellista neuvontaa kirjanpidosta tai verotuksesta.&lt;/p&gt;&lt;p&gt;Käänny tarvittaessa kirjanpidon ammattilaisen puoleen.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Du är själv ansvarig för riktigheten och lagligheten i din bokföring och för att alla skatter betalas korrekt.&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Programmet har ingen garanti.&lt;/span&gt; Denna modifierade version tillhandahåller inte juridisk rådgivning om bokföring och beskattning.&lt;/p&gt;&lt;p&gt;Vänd dig vid behov till en profesionell bokförare.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
 </context>
 <context>

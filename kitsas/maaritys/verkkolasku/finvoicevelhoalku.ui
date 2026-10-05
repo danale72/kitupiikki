@@ -29,8 +29,8 @@
    <item>
     <widget class="QLabel" name="uusiLabel">
      <property name="text">
-      <string>Ota käyttöön Kitsaan integroitu verkkolaskutus.
-Kitsas Oy laskuttaa lähetetyistä ja vastaanotetuista verkkolaskuista &lt;a href=&quot;https://kitsas.fi/hinnat&quot;&gt;hinnastonsa&lt;/a&gt; mukaisesti. Verkkolaskupalvelun tuottaa Maventa.</string>
+      <string>Ota käyttöön integroitu verkkolaskutus.
+Integroitu verkkolaskutus kuuluu alkuperäisen Kitsas-pilvipalvelun yhteyteen. Tämä muokattu versio ei tarjoa eikä laskuta kyseistä palvelua. Verkkolaskuoperaattori on Maventa.</string>
      </property>
      <property name="textFormat">
       <enum>Qt::RichText</enum>

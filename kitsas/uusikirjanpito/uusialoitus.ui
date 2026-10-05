@@ -100,7 +100,7 @@
       <item>
        <widget class="QLabel" name="pilviLabel">
         <property name="text">
-         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Kirjanpito tallennetaan pilveen suomalaiselle palvelimelle. Kirjanpidolla voi olla useampi samanaikainen käyttäjä. Kitsas Oy huolehtii kirjanpidon päivittäisestä varmuuskopioinnista.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Pilvipalvelu on alkuperäisen Kitsas-ohjelman erillinen tuote. Tämä muokattu versio ei tarjoa eikä tue kyseistä pilvipalvelua. Paikallinen tallennus (SQLite tai PostgreSQL) on tämän forkin ensisijainen tapa.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
         </property>
         <property name="wordWrap">
          <bool>true</bool>

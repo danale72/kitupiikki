@@ -1,19 +1,32 @@
-# Kitsas
-Ykkösversio julkaistu nimellä [Kitupiikki](https://kitupiikki.info)
+# Kiswas PG
 
-![Kitsas](https://raw.githubusercontent.com/artoh/kitupiikki/master/kitsas/pic/kitsas150.png)
+This is an **unofficial modified version** of the open-source Kitsas
+bookkeeping program ([artoh/kitupiikki](https://github.com/artoh/kitupiikki)).
+Kitsas Oy does not support or take responsibility for this software.
 
-[![versio](https://img.shields.io/github/release/artoh/kitupiikki.svg?label=Julkaistu%20versio)](https://github.com/artoh/kitupiikki/releases)
-[![versio](https://img.shields.io/github/release/artoh/kitupiikki/all.svg?label=Esiversio)](https://github.com/artoh/kitupiikki/releases)
+Tämä on **epävirallinen muokattu versio** avoimen lähdekoodin Kitsas-ohjelmasta
+([artoh/kitupiikki](https://github.com/artoh/kitupiikki)).
+Kitsas Oy ei tue eikä vastaa tästä ohjelmistosta.
+
+Ykkösversio julkaistiin nimellä [Kitupiikki](https://kitupiikki.info)
+
+![Kiswas PG](pic/kiswas_wide.jpeg)
+
+[![versio](https://img.shields.io/github/release/danale72/kitupiikki.svg?label=Julkaistu%20versio)](https://github.com/danale72/kitupiikki/releases)
+[![versio](https://img.shields.io/github/release/danale72/kitupiikki/all.svg?label=Esiversio)](https://github.com/danale72/kitupiikki/releases)
 
 **Finnish bookkeeping software for small organisations**
+
+This fork adds **PostgreSQL** support (local / self-hosted server) as an
+alternative to SQLite. The paid Kitsas Oy cloud service is a separate
+upstream product and is unrelated to this fork.
 
 Comments, variable names, documentations and the software itself are, of course, in Finnish only!
 
 **Suomalainen avoimen lähdekoodin kirjanpito-ohjelma**
 
-Kotisivu [kitsas.fi](https://kitsas.fi)   
-Käyttöohjeet [kitsas.fi/docs](https://kitsas.fi/docs)
+Alkuperäisen ohjelman kotisivu [kitsas.fi](https://kitsas.fi)
+Alkuperäiset käyttöohjeet [kitsas.fi/docs](https://kitsas.fi/docs)
 
 
 ## Tavoitteet
@@ -22,12 +35,13 @@ Käyttöohjeet [kitsas.fi/docs](https://kitsas.fi/docs)
 - tositteiden sähköinen käsittely pdf-muodossa
 - sähköisen arkiston muodostaminen
 - sisäänrakennettu laskutus
-- muodostaan tuloslaskelman, taseen, tase-erittelyn
+- muodostaa tuloslaskelman, taseen, tase-erittelyn
+- PostgreSQL-tuki paikalliselle / itse ylläpidetylle palvelimelle (SQLite-vaihtoehdon rinnalle)
 
-Kirjanpito on mahdollista tallentaa joko omalle tietokoneelle SQLite-muodossa, tai käyttää Kitsas Oy:n palvelinta (maksullinen palvelu), jolloin käytettävissä on myös suuri joukko lisätoimintoja.
+Kirjanpito on mahdollista tallentaa omalle tietokoneelle SQLite-muodossa (`.kitsas`) tai paikalliselle / itse ylläpidetylle PostgreSQL-palvelimelle. Alkuperäisen Kitsas-ohjelman maksullinen pilvipalvelu on erillinen tuote; tämä fork ei ole sen osa.
 
 ## Vaatimukset
-Kitsas käyttää [Qt-kirjastoa](https://qt.io) versio vähintään 6.4 (Kaikki ominaisuudet 6.8). Käytössä on mm. QtWidgets, QtPdf ja QtWebEngine -moduulit.
+Kiswas PG käyttää [Qt-kirjastoa](https://qt.io) versio vähintään 6.4 (Kaikki ominaisuudet 6.8). Käytössä on mm. QtWidgets, QtPdf ja QtWebEngine -moduulit.
 
 Zip-tiedostojen käsittelyyn käytetään [libzip](https://libzip.org)-kirjastoa.
 
@@ -43,22 +57,31 @@ ja libzip
 
 ## Kääntäminen
 
-Kitsas käyttää QMakea. Kääntäminen on helpointa tehdä [QtCreatorin](http://doc.qt.io/qtcreator/) ympäristössä. Komentorivillä kääntyy komennoilla
+Kiswas PG käyttää QMakea. Kääntäminen on helpointa tehdä [QtCreatorin](http://doc.qt.io/qtcreator/) ympäristössä. Komentorivillä koko työtila (sovellus + yksikkötestit) kääntyy komennoilla
 
-    qmake kitupiikki.pro && make qmake_all
+    qmake kitsasproject.pro && make qmake_all
+    make
+
+Pelkkä sovellus:
+
+    qmake kitsas/kitsas.pro -spec linux-g++ "CONFIG+=release"
     make
 
 
 ## Ylläpitäjä
 
-Arto Hyvättinen <arto@kitsas.fi>
+Alkuperäinen ohjelma: Arto Hyvättinen <arto@kitsas.fi>
+
+Tämän forkin ylläpitäjä: Alexei Danilov (danale72) <comradexivanov@gmail.com>
+
+Tukea tälle muokatulle versiolle antaa forkin ylläpitäjä, ei Kitsas Oy.
 
 ## Lisenssi
 
-GNU General Public License 3 - katso [LICENSE](https://raw.githubusercontent.com/artoh/kitupiikki/master/LICENSE) seuraavilla lisenssin mukaisilla lisäehdoilla:
+GNU General Public License 3 — katso [LICENSE](LICENSE) ja [NOTICE](NOTICE).
 
-Jaettaessa muokatuksi ohjelmisto on
+Alkuperäiset lisäehdot (GPL §7) pätevät edelleen:
 
--  ohjelmisto merkittävä selkeästi muutetuksi
--  esitettävä selkeästi, ettei Kitsas Oy tarjoa mitään tukea muokatulle ohjelmistolle
-- vältettävä käytettämästä Kitsas Oy:n nimeä muokatun ohjelmiston yhteydessä
+- ohjelmisto on merkittävä selkeästi muutetuksi
+- on esitettävä selkeästi, ettei Kitsas Oy tarjoa mitään tukea muokatulle ohjelmistolle
+- Kitsas Oy:n nimeä ei käytetä muokatun ohjelmiston tunnuksena
