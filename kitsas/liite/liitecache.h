@@ -34,6 +34,7 @@ protected:
     void tositeSaapuuu(QVariant* data);
 
     void karkeen(CacheLiite* liite);
+    void irrotaListasta(CacheLiite* liite);
 
     QHash<int,CacheLiite*> liitteet_;
     KitsasInterface* kitsas_;

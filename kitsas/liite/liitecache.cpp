@@ -1,6 +1,7 @@
 #include "liitecache.h"
 
 #include "cacheliite.h"
+#include <QSet>
 #include <QVariant>
 #include <QJsonDocument>
 
@@ -106,12 +107,13 @@ void LiiteCache::liiteSaapuu(int liiteId, QVariant *data)
             qDebug() << " Kärkeen ";
             break;
         } else {
-            // Poistetaan vanhin
-            koko_ -= vanhin_->size();
-            vanhin_->tyhjenna();
-
-            vanhin_ = vanhin_->seuraava();
-            vanhin_->asetaEdellinen(nullptr);
+            // Poistetaan vanhin listasta, mutta jätetään hajautustauluun
+            // jotta seuraava haku voi täyttää sen uudelleen. Linkit pitää
+            // nollata: muuten karkeen() kirjoittaa vapautettuun seuraajaan.
+            CacheLiite* poistettava = vanhin_;
+            koko_ -= poistettava->size();
+            irrotaListasta(poistettava);
+            poistettava->tyhjenna();
 
             qDebug() << " Poistettu liite, uusi koko " << koko_;
         }
@@ -174,16 +176,23 @@ void LiiteCache::karkeen(CacheLiite *liite)
 
 void LiiteCache::tyhjenna()
 {
-    QHashIterator<int, CacheLiite*> iter(liitteet_);
-    while(iter.hasNext()) {
-        iter.next();
-        if( iter.value()->lukossa()) {
-            iter.value()->setTila(CacheLiite::KELVOTON);
-        } else {
-            delete iter.value();
-        }
+    // Sama CacheLiite voi olla kahdella tunnisteella, jos tallennusvastaus
+    // kirjattiin kahdesti. delete saa tapahtua vain kerran: toinen kierros
+    // kaataa QByteArrayn purkajan (SIGSEGV QArrayData::deref).
+    QSet<CacheLiite*> kasitelty;
+    const QList<CacheLiite*> arvot = liitteet_.values();
+    for( CacheLiite* liite : arvot) {
+        if( !liite || kasitelty.contains(liite))
+            continue;
+        kasitelty.insert(liite);
+        irrotaListasta(liite);
+        if( liite->lukossa())
+            liite->setTila(CacheLiite::KELVOTON);
+        else
+            delete liite;
     }
     liitteet_.clear();
+    koko_ = 0;
 
     uusin_ = nullptr;
     vanhin_ = nullptr;
@@ -191,11 +200,56 @@ void LiiteCache::tyhjenna()
 
 void LiiteCache::lisaaTallennettu(int liiteId, CacheLiite *liite)
 {
+    const QList<int> avaimet = liitteet_.keys();
+    for( int avain : avaimet) {
+        if( avain != liiteId && liitteet_.value(avain) == liite)
+            liitteet_.remove(avain);
+    }
+
+    CacheLiite* vanha = liitteet_.value(liiteId, nullptr);
+    if( vanha && vanha != liite) {
+        irrotaListasta(vanha);
+        if( vanha->lukossa())
+            vanha->setTila(CacheLiite::KELVOTON);
+        else
+            delete vanha;
+    }
+
     liitteet_.insert(liiteId, liite);
     karkeen( liite );
 }
 
 void LiiteCache::poistaPoistettu(int liiteId)
 {
-    liitteet_.remove(liiteId);
+    CacheLiite* liite = liitteet_.take(liiteId);
+    if( !liite)
+        return;
+
+    for( CacheLiite* muu : liitteet_) {
+        if( muu == liite)
+            return;
+    }
+    irrotaListasta(liite);
+}
+
+void LiiteCache::irrotaListasta(CacheLiite *liite)
+{
+    if( !liite)
+        return;
+
+    CacheLiite* edellinen = liite->edellinen();
+    CacheLiite* seuraava = liite->seuraava();
+
+    if( edellinen)
+        edellinen->asetaSeuraava(seuraava);
+    if( seuraava)
+        seuraava->asetaEdellinen(edellinen);
+
+    if( vanhin_ == liite)
+        vanhin_ = seuraava;
+    if( uusin_ == liite)
+        uusin_ = edellinen;
+
+    liite->asetaEdellinen(nullptr);
+    liite->asetaSeuraava(nullptr);
 }

@@ -32,6 +32,7 @@ jobs:
             unittest/ValidatorTest/ValidatorTest.pro
             unittest/KieliTesti/KieliTesti.pro
             unittest/tositerivitesti/tositerivitesti.pro
+            unittest/liitecachetest/liitecachetest.pro
           )
           for pro in "${tests[@]}"; do
             name="$(basename "$pro" .pro)"
