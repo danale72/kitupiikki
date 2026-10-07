@@ -164,7 +164,7 @@ jobs:
           cd build
           qmake ../kitsas/kitsas.pro -spec linux-g++ "CONFIG+=release"
           make -j"$(nproc)"
-          test -x kitsas
+          test -x kiswaspg
 
       - name: Build and run stability tests
         env:
@@ -204,28 +204,27 @@ jobs:
           cd build-macos
           qmake ../kitsas/kitsas.pro -spec macx-xcode
           xcodebuild \
-            -project kitsas.xcodeproj \
-            -target kitsas \
+            -project kiswaspg.xcodeproj \
+            -target kiswaspg \
             -configuration Release \
             -destination 'generic/platform=macOS' \
             SYMROOT="$PWD/build" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY=-
-          test -d build/Release/kitsas.app
-          mv build/Release/kitsas.app build/Release/Kitsas.app
+          test -d build/Release/kiswaspg.app
 
       - name: Bundle Qt frameworks and package ZIP
         run: |
           set -euo pipefail
-          app="build-macos/build/Release/Kitsas.app"
+          app="build-macos/build/Release/kiswaspg.app"
           test -d "$app"
           macdeployqt "$app"
-          ditto -c -k --keepParent "$app" build-macos/build/Release/Kitsas-macOS.zip
+          ditto -c -k --keepParent "$app" build-macos/build/Release/kiswaspg-macOS.zip
 
-      - name: Upload Kitsas-macOS
+      - name: Upload kiswaspg-macOS
         uses: actions/upload-artifact@v4
         with:
-          name: Kitsas-macOS
-          path: build-macos/build/Release/Kitsas-macOS.zip
+          name: kiswaspg-macOS
+          path: build-macos/build/Release/kiswaspg-macOS.zip
           if-no-files-found: error

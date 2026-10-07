@@ -17,7 +17,7 @@ equals(QT_MAJOR_VERSION,6) {
 
 CONFIG += c++14
 
-TARGET = kitsas
+TARGET = kiswaspg
 
 TEMPLATE = app
 

@@ -25,7 +25,7 @@ wget https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/cont
 
 chmod +x linuxdeploy*.AppImage
 
-./linuxdeploy-x86_64.AppImage --appdir AppDir -e kitsas -i ../kitsas.png -d ../kitsas.desktop \
+./linuxdeploy-x86_64.AppImage --appdir AppDir -e kiswaspg -i ../kitsas.png -d ../kitsas.desktop \
     -l $LIBSSLPATH \
     -l $LIBCRYPTOPATH \
 

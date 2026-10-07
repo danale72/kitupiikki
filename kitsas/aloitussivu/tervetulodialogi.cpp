@@ -19,6 +19,7 @@
 #include "kieli/kielet.h"
 
 #include <QApplication>
+#include <QCoreApplication>
 #include <QFile>
 #include <QDir>
 #include <QTextStream>
@@ -80,11 +81,18 @@ QString TervetuloDialogi::valittuKieli() const
 
 void TervetuloDialogi::linuxKaynnistysValikkoon()
 {
+    const QString nimi = QCoreApplication::applicationName();
+    const QString desktopPolku = QDir::home().absoluteFilePath(".local/share/applications/" + nimi + ".desktop");
+    const QString kuvakePolku = QDir::home().absoluteFilePath(".local/share/icons/" + nimi + ".png");
+
     // Poistetaan vanha, jotta päivittyisi
     QFile::remove( QDir::home().absoluteFilePath(".local/share/applications/Kitsas.desktop") );
+    QFile::remove( QDir::home().absoluteFilePath(".local/share/applications/Kiswas.desktop") );
+    QFile::remove( desktopPolku );
     // Kopioidaan kuvake
     QDir::home().mkpath( ".local/share/icons" );
-    QFile::copy(":/pic/Possu64.png", QDir::home().absoluteFilePath(".local/share/icons/Kitsas.png"));
+    QFile::remove( kuvakePolku );
+    QFile::copy(":/pic/Possu64.png", kuvakePolku);
 
     // Lisätään mimetyyppi
     QFile mime( QDir::home().absoluteFilePath(".local/share/mime/application/kitsas.xml"));
@@ -101,12 +109,12 @@ void TervetuloDialogi::linuxKaynnistysValikkoon()
 
 
     // Lisätään työpöytätiedosto
-    QFile desktop( QDir::home().absoluteFilePath(".local/share/applications/Kitsas.desktop") );
+    QFile desktop( desktopPolku );
     desktop.open(QIODevice::WriteOnly | QIODevice::Truncate);
     QTextStream out(&desktop);    
 
-    out << "[Desktop Entry]\nVersion=1.0\nType=Application\nName=Kitsas " << qApp->applicationVersion() << "\n";
-    out << "Icon=" << QDir::home().absoluteFilePath(".local/share/icons/Kitsas.png") << "\n";
+    out << "[Desktop Entry]\nVersion=1.0\nType=Application\nName=" << nimi << " " << qApp->applicationVersion() << "\n";
+    out << "Icon=" << kuvakePolku << "\n";
     out << "Exec=" << qApp->applicationFilePath() << "\n";
     out << "TryExec=" << qApp->applicationFilePath() << "\n";
     out << "GenericName=Kirjanpito\n";
