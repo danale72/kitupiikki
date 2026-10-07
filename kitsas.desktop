@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Application
-Name=Kitsas
-Exec=kitsas %F
+Name=Kiswas PG
+Exec=kiswaspg %F
 Icon=kitsas
 Comment=Avoimen lähdekoodin kirjanpitäjä
 Terminal=false

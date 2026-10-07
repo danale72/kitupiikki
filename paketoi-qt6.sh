@@ -22,6 +22,6 @@ cd $BUILDIR
 
 chmod +x linuxdeploy*.AppImage
 
-./linuxdeploy-x86_64.AppImage --appdir AppDir -e kitsas -i ../kitsas.png -d ../kitsas.desktop --plugin qt -l /usr/lib/x86_64-linux-gnu/nss/libsoftokn3.so --output appimage 
+./linuxdeploy-x86_64.AppImage --appdir AppDir -e kiswaspg -i ../kitsas.png -d ../kitsas.desktop --plugin qt -l /usr/lib/x86_64-linux-gnu/nss/libsoftokn3.so --output appimage 
 
 # cp Kitsas*.AppImage $DISTDIR/Kitsas-$VERSION-x86_64.AppImage 

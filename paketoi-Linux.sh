@@ -26,7 +26,7 @@ make clean
 
 cp ../kitsas.desktop .
 cp ../kitsas.png .
-ln -s kitsas AppRun
+ln -s kiswaspg AppRun
 
 ../dist/linuxdeployqt-continuous-x86_64.AppImage kitsas.desktop -appimage -bundle-non-qt-libs -qmake=$QTDIR/bin/qmake -verbose=2 -no-translations -no-copy-copyright-files
 

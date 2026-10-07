@@ -31,8 +31,8 @@ Copyright © Arto Hyvättinen och Kitsas Oy 2019 - 2024&lt;br/&gt;
     </message>
     <message>
         <location filename="../aloitussivu/aboutdialog.ui" line="44"/>
-        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Copyright © Arto Hyvättinen 2017 - 2019&lt;br/&gt;Copyright © Arto Hyvättinen ja Kitsas Oy 2019 - 2025&lt;br/&gt;Kiswas PG:n muutokset © fork-ylläpitäjät&lt;br/&gt;&lt;a href=&quot;https://kitsas.fi&quot;&gt;&lt;span style=&quot; text-decoration: underline; color:#0000ff;&quot;&gt;kitsas.fi&lt;/span&gt;&lt;/a&gt; (alkuperäinen projekti)&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Copyright © Arto Hyvättinen 2017 - 2019&lt;br/&gt;Copyright © Arto Hyvättinen och Kitsas Oy 2019 - 2025&lt;br/&gt;Ändringar i Kiswas PG © forkens underhållare&lt;br/&gt;&lt;a href=&quot;https://kitsas.fi&quot;&gt;&lt;span style=&quot; text-decoration: underline; color:#0000ff;&quot;&gt;kitsas.fi&lt;/span&gt;&lt;/a&gt; (ursprungligt projekt)&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Copyright © Arto Hyvättinen 2017 - 2019&lt;br/&gt;Copyright © Arto Hyvättinen ja Kitsas Oy 2019 - 2025&lt;br/&gt;Kiswas PG:n muutokset © 2026 Alexei Danilov (danale72)&lt;br/&gt;&lt;a href=&quot;https://kitsas.fi&quot;&gt;&lt;span style=&quot; text-decoration: underline; color:#0000ff;&quot;&gt;kitsas.fi&lt;/span&gt;&lt;/a&gt; (alkuperäinen projekti)&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Copyright © Arto Hyvättinen 2017 - 2019&lt;br/&gt;Copyright © Arto Hyvättinen och Kitsas Oy 2019 - 2025&lt;br/&gt;Kiswas PG-ändringar © 2026 Alexei Danilov (danale72)&lt;br/&gt;&lt;a href=&quot;https://kitsas.fi&quot;&gt;&lt;span style=&quot; text-decoration: underline; color:#0000ff;&quot;&gt;kitsas.fi&lt;/span&gt;&lt;/a&gt; (ursprungligt projekt)&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../aloitussivu/aboutdialog.ui" line="54"/>
@@ -11811,8 +11811,8 @@ som mall
     </message>
     <message>
         <location filename="../aloitussivu/tervetuloa.ui" line="47"/>
-        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;© Arto Hyvättinen ja Kitsas Oy 2017 - 2024&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;© Arto Hyvättinen och Kitsas Oy 2017 - 2022&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;© Arto Hyvättinen ja Kitsas Oy 2017 - 2024&lt;/p&gt;&lt;p&gt;Kiswas PG:n muutokset © 2026 Alexei Danilov (danale72)&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;© Arto Hyvättinen och Kitsas Oy 2017 - 2024&lt;/p&gt;&lt;p&gt;Kiswas PG-ändringar © 2026 Alexei Danilov (danale72)&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <source>Käytössäsi on ohjelman kehitysversio, jonka kaikkia toimintoja ei ole testattu perusteellisesti! 
@@ -11830,8 +11830,8 @@ Rapportera eventuella fel du hittar.</translation>
     </message>
     <message>
         <location filename="../aloitussivu/tervetuloa.ui" line="54"/>
-        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Kitsas-ohjelmaan ei sisälly minkäänlaista takuuta ohjelman toimivuudesta tai soveltuvuudesta. Ohjelmaa on testattu, mutta siinä voi silti olla virheitä ja ohjelman käyttäjä ottaa vastuun ohjelman mahdollisesti aiheuttamista vahigoista.&lt;/p&gt;&lt;p&gt;Ohjelmaa saa käyttää ja kopioida maksutta &lt;a href=&quot;https://kitsas.fi/docs/lisenssi&quot;&gt;&lt;span style=&quot; text-decoration: underline; color:#2980b9;&quot;&gt;GNU General Public License 3&lt;/span&gt;&lt;/a&gt;:n ehtojen mukaisesti.&lt;/p&gt;&lt;p&gt;Ohjelman käynnistyessä ohjelman päivitykset tarkastetaan verkosta, ja samalla tallennetaan tilastoitavaksi anonyymi tieto tietokoneen käyttöjärjestelmästä, ohjelman versiosta ja käytetystä tilikartasta.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;html&gt;&lt;head/&gt; &lt;body&gt; &lt;p&gt; Kitsas ger ingen garanti beträffande programmets funktionalitet eller lämplighet. Programmet har testats, men det kan fortfarande innehålla fel och användaren av programmet ansvarar för all de eventuella skador som orsakats av programmet. &lt;/p&gt; &lt;p&gt; Programmet kan användas och kopieras gratis &lt;a href = &quot; https://kitsas.fi/docs/lisenssi &quot;&gt; &lt;span style =&quot; text-decoration: underline; color: # 2980b9; &quot;&gt; enligt villkoren i GNU General Public License 3 &lt;/span&gt; &lt;/a&gt;. &lt;/ p&gt; &lt;p&gt; När programmet startas kontrolleras programuppdateringar online och samtidigt lagras anonym information om datorns operativsystem, programversion och kontoplan för statistiska ändamål. &lt;/p&gt; &lt;/ body &gt; &lt;/html&gt;</translation>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Kiswas PG -ohjelmaan ei sisälly minkäänlaista takuuta ohjelman toimivuudesta tai soveltuvuudesta. Ohjelmaa on testattu, mutta siinä voi silti olla virheitä ja ohjelman käyttäjä ottaa vastuun ohjelman mahdollisesti aiheuttamista vahingoista.&lt;/p&gt;&lt;p&gt;Ohjelmaa saa käyttää ja kopioida maksutta &lt;a href=&quot;https://kitsas.fi/docs/lisenssi&quot;&gt;&lt;span style=&quot; text-decoration: underline; color:#2980b9;&quot;&gt;GNU General Public License 3&lt;/span&gt;&lt;/a&gt;:n ehtojen mukaisesti.&lt;/p&gt;&lt;p&gt;Ohjelman käynnistyessä ohjelman päivitykset tarkastetaan verkosta, ja samalla tallennetaan tilastoitavaksi anonyymi tieto tietokoneen käyttöjärjestelmästä, ohjelman versiosta ja käytetystä tilikartasta.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation>&lt;html&gt;&lt;head/&gt; &lt;body&gt; &lt;p&gt; Kiswas PG ger ingen garanti beträffande programmets funktionalitet eller lämplighet. Programmet har testats, men det kan fortfarande innehålla fel och användaren av programmet ansvarar för all de eventuella skador som orsakats av programmet. &lt;/p&gt; &lt;p&gt; Programmet kan användas och kopieras gratis &lt;a href = &quot; https://kitsas.fi/docs/lisenssi &quot;&gt; &lt;span style =&quot; text-decoration: underline; color: # 2980b9; &quot;&gt; enligt villkoren i GNU General Public License 3 &lt;/span&gt; &lt;/a&gt;. &lt;/ p&gt; &lt;p&gt; När programmet startas kontrolleras programuppdateringar online och samtidigt lagras anonym information om datorns operativsystem, programversion och kontoplan för statistiska ändamål. &lt;/p&gt; &lt;/ body &gt; &lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../aloitussivu/tervetuloa.ui" line="67"/>
@@ -11865,8 +11865,8 @@ Rapportera eventuella fel du hittar.</translation>
     </message>
     <message>
         <location filename="../aloitussivu/tervetuloa.ui" line="148"/>
-        <source>Lisää Kitsas aloitusvalikkoon</source>
-        <translation>Lägg till Kitsas i startmenyn</translation>
+        <source>Lisää Kiswas PG aloitusvalikkoon</source>
+        <translation>Lägg till Kiswas PG i startmenyn</translation>
     </message>
     <message>
         <location filename="../aloitussivu/tervetuloa.ui" line="174"/>
@@ -14117,8 +14117,8 @@ Den här aktiviteten kommer ur bruk 1.9.2024</translation>
     </message>
     <message>
         <location filename="../aloitussivu/toffeelogin.ui" line="40"/>
-        <source>&lt;p&gt;Copyright &amp;copy; Arto Hyvättinen ja Kitsas Oy 2017 - 2024&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Copyright &amp;copy; Arto Hyvättinen och Kitsas Oy 2017 - 2024&lt;/p&gt;</translation>
+        <source>&lt;p&gt;Copyright &amp;copy; Arto Hyvättinen ja Kitsas Oy 2017 - 2024&lt;/p&gt;&lt;p&gt;Kiswas PG:n muutokset © 2026 Alexei Danilov (danale72)&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Copyright &amp;copy; Arto Hyvättinen och Kitsas Oy 2017 - 2024&lt;/p&gt;&lt;p&gt;Kiswas PG-ändringar © 2026 Alexei Danilov (danale72)&lt;/p&gt;</translation>
     </message>
     <message>
         <location filename="../aloitussivu/toffeelogin.ui" line="47"/>

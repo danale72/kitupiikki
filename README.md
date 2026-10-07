@@ -74,6 +74,10 @@ Alkuperäinen ohjelma: Arto Hyvättinen <arto@kitsas.fi>
 
 Tämän forkin ylläpitäjä: Alexei Danilov (danale72) <comradexivanov@gmail.com>
 
+Additional copyright for this fork's changes: Alexei Danilov (danale72), 2026.
+
+Kiswas PG:n muutokset © 2026 Alexei Danilov (danale72)
+
 Tukea tälle muokatulle versiolle antaa forkin ylläpitäjä, ei Kitsas Oy.
 
 ## Lisenssi
