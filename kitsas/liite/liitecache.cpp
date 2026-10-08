@@ -200,6 +200,11 @@ void LiiteCache::tyhjenna()
 
 void LiiteCache::lisaaTallennettu(int liiteId, CacheLiite *liite)
 {
+    // Tunnisteella 0 liite on vielä Liite-olion omistama ja vapautetaan
+    // ~Liitessä; välimuistiin jäänyt osoitin vapautettaisiin toiseen kertaan.
+    if( liiteId <= 0 || !liite)
+        return;
+
     const QList<int> avaimet = liitteet_.keys();
     for( int avain : avaimet) {
         if( avain != liiteId && liitteet_.value(avain) == liite)

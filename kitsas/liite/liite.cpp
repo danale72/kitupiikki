@@ -159,7 +159,8 @@ void Liite::liitetty(const QVariant &reply, int lisattyId)
     liiteId_ = lisattyId;
     vaihdaTila(LIITETTY);
 
-    kp()->liiteCache()->lisaaTallennettu(liiteId_, cache_);
+    if( liiteId_ > 0)
+        kp()->liiteCache()->lisaaTallennettu(liiteId_, cache_);
 
     QVariantMap map = reply.toMap();
     if(!map.isEmpty())
@@ -170,10 +171,14 @@ void Liite::tallennettu(const QVariant *data)
 {
     QVariantMap map = data->toMap();
 
-    liiteId_ = map.value("liiteId").toInt();
+    // Paikallinen LiitteetRoute (SQLite ja PostgreSQL) palauttaa tunnisteen
+    // avaimella "liite". Nollalla tunnisteella Liite omistaa yhä CacheLiitteen,
+    // joten sitä ei saa antaa välimuistille.
+    liiteId_ = map.value("liiteId", map.value("liite")).toInt();
     vaihdaTila(TALLENNETTU);
 
-    kp()->liiteCache()->lisaaTallennettu(liiteId_, cache_);
+    if( liiteId_ > 0)
+        kp()->liiteCache()->lisaaTallennettu(liiteId_, cache_);
 }
 
 

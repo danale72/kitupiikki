@@ -4,7 +4,7 @@ BUILDIR=build-linux-qt6
 QMAKE=~/Qt/6.9.3/gcc_64/bin/qmake
 
 DISTDIR=../dist
-VERSION=5.11
+VERSION=6.0.0
 LIBSSLPATH=/usr/lib/x86_64-linux-gnu/libssl.so.3
 LIBCRYPTOPATH=/usr/lib/x86_64-linux-gnu/libcrypto.so.3
 
@@ -12,7 +12,7 @@ export QMAKE=$QMAKE
 
 
 rm -R $BUILDIR
-mkdir -p $BUILDIR 
+mkdir -p $BUILDIR
 cd $BUILDIR
 
 $QMAKE ../kitsas/kitsas.pro -spec linux-g++ "CONFIG+=release" && make qmake_all

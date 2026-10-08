@@ -51,6 +51,7 @@ private slots:
     void tyhjenna_nollaaKoon();
     void kokoRaja_hylkaaVanhimmanJaPalauttaaSen();
     void tyhjenna_lukittuEiJataSeuraajaa();
+    void tallennettuNollaTunnisteella_eiJaaValimuistiin();
 
 private:
     static CacheLiite* tallennettuLiite(const QByteArray& data);
@@ -237,6 +238,27 @@ void LiiteCacheTest::tyhjenna_lukittuEiJataSeuraajaa()
 
     a->vapauta();
     delete a;
+}
+
+void LiiteCacheTest::tallennettuNollaTunnisteella_eiJaaValimuistiin()
+{
+    TyhjaKitsas kitsas;
+    TestattavaLiiteCache cache(nullptr, &kitsas);
+
+    // Liite::tallennettu with an id the response didn't carry: Liite keeps
+    // ownership and frees the object in ~Liite.
+    CacheLiite* liite = tallennettuLiite(QByteArray("%PDF-1.4 tallennettu"));
+    cache.lisaaTallennettu(0, liite);
+    QCOMPARE(cache.vanhin(), nullptr);
+    QCOMPARE(cache.uusin(), nullptr);
+
+    liite->vapauta();
+    delete liite;
+
+    cache.tyhjenna();
+    CacheLiite* nolla = cache.liite(0);
+    QCOMPARE(nolla->tila(), CacheLiite::ALUSTAMATON);
+    QVERIFY(nolla->data().isEmpty());
 }
 
 QTEST_MAIN(LiiteCacheTest)
