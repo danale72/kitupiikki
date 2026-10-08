@@ -1,7 +1,6 @@
 <RCC>
     <qresource prefix="/pic">
         <file>Possu64.png</file>
-        <file>Possu256.png</file>
         <file>uusitosite.png</file>
         <file>ratas.png</file>
         <file>print.png</file>
@@ -13,7 +12,6 @@
         <file>avaatiedosto.png</file>
         <file>uusitiedosto.png</file>
         <file>tuotiedosto.png</file>
-        <file>kotisivu.png</file>
         <file>info.png</file>
         <file>asetusloota.png</file>
         <file>rahaa.png</file>
@@ -27,7 +25,6 @@
         <file>valilehdet.png</file>
         <file>lisaarivi.png</file>
         <file>poistarivi.png</file>
-        <file>taikuri.png</file>
         <file>ok.png</file>
         <file>peru.png</file>
         <file>roskis.png</file>
@@ -37,11 +34,8 @@
         <file>kirjalaatikko.png</file>
         <file>varoitus.png</file>
         <file>vasara.png</file>
-        <file>possukirjaa.png</file>
         <file>tekstisivu.png</file>
         <file>kopioi.png</file>
-        <file>uusikirja.png</file>
-        <file>salkku.png</file>
         <file>salkkupossu.png</file>
         <file>lukittu.png</file>
         <file>lukitsematta.png</file>
@@ -49,9 +43,7 @@
         <file>kirja64.png</file>
         <file>siirra.png</file>
         <file>folder.png</file>
-        <file>suomi.png</file>
         <file>eu.png</file>
-        <file>eu-palvelu.png</file>
         <file>eu-tavara.png</file>
         <file>kansiossa.png</file>
         <file>lihavoi.png</file>
@@ -64,7 +56,6 @@
         <file>web.png</file>
         <file>email.png</file>
         <file>sivunasetukset.png</file>
-        <file>allekirjoitus.png</file>
         <file>tiedostoon.png</file>
         <file>euro.png</file>
         <file>kateinen.png</file>
@@ -72,7 +63,6 @@
         <file>kirje.png</file>
         <file>vientilista.png</file>
         <file>vero.png</file>
-        <file>netto.png</file>
         <file>0pros.png</file>
         <file>paivita.png</file>
         <file>yrittaja.png</file>
@@ -80,25 +70,18 @@
         <file>tietyo.png</file>
         <file>edit-copy.png</file>
         <file>edit-cut.png</file>
-        <file>edit-link.png</file>
         <file>edit-paste.png</file>
         <file>edit-redo.png</file>
         <file>edit-undo.png</file>
-        <file>format-indent-less.png</file>
-        <file>format-indent-more.png</file>
-        <file>format-underline.png</file>
         <file>format-italic.png</file>
         <file>format-list-ordered.png</file>
         <file>format-list-unordered.png</file>
-        <file>format-text-strikethrough.png</file>
-        <file>insert-image.png</file>
         <file>stop.png</file>
         <file>dev.png</file>
         <file>tyhja.png</file>
         <file>ristinolla.png</file>
         <file>laiva.png</file>
         <file>apuri64.png</file>
-        <file>siirto.png</file>
         <file>Menu-Circles.png</file>
         <file>tag.png</file>
         <file>etsi.png</file>
@@ -113,16 +96,13 @@
         <file>zoom-out.png</file>
         <file>inbox.png</file>
         <file>QtIcon.png</file>
-        <file>select-all.png</file>
         <file>verkkolasku.png</file>
         <file>verotilitys.png</file>
         <file>kuva2.png</file>
         <file>teksti.png</file>
         <file>qr.png</file>
         <file>viivakoodi.png</file>
-        <file>ikkunakuori.png</file>
         <file>paketti.png</file>
-        <file>paketti2.png</file>
         <file>liite.png</file>
         <file>kommentti-harmaa.png</file>
         <file>info-harmaa.png</file>
@@ -133,7 +113,6 @@
         <file>keltainen.png</file>
         <file>harmaa.png</file>
         <file>liite-aktiivinen.png</file>
-        <file>tekstisivu-aktiivinen.png</file>
         <file>vientilista-aktiivinen.png</file>
         <file>sum.png</file>
         <file>risuaita.png</file>
@@ -145,7 +124,6 @@
         <file>se.png</file>
         <file>en.png</file>
         <file>rf.png</file>
-        <file>kopioilasku.png</file>
         <file>bug.png</file>
         <file>123.png</file>
         <file>edellinen.png</file>
@@ -153,7 +131,6 @@
         <file>etsitili.png</file>
         <file>laptop.png</file>
         <file>cloud.png</file>
-        <file>sadepilvi.png</file>
         <file>close16.png</file>
         <file>clear16.png</file>
         <file>siirtonuoli.png</file>
@@ -163,7 +140,6 @@
         <file>varasto-mv.png</file>
         <file>muokkaaasiakas.png</file>
         <file>mies.png</file>
-        <file>kitsas64.png</file>
         <file>kitsas350.png</file>
         <file>kitsas150.png</file>
         <file>ennakkolasku.png</file>
@@ -176,7 +152,6 @@
         <file>email32.png</file>
         <file>inbox32.png</file>
         <file>tiliote.png</file>
-        <file>kululasku.png</file>
         <file>euromerkki.png</file>
         <file>mailfail.png</file>
         <file>mailok.png</file>
@@ -192,7 +167,6 @@
         <file>kupla-harmaa.png</file>
         <file>kupla.png</file>
         <file>about.png</file>
-        <file>lukittupdf.png</file>
         <file>piilotettu.png</file>
         <file>talo.png</file>
         <file>splash_sv.png</file>
@@ -202,11 +176,9 @@
         <file>logoylla.png</file>
         <file>laskuteksti.png</file>
         <file>tyhja16.png</file>
-        <file>verkossa.png</file>
         <file>oranssi.png</file>
         <file>computer.png</file>
         <file>computer-mainframe.png</file>
-        <file>chardevice.png</file>
         <file>info64.png</file>
         <file>computer-laptop.png</file>
         <file>cloud-64.png</file>
@@ -216,11 +188,9 @@
         <file>procloud-64.png</file>
         <file>joulupro64.png</file>
         <file>propossu-64.png</file>
-        <file>certificate.png</file>
         <file>text64.png</file>
         <file>zoom-fit.png</file>
         <file>palat.svg</file>
-        <file>palat-harmaa.svg</file>
         <file>palat.png</file>
         <file>palat-harmaa.png</file>
         <file>ok64.png</file>
@@ -228,18 +198,12 @@
         <file>varoitus64.png</file>
         <file>link.png</file>
         <file>close.svg</file>
-        <file>ilmoitus.svg</file>
         <file>ilmoitus-punainen.svg</file>
-        <file>ilmoitus-sininen.svg</file>
         <file>ilmoitus-vihrea.svg</file>
         <file>paperilennokki.svg</file>
         <file>huomio.svg</file>
         <file>mail-readed.png</file>
         <file>ilmoitus-keltainen.svg</file>
-        <file>cert-green.svg</file>
-        <file>cert-yellow.svg</file>
-        <file>cert-red.svg</file>
-        <file>oranssi2.png</file>
         <file>insert-table.png</file>
         <file>format-justify-center.png</file>
         <file>format-justify-left.png</file>
@@ -250,8 +214,6 @@
         <file>brutto-m.svg</file>
         <file>netto-m.svg</file>
         <file>netto-s.svg</file>
-        <file>brutto-m.svg</file>
-        <file>brutto-s.svg</file>
         <file>tilille.png</file>
         <file>tililta.png</file>
         <file>usbdrive.png</file>
@@ -294,10 +256,7 @@
         <file>maksutavat/luottokortti.png</file>
         <file>liput/en.png</file>
         <file>freeicons/adminkey.png</file>
-        <file>freeicons/edit.png</file>
         <file>freeicons/key.png</file>
-        <file>freeicons/pencil.png</file>
-        <file>freeicons/view.png</file>
         <file>freeicons/roskis.png</file>
         <file>freeicons/timantti.svg</file>
         <file>pixaby/oikealle.png</file>
@@ -529,12 +488,8 @@
         <file>liput/za.png</file>
         <file>liput/zm.png</file>
         <file>liput/zw.png</file>
-        <file>freeicons/support.svg</file>
         <file>freeicons/question.svg</file>
-        <file>tyhja16.png</file>
         <file>maksutavat/pankkikortti.png</file>
-        <file>toimisto/talousverkko.png</file>
-        <file>toimisto/tlogo.png</file>
         <file>pixaby/tukihenkilo.svg</file>
         <file>pixaby/mobile.png</file>
         <file>maksutavat/yksityis.png</file>

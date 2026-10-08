@@ -60,6 +60,7 @@ private slots:
 
     void liitteet_tyhjaMalliEiKaadu();
     void liitteet_pdfinVaihtoJaPoistoEiKaadu();
+    void liitteet_tallennusJaTietokannanVaihtoEiKaadu();
     void tiliote_tyhjaTuontiEiIlmoitaRiveja();
     void tiliote_tuontiIlmoittaaLisatytRivit();
     void laskutaulu_tyhjaPaivitysEiKaadu();
@@ -177,6 +178,41 @@ void VakausTesti::liitteet_pdfinVaihtoJaPoistoEiKaadu()
 
     delete malli;
     QCoreApplication::processEvents();
+}
+
+// Kaatumisraportit 2026-10-07 ja 2026-10-08 (Kitsas_PG): kirjanpitoa avattaessa
+// LiiteCache::tyhjenna() → ~CacheLiite → ~QByteArray, SIGSEGV. Tositteen
+// tallennuksen yhteydessä tallennettu liite jäi välimuistiin avaimella 0,
+// koska Liite::tallennettu luki vastauksesta "liiteId", vaikka reitti palauttaa
+// "liite". Liite piti silloin itseään CacheLiitteen omistajana ja vapautti sen,
+// ja tietokannan vaihtuessa välimuisti vapautti sen toisen kerran.
+void VakausTesti::liitteet_tallennusJaTietokannanVaihtoEiKaadu()
+{
+    const QByteArray pdf = teePdf();
+    QVERIFY(pdf.startsWith("%PDF"));
+
+    auto* malli = new LiitteetModel();
+    QVERIFY(malli->lisaa(pdf, QStringLiteral("lasku.pdf")));
+    QCOMPARE(malli->tallennettaviaLiitteita(), 1);
+
+    malli->tallennaLiitteet(1);
+    QCOMPARE(malli->tallennettaviaLiitteita(), 0);
+    const int liiteId = malli->data(malli->index(0), LiitteetModel::IdRooli).toInt();
+
+    delete malli;
+
+    // AloitusSivu → PostgresModel/SQLiteModel::avaa → Kirjanpito::yhteysAvattu
+    // → tietokantaVaihtui → LiiteCache::tyhjenna()
+    QVERIFY(kp()->avaaTietokanta(tiedosto_));
+
+    QVERIFY2(liiteId > 0, "Tallennetun liitteen tunniste jäi nollaksi");
+
+    LiitteetModel uusi;
+    QVariantMap tieto;
+    tieto.insert(QStringLiteral("id"), liiteId);
+    tieto.insert(QStringLiteral("nimi"), QStringLiteral("lasku.pdf"));
+    uusi.lataa(QVariantList{ tieto });
+    QTRY_VERIFY_WITH_TIMEOUT(uusi.data(uusi.index(0), LiitteetModel::SisaltoRooli).toByteArray() == pdf, 3000);
 }
 
 void VakausTesti::tiliote_tyhjaTuontiEiIlmoitaRiveja()

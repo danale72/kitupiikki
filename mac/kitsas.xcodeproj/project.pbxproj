@@ -1213,11 +1213,8 @@
 		CB2AB824297D8ED7005A3181 /* varmennedialog.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = varmennedialog.cpp; sourceTree = "<group>"; };
 		CB2AB828297D8F4A005A3181 /* propossu-64.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "propossu-64.png"; sourceTree = "<group>"; };
 		CB2AB829297D8F4A005A3181 /* tyhja16.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = tyhja16.png; sourceTree = "<group>"; };
-		CB2AB82A297D8F4B005A3181 /* verkossa.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = verkossa.png; sourceTree = "<group>"; };
 		CB2AB82B297D8F4B005A3181 /* cloud-64.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "cloud-64.png"; sourceTree = "<group>"; };
 		CB2AB82C297D8F4B005A3181 /* laskuteksti.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = laskuteksti.png; sourceTree = "<group>"; };
-		CB2AB82D297D8F4C005A3181 /* chardevice.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = chardevice.png; sourceTree = "<group>"; };
-		CB2AB82E297D8F4C005A3181 /* salama.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = salama.png; sourceTree = "<group>"; };
 		CB2AB82F297D8F4D005A3181 /* computer-mainframe.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "computer-mainframe.png"; sourceTree = "<group>"; };
 		CB2AB830297D8F4D005A3181 /* kitsaspro.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = kitsaspro.png; sourceTree = "<group>"; };
 		CB2AB831297D8F4D005A3181 /* info64.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = info64.png; sourceTree = "<group>"; };
@@ -1227,9 +1224,6 @@
 		CB2AB835297D8F4F005A3181 /* oranssi.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = oranssi.png; sourceTree = "<group>"; };
 		CB2AB836297D8F4F005A3181 /* info-punainen.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "info-punainen.png"; sourceTree = "<group>"; };
 		CB2AB837297D8F50005A3181 /* joulupro64.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = joulupro64.png; sourceTree = "<group>"; };
-		CB2AB838297D8F50005A3181 /* certificate.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = certificate.png; sourceTree = "<group>"; };
-		CB2AB84B297D8FD4005A3181 /* tlogo.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = tlogo.png; sourceTree = "<group>"; };
-		CB2AB84C297D8FD4005A3181 /* talousverkko.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = talousverkko.png; sourceTree = "<group>"; };
 		CB2AB84F297D8FE9005A3181 /* toimisto.svg */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xml; path = toimisto.svg; sourceTree = "<group>"; };
 		CB2AB850297D8FEA005A3181 /* tukihenkilo.svg */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xml; path = tukihenkilo.svg; sourceTree = "<group>"; };
 		CB2AB851297D8FEA005A3181 /* mobile.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = mobile.png; sourceTree = "<group>"; };
@@ -1284,36 +1278,24 @@
 		CB2D04BC2B00DC540083F517 /* lisaosalokimodel.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = lisaosalokimodel.cpp; sourceTree = "<group>"; };
 		CB2D04C42B00DD130083F517 /* paperilennokki.svg */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = paperilennokki.svg; sourceTree = "<group>"; };
 		CB2D04C52B00DD130083F517 /* huomio.svg */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = huomio.svg; sourceTree = "<group>"; };
-		CB2D04C62B00DD130083F517 /* ilmoitus-keltainen-nappi.svg */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = "ilmoitus-keltainen-nappi.svg"; sourceTree = "<group>"; };
 		CB2D04C72B00DD130083F517 /* insert-table.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "insert-table.png"; sourceTree = "<group>"; };
-		CB2D04C82B00DD130083F517 /* cert-green.svg */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = "cert-green.svg"; sourceTree = "<group>"; };
-		CB2D04C92B00DD130083F517 /* ilmoitus-sininen.svg */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = "ilmoitus-sininen.svg"; sourceTree = "<group>"; };
 		CB2D04CA2B00DD130083F517 /* palat.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = palat.png; sourceTree = "<group>"; };
 		CB2D04CB2B00DD130083F517 /* format-justify-right.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "format-justify-right.png"; sourceTree = "<group>"; };
 		CB2D04CC2B00DD130083F517 /* ilmoitus-keltainen.svg */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = "ilmoitus-keltainen.svg"; sourceTree = "<group>"; };
-		CB2D04CD2B00DD130083F517 /* palat-harmaa.svg */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = "palat-harmaa.svg"; sourceTree = "<group>"; };
 		CB2D04CE2B00DD140083F517 /* link.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = link.png; sourceTree = "<group>"; };
-		CB2D04CF2B00DD140083F517 /* cert-red.svg */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = "cert-red.svg"; sourceTree = "<group>"; };
 		CB2D04D02B00DD140083F517 /* format-justify-left.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "format-justify-left.png"; sourceTree = "<group>"; };
-		CB2D04D12B00DD140083F517 /* cert-yellow.svg */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = "cert-yellow.svg"; sourceTree = "<group>"; };
-		CB2D04D22B00DD140083F517 /* punainen.svg */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = punainen.svg; sourceTree = "<group>"; };
 		CB2D04D32B00DD140083F517 /* text64.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = text64.png; sourceTree = "<group>"; };
 		CB2D04D42B00DD140083F517 /* palat.svg */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = palat.svg; sourceTree = "<group>"; };
-		CB2D04D52B00DD140083F517 /* oranssi.svg */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = oranssi.svg; sourceTree = "<group>"; };
 		CB2D04D62B00DD140083F517 /* format-justify-center.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "format-justify-center.png"; sourceTree = "<group>"; };
-		CB2D04D72B00DD140083F517 /* ilmoitus.svg */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = ilmoitus.svg; sourceTree = "<group>"; };
 		CB2D04D82B00DD150083F517 /* ilmoitus-oranssi.svg */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = "ilmoitus-oranssi.svg"; sourceTree = "<group>"; };
 		CB2D04D92B00DD150083F517 /* ilmoitus-vihrea.svg */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = "ilmoitus-vihrea.svg"; sourceTree = "<group>"; };
 		CB2D04DA2B00DD150083F517 /* close.svg */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = close.svg; sourceTree = "<group>"; };
 		CB2D04DB2B00DD150083F517 /* ilmoitus-punainen.svg */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = "ilmoitus-punainen.svg"; sourceTree = "<group>"; };
 		CB2D04DC2B00DD150083F517 /* ok64.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = ok64.png; sourceTree = "<group>"; };
 		CB2D04DD2B00DD150083F517 /* mail-readed.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "mail-readed.png"; sourceTree = "<group>"; };
-		CB2D04DE2B00DD150083F517 /* keltainen.svg */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = keltainen.svg; sourceTree = "<group>"; };
-		CB2D04DF2B00DD150083F517 /* oranssi2.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = oranssi2.png; sourceTree = "<group>"; };
 		CB2D04E02B00DD150083F517 /* palat-harmaa.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "palat-harmaa.png"; sourceTree = "<group>"; };
 		CB2D04E12B00DDC80083F517 /* pankkikortti.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = pankkikortti.png; sourceTree = "<group>"; };
 		CB2D04E22B00DDF20083F517 /* question.svg */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = question.svg; sourceTree = "<group>"; };
-		CB2D04E32B00DDF30083F517 /* support.svg */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = support.svg; sourceTree = "<group>"; };
 		CB2D04E42B00DE280083F517 /* hubwebpage.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = hubwebpage.h; sourceTree = "<group>"; };
 		CB2D04E52B00DE280083F517 /* hubwebpage.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = hubwebpage.cpp; sourceTree = "<group>"; };
 		CB2D04E72B00DFDD0083F517 /* moc_hubwebpage.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = moc_hubwebpage.cpp; sourceTree = "<group>"; };
@@ -1450,7 +1432,6 @@
 		CB64F89C2A00071B000B0FAE /* moc_aliasdialog.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = moc_aliasdialog.cpp; sourceTree = "<group>"; };
 		CB64F89D2A00071B000B0FAE /* moc_extralogmodel.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = moc_extralogmodel.cpp; sourceTree = "<group>"; };
 		CB64F89E2A00071C000B0FAE /* moc_extradialog.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = moc_extradialog.cpp; sourceTree = "<group>"; };
-		CB76FC792D2541CC00F23567 /* about.bmp */ = {isa = PBXFileReference; lastKnownFileType = image.bmp; path = about.bmp; sourceTree = "<group>"; };
 		CB77E18D2AB2AAC00007A360 /* QtQuickWidgets.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QtQuickWidgets.framework; path = ../../../Qt/6.7.3/macos/lib/QtQuickWidgets.framework; sourceTree = "<group>"; };
 		CB78FFFB2D91CC99000F551B /* laskurivitview.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = laskurivitview.h; sourceTree = "<group>"; };
 		CB78FFFC2D91CC99000F551B /* laskurivitview.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = laskurivitview.cpp; sourceTree = "<group>"; };
@@ -1843,7 +1824,6 @@
 		CB91DA562660C7CC00A2FAA2 /* vanhatuontidlg.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = vanhatuontidlg.h; sourceTree = "<group>"; };
 		CB91DA572660C7CC00A2FAA2 /* vanhatuontidlg.ui */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xml; path = vanhatuontidlg.ui; sourceTree = "<group>"; };
 		CB91DA582660C7CC00A2FAA2 /* vanhatuontidlg.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = vanhatuontidlg.cpp; sourceTree = "<group>"; };
-		CB91DA5A2660C7CC00A2FAA2 /* format-text-strikethrough.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "format-text-strikethrough.png"; sourceTree = "<group>"; };
 		CB91DA5B2660C7CC00A2FAA2 /* info.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = info.png; sourceTree = "<group>"; };
 		CB91DA5C2660C7CC00A2FAA2 /* inbox32.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = inbox32.png; sourceTree = "<group>"; };
 		CB91DA5D2660C7CC00A2FAA2 /* tiliote.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = tiliote.png; sourceTree = "<group>"; };
@@ -1851,28 +1831,20 @@
 		CB91DA5F2660C7CC00A2FAA2 /* email.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = email.png; sourceTree = "<group>"; };
 		CB91DA602660C7CC00A2FAA2 /* kupla.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = kupla.png; sourceTree = "<group>"; };
 		CB91DA612660C7CC00A2FAA2 /* kalenteri16.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = kalenteri16.png; sourceTree = "<group>"; };
-		CB91DA622660C7CC00A2FAA2 /* ikkunakuori.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = ikkunakuori.png; sourceTree = "<group>"; };
 		CB91DA632660C7CC00A2FAA2 /* Menu-Circles.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "Menu-Circles.png"; sourceTree = "<group>"; };
-		CB91DA642660C7CC00A2FAA2 /* uusihlo.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = uusihlo.png; sourceTree = "<group>"; };
 		CB91DA652660C7CC00A2FAA2 /* Diary64.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = Diary64.png; sourceTree = "<group>"; };
 		CB91DA662660C7CC00A2FAA2 /* edit-cut.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "edit-cut.png"; sourceTree = "<group>"; };
 		CB91DA672660C7CC00A2FAA2 /* talo.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = talo.png; sourceTree = "<group>"; };
 		CB91DA682660C7CC00A2FAA2 /* logoylla.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = logoylla.png; sourceTree = "<group>"; };
 		CB91DA692660C7CC00A2FAA2 /* siirtonuoli.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = siirtonuoli.png; sourceTree = "<group>"; };
 		CB91DA6A2660C7CC00A2FAA2 /* dokumentti.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = dokumentti.png; sourceTree = "<group>"; };
-		CB91DA6B2660C7CC00A2FAA2 /* uusikirja.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = uusikirja.png; sourceTree = "<group>"; };
 		CB91DA6C2660C7CC00A2FAA2 /* apuri64.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = apuri64.png; sourceTree = "<group>"; };
 		CB91DA6D2660C7CC00A2FAA2 /* huomio.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = huomio.png; sourceTree = "<group>"; };
 		CB91DA6E2660C7CC00A2FAA2 /* stop.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = stop.png; sourceTree = "<group>"; };
 		CB91DA6F2660C7CC00A2FAA2 /* kommentti.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = kommentti.png; sourceTree = "<group>"; };
-		CB91DA702660C7CC00A2FAA2 /* suomi.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = suomi.png; sourceTree = "<group>"; };
-		CB91DA712660C7CC00A2FAA2 /* siirto.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = siirto.png; sourceTree = "<group>"; };
 		CB91DA722660C7CC00A2FAA2 /* kirje.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = kirje.png; sourceTree = "<group>"; };
 		CB91DA732660C7CC00A2FAA2 /* projekti.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = projekti.png; sourceTree = "<group>"; };
 		CB91DA742660C7CC00A2FAA2 /* kuu.svg */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xml; path = kuu.svg; sourceTree = "<group>"; };
-		CB91DA752660C7CC00A2FAA2 /* arkistoi.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = arkistoi.png; sourceTree = "<group>"; };
-		CB91DA762660C7CC00A2FAA2 /* kopioilasku.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = kopioilasku.png; sourceTree = "<group>"; };
-		CB91DA772660C7CC00A2FAA2 /* kitsas64.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = kitsas64.png; sourceTree = "<group>"; };
 		CB91DA782660C7CC00A2FAA2 /* yrittaja.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = yrittaja.png; sourceTree = "<group>"; };
 		CB91DA792660C7CC00A2FAA2 /* month.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = month.png; sourceTree = "<group>"; };
 		CB91DA7A2660C7CC00A2FAA2 /* format-italic.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "format-italic.png"; sourceTree = "<group>"; };
@@ -1890,23 +1862,17 @@
 		CB91DA872660C7CC00A2FAA2 /* oikealle.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = oikealle.png; sourceTree = "<group>"; };
 		CB91DA882660C7CC00A2FAA2 /* skanneri.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = skanneri.png; sourceTree = "<group>"; };
 		CB91DA892660C7CC00A2FAA2 /* naytto.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = naytto.png; sourceTree = "<group>"; };
-		CB91DA8A2660C7CC00A2FAA2 /* kansiot2.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = kansiot2.png; sourceTree = "<group>"; };
 		CB91DA8B2660C7CC00A2FAA2 /* edit-redo.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "edit-redo.png"; sourceTree = "<group>"; };
 		CB91DA8C2660C7CC00A2FAA2 /* ok-128.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "ok-128.png"; sourceTree = "<group>"; };
 		CB91DA8D2660C7CC00A2FAA2 /* lukitsematta.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = lukitsematta.png; sourceTree = "<group>"; };
 		CB91DA8E2660C7CC00A2FAA2 /* mail.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = mail.png; sourceTree = "<group>"; };
-		CB91DA8F2660C7CC00A2FAA2 /* kirja.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = kirja.png; sourceTree = "<group>"; };
 		CB91DA902660C7CC00A2FAA2 /* paivita.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = paivita.png; sourceTree = "<group>"; };
-		CB91DA912660C7CC00A2FAA2 /* return.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = return.png; sourceTree = "<group>"; };
 		CB91DA922660C7CC00A2FAA2 /* poistarivi.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = poistarivi.png; sourceTree = "<group>"; };
 		CB91DA932660C7CC00A2FAA2 /* pankki.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = pankki.png; sourceTree = "<group>"; };
 		CB91DA952660C7CC00A2FAA2 /* timantti.svg */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xml; path = timantti.svg; sourceTree = "<group>"; };
 		CB91DA962660C7CC00A2FAA2 /* adminkey.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = adminkey.png; sourceTree = "<group>"; };
 		CB91DA972660C7CC00A2FAA2 /* key.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = key.png; sourceTree = "<group>"; };
-		CB91DA982660C7CC00A2FAA2 /* view.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = view.png; sourceTree = "<group>"; };
-		CB91DA992660C7CC00A2FAA2 /* pencil.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = pencil.png; sourceTree = "<group>"; };
 		CB91DA9A2660C7CC00A2FAA2 /* roskis.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = roskis.png; sourceTree = "<group>"; };
-		CB91DA9B2660C7CC00A2FAA2 /* edit.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = edit.png; sourceTree = "<group>"; };
 		CB91DA9C2660C7CC00A2FAA2 /* mies.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = mies.png; sourceTree = "<group>"; };
 		CB91DA9D2660C7CC00A2FAA2 /* suorite.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = suorite.png; sourceTree = "<group>"; };
 		CB91DA9E2660C7CC00A2FAA2 /* kierto.svg */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xml; path = kierto.svg; sourceTree = "<group>"; };
@@ -1918,7 +1884,6 @@
 		CB91DAA42660C7CC00A2FAA2 /* kuva2.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = kuva2.png; sourceTree = "<group>"; };
 		CB91DAA52660C7CC00A2FAA2 /* up.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = up.png; sourceTree = "<group>"; };
 		CB91DAA62660C7CC00A2FAA2 /* punainenkuori.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = punainenkuori.png; sourceTree = "<group>"; };
-		CB91DAA72660C7CC00A2FAA2 /* sadepilvi.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = sadepilvi.png; sourceTree = "<group>"; };
 		CB91DAA82660C7CC00A2FAA2 /* kaikkitilit.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = kaikkitilit.png; sourceTree = "<group>"; };
 		CB91DAA92660C7CC00A2FAA2 /* verotilitys.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = verotilitys.png; sourceTree = "<group>"; };
 		CB91DAAA2660C7CC00A2FAA2 /* clear16.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = clear16.png; sourceTree = "<group>"; };
@@ -1931,27 +1896,20 @@
 		CB91DAB12660C7CC00A2FAA2 /* kaytossa.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = kaytossa.png; sourceTree = "<group>"; };
 		CB91DAB22660C7CC00A2FAA2 /* en.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = en.png; sourceTree = "<group>"; };
 		CB91DAB32660C7CC00A2FAA2 /* 0pros.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = 0pros.png; sourceTree = "<group>"; };
-		CB91DAB42660C7CC00A2FAA2 /* lukittupdf.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = lukittupdf.png; sourceTree = "<group>"; };
 		CB91DAB52660C7CC00A2FAA2 /* logovieressa.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = logovieressa.png; sourceTree = "<group>"; };
 		CB91DAB62660C7CC00A2FAA2 /* down.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = down.png; sourceTree = "<group>"; };
 		CB91DAB72660C7CC00A2FAA2 /* kansiot.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = kansiot.png; sourceTree = "<group>"; };
 		CB91DAB82660C7CC00A2FAA2 /* asetusloota.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = asetusloota.png; sourceTree = "<group>"; };
 		CB91DAB92660C7CC00A2FAA2 /* email32.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = email32.png; sourceTree = "<group>"; };
-		CB91DABA2660C7CC00A2FAA2 /* kotisivu.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = kotisivu.png; sourceTree = "<group>"; };
 		CB91DABB2660C7CC00A2FAA2 /* tyhja.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = tyhja.png; sourceTree = "<group>"; };
 		CB91DABC2660C7CC00A2FAA2 /* rf.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = rf.png; sourceTree = "<group>"; };
 		CB91DABD2660C7CC00A2FAA2 /* varoitus.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = varoitus.png; sourceTree = "<group>"; };
 		CB91DABE2660C7CC00A2FAA2 /* dev.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = dev.png; sourceTree = "<group>"; };
-		CB91DABF2660C7CC00A2FAA2 /* insert-image.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "insert-image.png"; sourceTree = "<group>"; };
 		CB91DAC02660C7CC00A2FAA2 /* laiva.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = laiva.png; sourceTree = "<group>"; };
-		CB91DAC12660C7CC00A2FAA2 /* paakirja.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = paakirja.png; sourceTree = "<group>"; };
-		CB91DAC22660C7CC00A2FAA2 /* select-all.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "select-all.png"; sourceTree = "<group>"; };
 		CB91DAC32660C7CC00A2FAA2 /* edit-clear.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "edit-clear.png"; sourceTree = "<group>"; };
 		CB91DAC42660C7CC00A2FAA2 /* viivakoodi.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = viivakoodi.png; sourceTree = "<group>"; };
-		CB91DAC52660C7CC00A2FAA2 /* salkku.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = salkku.png; sourceTree = "<group>"; };
 		CB91DAC62660C7CC00A2FAA2 /* edit-undo.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "edit-undo.png"; sourceTree = "<group>"; };
 		CB91DAC72660C7CC00A2FAA2 /* kirjalaatikko.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = kirjalaatikko.png; sourceTree = "<group>"; };
-		CB91DAC82660C7CC00A2FAA2 /* netto.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = netto.png; sourceTree = "<group>"; };
 		CB91DAC92660C7CC00A2FAA2 /* paketti.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = paketti.png; sourceTree = "<group>"; };
 		CB91DACA2660C7CC00A2FAA2 /* yhteystiedot.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = yhteystiedot.png; sourceTree = "<group>"; };
 		CB91DACB2660C7CC00A2FAA2 /* se.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = se.png; sourceTree = "<group>"; };
@@ -1962,11 +1920,9 @@
 		CB91DAD02660C7CC00A2FAA2 /* harmaahuomio.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = harmaahuomio.png; sourceTree = "<group>"; };
 		CB91DAD12660C7CC00A2FAA2 /* tietyo.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = tietyo.png; sourceTree = "<group>"; };
 		CB91DAD22660C7CC00A2FAA2 /* kirja64.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = kirja64.png; sourceTree = "<group>"; };
-		CB91DAD32660C7CC00A2FAA2 /* format-underline.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "format-underline.png"; sourceTree = "<group>"; };
 		CB91DAD42660C7CC00A2FAA2 /* etsi.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = etsi.png; sourceTree = "<group>"; };
 		CB91DAD52660C7CC00A2FAA2 /* uusitiedosto.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = uusitiedosto.png; sourceTree = "<group>"; };
 		CB91DAD62660C7CC00A2FAA2 /* rahaa.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = rahaa.png; sourceTree = "<group>"; };
-		CB91DAD72660C7CC00A2FAA2 /* allekirjoitus.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = allekirjoitus.png; sourceTree = "<group>"; };
 		CB91DAD92660C7CC00A2FAA2 /* tg.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = tg.png; sourceTree = "<group>"; };
 		CB91DADA2660C7CC00A2FAA2 /* me.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = me.png; sourceTree = "<group>"; };
 		CB91DADB2660C7CC00A2FAA2 /* la.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = la.png; sourceTree = "<group>"; };
@@ -2233,10 +2189,8 @@
 		CB91DBE02660C7CD00A2FAA2 /* 123.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = 123.png; sourceTree = "<group>"; };
 		CB91DBE12660C7CD00A2FAA2 /* verkkolasku.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = verkkolasku.png; sourceTree = "<group>"; };
 		CB91DBE22660C7CD00A2FAA2 /* tulosta.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = tulosta.png; sourceTree = "<group>"; };
-		CB91DBE32660C7CD00A2FAA2 /* format-indent-more.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "format-indent-more.png"; sourceTree = "<group>"; };
 		CB91DBE42660C7CD00A2FAA2 /* lisaa.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = lisaa.png; sourceTree = "<group>"; };
 		CB91DBE52660C7CD00A2FAA2 /* tuotiedosto.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = tuotiedosto.png; sourceTree = "<group>"; };
-		CB91DBE62660C7CD00A2FAA2 /* taikuri.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = taikuri.png; sourceTree = "<group>"; };
 		CB91DBE72660C7CD00A2FAA2 /* vasara.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = vasara.png; sourceTree = "<group>"; };
 		CB91DBE82660C7CD00A2FAA2 /* harmaa.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = harmaa.png; sourceTree = "<group>"; };
 		CB91DBE92660C7CD00A2FAA2 /* cloud.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = cloud.png; sourceTree = "<group>"; };
@@ -2255,11 +2209,8 @@
 		CB91DBF72660C7CD00A2FAA2 /* e64.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = e64.png; sourceTree = "<group>"; };
 		CB91DBF82660C7CD00A2FAA2 /* calendar.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = calendar.png; sourceTree = "<group>"; };
 		CB91DBF92660C7CD00A2FAA2 /* siirra.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = siirra.png; sourceTree = "<group>"; };
-		CB91DBFA2660C7CD00A2FAA2 /* kirjapino.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = kirjapino.png; sourceTree = "<group>"; };
 		CB91DBFB2660C7CD00A2FAA2 /* asiakkaat.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = asiakkaat.png; sourceTree = "<group>"; };
-		CB91DBFC2660C7CD00A2FAA2 /* mail-anti_spam.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "mail-anti_spam.png"; sourceTree = "<group>"; };
 		CB91DBFD2660C7CD00A2FAA2 /* liite-aktiivinen.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "liite-aktiivinen.png"; sourceTree = "<group>"; };
-		CB91DBFE2660C7CD00A2FAA2 /* loki.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = loki.png; sourceTree = "<group>"; };
 		CB91DBFF2660C7CD00A2FAA2 /* raha2.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = raha2.png; sourceTree = "<group>"; };
 		CB91DC002660C7CD00A2FAA2 /* poista.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = poista.png; sourceTree = "<group>"; };
 		CB91DC012660C7CD00A2FAA2 /* web.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = web.png; sourceTree = "<group>"; };
@@ -2282,17 +2233,9 @@
 		CB91DC122660C7CD00A2FAA2 /* kohdennus.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = kohdennus.png; sourceTree = "<group>"; };
 		CB91DC132660C7CD00A2FAA2 /* uusitosite.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = uusitosite.png; sourceTree = "<group>"; };
 		CB91DC142660C7CD00A2FAA2 /* verkkovirhe.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = verkkovirhe.png; sourceTree = "<group>"; };
-		CB91DC152660C7CD00A2FAA2 /* htmlvienti.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = htmlvienti.png; sourceTree = "<group>"; };
-		CB91DC162660C7CD00A2FAA2 /* possukirjaa.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = possukirjaa.png; sourceTree = "<group>"; };
 		CB91DC172660C7CD00A2FAA2 /* bug.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = bug.png; sourceTree = "<group>"; };
-		CB91DC182660C7CD00A2FAA2 /* kululasku.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = kululasku.png; sourceTree = "<group>"; };
 		CB91DC192660C7CD00A2FAA2 /* arkisto64.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = arkisto64.png; sourceTree = "<group>"; };
-		CB91DC1A2660C7CD00A2FAA2 /* etsi2.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = etsi2.png; sourceTree = "<group>"; };
 		CB91DC1B2660C7CD00A2FAA2 /* valilehdet.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = valilehdet.png; sourceTree = "<group>"; };
-		CB91DC1D2660C7CD00A2FAA2 /* poista.ico */ = {isa = PBXFileReference; lastKnownFileType = image.ico; path = poista.ico; sourceTree = "<group>"; };
-		CB91DC1E2660C7CD00A2FAA2 /* onweb.ico */ = {isa = PBXFileReference; lastKnownFileType = image.ico; path = onweb.ico; sourceTree = "<group>"; };
-		CB91DC1F2660C7CD00A2FAA2 /* kitupiikki.ico */ = {isa = PBXFileReference; lastKnownFileType = image.ico; path = kitupiikki.ico; sourceTree = "<group>"; };
-		CB91DC202660C7CD00A2FAA2 /* velhopossu.bmp */ = {isa = PBXFileReference; lastKnownFileType = image.bmp; path = velhopossu.bmp; sourceTree = "<group>"; };
 		CB91DC212660C7CD00A2FAA2 /* pic.qrc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = pic.qrc; sourceTree = "<group>"; };
 		CB91DC222660C7CD00A2FAA2 /* peru.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = peru.png; sourceTree = "<group>"; };
 		CB91DC232660C7CD00A2FAA2 /* kommentti-harmaa.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "kommentti-harmaa.png"; sourceTree = "<group>"; };
@@ -2303,26 +2246,18 @@
 		CB91DC282660C7CD00A2FAA2 /* teksti.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = teksti.png; sourceTree = "<group>"; };
 		CB91DC292660C7CD00A2FAA2 /* kitsas350.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = kitsas350.png; sourceTree = "<group>"; };
 		CB91DC2A2660C7CD00A2FAA2 /* vie.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = vie.png; sourceTree = "<group>"; };
-		CB91DC2B2660C7CD00A2FAA2 /* skanneri.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = skanneri.png; sourceTree = "<group>"; };
 		CB91DC2C2660C7CE00A2FAA2 /* punainen.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = punainen.png; sourceTree = "<group>"; };
 		CB91DC2D2660C7CE00A2FAA2 /* kupla-harmaa.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "kupla-harmaa.png"; sourceTree = "<group>"; };
 		CB91DC2E2660C7CE00A2FAA2 /* mailfail.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = mailfail.png; sourceTree = "<group>"; };
-		CB91DC2F2660C7CE00A2FAA2 /* Possu256.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = Possu256.png; sourceTree = "<group>"; };
 		CB91DC302660C7CE00A2FAA2 /* etsitili.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = etsitili.png; sourceTree = "<group>"; };
-		CB91DC312660C7CE00A2FAA2 /* tekstisivu-aktiivinen.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "tekstisivu-aktiivinen.png"; sourceTree = "<group>"; };
-		CB91DC322660C7CE00A2FAA2 /* paketti2.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = paketti2.png; sourceTree = "<group>"; };
 		CB91DC332660C7CE00A2FAA2 /* salkkupossu.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = salkkupossu.png; sourceTree = "<group>"; };
 		CB91DC342660C7CE00A2FAA2 /* ristinolla.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = ristinolla.png; sourceTree = "<group>"; };
 		CB91DC352660C7CE00A2FAA2 /* zoom-out.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "zoom-out.png"; sourceTree = "<group>"; };
-		CB91DC362660C7CE00A2FAA2 /* maareet.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = maareet.png; sourceTree = "<group>"; };
-		CB91DC372660C7CE00A2FAA2 /* format-indent-less.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "format-indent-less.png"; sourceTree = "<group>"; };
 		CB91DC382660C7CE00A2FAA2 /* Joulupossu.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = Joulupossu.png; sourceTree = "<group>"; };
 		CB91DC392660C7CE00A2FAA2 /* csv.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = csv.png; sourceTree = "<group>"; };
 		CB91DC3A2660C7CE00A2FAA2 /* euromerkki.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = euromerkki.png; sourceTree = "<group>"; };
 		CB91DC3B2660C7CE00A2FAA2 /* raidoitus.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = raidoitus.png; sourceTree = "<group>"; };
 		CB91DC3C2660C7CE00A2FAA2 /* tahti.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = tahti.png; sourceTree = "<group>"; };
-		CB91DC3D2660C7CE00A2FAA2 /* edit-link.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "edit-link.png"; sourceTree = "<group>"; };
-		CB91DC3E2660C7CE00A2FAA2 /* kayrat.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = kayrat.png; sourceTree = "<group>"; };
 		CB91DC3F2660C7CE00A2FAA2 /* edit-paste.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "edit-paste.png"; sourceTree = "<group>"; };
 		CB91DC402660C7CE00A2FAA2 /* refresh.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = refresh.png; sourceTree = "<group>"; };
 		CB91DC412660C7CE00A2FAA2 /* edellinen.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = edellinen.png; sourceTree = "<group>"; };
@@ -2330,7 +2265,6 @@
 		CB91DC432660C7CE00A2FAA2 /* uusiasiakas.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = uusiasiakas.png; sourceTree = "<group>"; };
 		CB91DC442660C7CE00A2FAA2 /* zoom-in.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "zoom-in.png"; sourceTree = "<group>"; };
 		CB91DC452660C7CE00A2FAA2 /* risuaita.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = risuaita.png; sourceTree = "<group>"; };
-		CB91DC462660C7CE00A2FAA2 /* tab-detach.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "tab-detach.png"; sourceTree = "<group>"; };
 		CB91DC472660C7CE00A2FAA2 /* seuraava.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = seuraava.png; sourceTree = "<group>"; };
 		CB91DC482660C7CE00A2FAA2 /* .gitignore */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = .gitignore; sourceTree = "<group>"; };
 		CB91DC4A2660C7CE00A2FAA2 /* rekisterituontidlg.ui */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xml; path = rekisterituontidlg.ui; sourceTree = "<group>"; };
@@ -4152,15 +4086,6 @@
 			path = toimisto;
 			sourceTree = "<group>";
 		};
-		CB2AB84A297D8FD4005A3181 /* toimisto */ = {
-			isa = PBXGroup;
-			children = (
-				CB2AB84B297D8FD4005A3181 /* tlogo.png */,
-				CB2AB84C297D8FD4005A3181 /* talousverkko.png */,
-			);
-			path = toimisto;
-			sourceTree = "<group>";
-		};
 		CB2AB855297D90DA005A3181 /* tilinavaus */ = {
 			isa = PBXGroup;
 			children = (
@@ -5001,25 +4926,17 @@
 		CB91DA592660C7CC00A2FAA2 /* pic */ = {
 			isa = PBXGroup;
 			children = (
-				CB76FC792D2541CC00F23567 /* about.bmp */,
 				CB91DAB32660C7CC00A2FAA2 /* 0pros.png */,
 				CB91DBE02660C7CD00A2FAA2 /* 123.png */,
 				CB91DC252660C7CD00A2FAA2 /* about.png */,
-				CB91DAD72660C7CC00A2FAA2 /* allekirjoitus.png */,
 				CB91DA6C2660C7CC00A2FAA2 /* apuri64.png */,
 				CB91DC192660C7CD00A2FAA2 /* arkisto64.png */,
-				CB91DA752660C7CC00A2FAA2 /* arkistoi.png */,
 				CB91DAB82660C7CC00A2FAA2 /* asetusloota.png */,
 				CB91DBFB2660C7CD00A2FAA2 /* asiakkaat.png */,
 				CB91DBD42660C7CD00A2FAA2 /* avaatiedosto.png */,
 				CB91DC0A2660C7CD00A2FAA2 /* bar-copy.png */,
 				CB91DC172660C7CD00A2FAA2 /* bug.png */,
 				CB91DBF82660C7CD00A2FAA2 /* calendar.png */,
-				CB2D04C82B00DD130083F517 /* cert-green.svg */,
-				CB2D04CF2B00DD140083F517 /* cert-red.svg */,
-				CB2D04D12B00DD140083F517 /* cert-yellow.svg */,
-				CB2AB838297D8F50005A3181 /* certificate.png */,
-				CB2AB82D297D8F4C005A3181 /* chardevice.png */,
 				CB91DAAA2660C7CC00A2FAA2 /* clear16.png */,
 				CB2D04DA2B00DD150083F517 /* close.svg */,
 				CB91DBF52660C7CD00A2FAA2 /* close16.png */,
@@ -5039,7 +4956,6 @@
 				CB91DAC32660C7CC00A2FAA2 /* edit-clear.png */,
 				CB91DAA32660C7CC00A2FAA2 /* edit-copy.png */,
 				CB91DA662660C7CC00A2FAA2 /* edit-cut.png */,
-				CB91DC3D2660C7CE00A2FAA2 /* edit-link.png */,
 				CB91DC3F2660C7CE00A2FAA2 /* edit-paste.png */,
 				CB91DA8B2660C7CC00A2FAA2 /* edit-redo.png */,
 				CB91DAC62660C7CC00A2FAA2 /* edit-undo.png */,
@@ -5049,46 +4965,34 @@
 				CB91DAB22660C7CC00A2FAA2 /* en.png */,
 				CB91DBDF2660C7CD00A2FAA2 /* ennakkolasku.png */,
 				CB91DAD42660C7CC00A2FAA2 /* etsi.png */,
-				CB91DC1A2660C7CD00A2FAA2 /* etsi2.png */,
 				CB91DC302660C7CE00A2FAA2 /* etsitili.png */,
 				CB91DBEB2660C7CD00A2FAA2 /* eu.png */,
 				CB91DA9F2660C7CC00A2FAA2 /* euro.png */,
 				CB91DC3A2660C7CE00A2FAA2 /* euromerkki.png */,
 				CB91DBDE2660C7CD00A2FAA2 /* fi.png */,
 				CB91DBDA2660C7CD00A2FAA2 /* folder.png */,
-				CB91DC372660C7CE00A2FAA2 /* format-indent-less.png */,
-				CB91DBE32660C7CD00A2FAA2 /* format-indent-more.png */,
 				CB91DA7A2660C7CC00A2FAA2 /* format-italic.png */,
 				CB2D04D62B00DD140083F517 /* format-justify-center.png */,
 				CB2D04D02B00DD140083F517 /* format-justify-left.png */,
 				CB2D04CB2B00DD130083F517 /* format-justify-right.png */,
 				CB91DC072660C7CD00A2FAA2 /* format-list-ordered.png */,
 				CB91DAAE2660C7CC00A2FAA2 /* format-list-unordered.png */,
-				CB91DA5A2660C7CC00A2FAA2 /* format-text-strikethrough.png */,
-				CB91DAD32660C7CC00A2FAA2 /* format-underline.png */,
 				CB91DA942660C7CC00A2FAA2 /* freeicons */,
 				CB91DBE82660C7CD00A2FAA2 /* harmaa.png */,
 				CB91DAD02660C7CC00A2FAA2 /* harmaahuomio.png */,
-				CB91DC152660C7CD00A2FAA2 /* htmlvienti.png */,
 				CB91DA6D2660C7CC00A2FAA2 /* huomio.png */,
 				CB2D04C52B00DD130083F517 /* huomio.svg */,
 				CB91DAAF2660C7CC00A2FAA2 /* huomioliite.png */,
-				CB91DC1C2660C7CD00A2FAA2 /* icon */,
-				CB91DA622660C7CC00A2FAA2 /* ikkunakuori.png */,
-				CB2D04C62B00DD130083F517 /* ilmoitus-keltainen-nappi.svg */,
 				CB2D04CC2B00DD130083F517 /* ilmoitus-keltainen.svg */,
 				CB2D04D82B00DD150083F517 /* ilmoitus-oranssi.svg */,
 				CB2D04DB2B00DD150083F517 /* ilmoitus-punainen.svg */,
-				CB2D04C92B00DD130083F517 /* ilmoitus-sininen.svg */,
 				CB2D04D92B00DD150083F517 /* ilmoitus-vihrea.svg */,
-				CB2D04D72B00DD140083F517 /* ilmoitus.svg */,
 				CB91DAAD2660C7CC00A2FAA2 /* inbox.png */,
 				CB91DA5C2660C7CC00A2FAA2 /* inbox32.png */,
 				CB91DAA22660C7CC00A2FAA2 /* info-harmaa.png */,
 				CB2AB836297D8F4F005A3181 /* info-punainen.png */,
 				CB91DA5B2660C7CC00A2FAA2 /* info.png */,
 				CB2AB831297D8F4D005A3181 /* info64.png */,
-				CB91DABF2660C7CC00A2FAA2 /* insert-image.png */,
 				CB2D04C72B00DD130083F517 /* insert-table.png */,
 				CB91DC382660C7CE00A2FAA2 /* Joulupossu.png */,
 				CB2AB837297D8F50005A3181 /* joulupro64.png */,
@@ -5096,20 +5000,14 @@
 				CB91DA612660C7CC00A2FAA2 /* kalenteri16.png */,
 				CB91DC052660C7CD00A2FAA2 /* kansiossa.png */,
 				CB91DAB72660C7CC00A2FAA2 /* kansiot.png */,
-				CB91DA8A2660C7CC00A2FAA2 /* kansiot2.png */,
 				CB91DBD82660C7CD00A2FAA2 /* kateinen.png */,
-				CB91DC3E2660C7CE00A2FAA2 /* kayrat.png */,
 				CB91DAB12660C7CC00A2FAA2 /* kaytossa.png */,
 				CB91DBD62660C7CD00A2FAA2 /* keltainen.png */,
-				CB2D04DE2B00DD150083F517 /* keltainen.svg */,
 				CB91DA7E2660C7CC00A2FAA2 /* kierto-harmaa.svg */,
 				CB91DA9E2660C7CC00A2FAA2 /* kierto.svg */,
-				CB91DA8F2660C7CC00A2FAA2 /* kirja.png */,
 				CB91DAD22660C7CC00A2FAA2 /* kirja64.png */,
 				CB91DAC72660C7CC00A2FAA2 /* kirjalaatikko.png */,
-				CB91DBFA2660C7CD00A2FAA2 /* kirjapino.png */,
 				CB91DA722660C7CC00A2FAA2 /* kirje.png */,
-				CB91DA772660C7CC00A2FAA2 /* kitsas64.png */,
 				CB91DC0D2660C7CD00A2FAA2 /* kitsas150.png */,
 				CB91DC292660C7CD00A2FAA2 /* kitsas350.png */,
 				CB2AB830297D8F4D005A3181 /* kitsaspro.png */,
@@ -5117,9 +5015,6 @@
 				CB91DC232660C7CD00A2FAA2 /* kommentti-harmaa.png */,
 				CB91DA6F2660C7CC00A2FAA2 /* kommentti.png */,
 				CB91DBD72660C7CD00A2FAA2 /* kopioi.png */,
-				CB91DA762660C7CC00A2FAA2 /* kopioilasku.png */,
-				CB91DABA2660C7CC00A2FAA2 /* kotisivu.png */,
-				CB91DC182660C7CD00A2FAA2 /* kululasku.png */,
 				CB91DC2D2660C7CE00A2FAA2 /* kupla-harmaa.png */,
 				CB91DA602660C7CC00A2FAA2 /* kupla.png */,
 				CB91DA742660C7CC00A2FAA2 /* kuu.svg */,
@@ -5140,13 +5035,9 @@
 				CB91DAA12660C7CC00A2FAA2 /* lisaarivi.png */,
 				CB91DAB52660C7CC00A2FAA2 /* logovieressa.png */,
 				CB91DA682660C7CC00A2FAA2 /* logoylla.png */,
-				CB91DBFE2660C7CD00A2FAA2 /* loki.png */,
 				CB91DA8D2660C7CC00A2FAA2 /* lukitsematta.png */,
 				CB91DA7B2660C7CC00A2FAA2 /* lukittu.png */,
-				CB91DAB42660C7CC00A2FAA2 /* lukittupdf.png */,
 				CB91DAA02660C7CC00A2FAA2 /* luottokortti.png */,
-				CB91DC362660C7CE00A2FAA2 /* maareet.png */,
-				CB91DBFC2660C7CD00A2FAA2 /* mail-anti_spam.png */,
 				CB2D04DD2B00DD150083F517 /* mail-readed.png */,
 				CB91DA8E2660C7CC00A2FAA2 /* mail.png */,
 				CB91DC2E2660C7CE00A2FAA2 /* mailfail.png */,
@@ -5158,21 +5049,15 @@
 				CB91DA792660C7CC00A2FAA2 /* month.png */,
 				CB91DC092660C7CD00A2FAA2 /* muokkaa.png */,
 				CB91DBDD2660C7CD00A2FAA2 /* muokkaaasiakas.png */,
-				CB91DAC82660C7CC00A2FAA2 /* netto.png */,
 				CB91DC082660C7CD00A2FAA2 /* ohje.png */,
 				CB91DA8C2660C7CC00A2FAA2 /* ok-128.png */,
 				CB91DA7D2660C7CC00A2FAA2 /* ok.png */,
 				CB2D04DC2B00DD150083F517 /* ok64.png */,
 				CB2AB835297D8F4F005A3181 /* oranssi.png */,
-				CB2D04D52B00DD140083F517 /* oranssi.svg */,
-				CB2D04DF2B00DD150083F517 /* oranssi2.png */,
-				CB91DAC12660C7CC00A2FAA2 /* paakirja.png */,
 				CB91DA5E2660C7CC00A2FAA2 /* Paivakirja64.png */,
 				CB91DA902660C7CC00A2FAA2 /* paivita.png */,
 				CB91DAC92660C7CC00A2FAA2 /* paketti.png */,
-				CB91DC322660C7CE00A2FAA2 /* paketti2.png */,
 				CB2D04E02B00DD150083F517 /* palat-harmaa.png */,
-				CB2D04CD2B00DD130083F517 /* palat-harmaa.svg */,
 				CB2D04CA2B00DD130083F517 /* palat.png */,
 				CB2D04D42B00DD140083F517 /* palat.svg */,
 				CB91DA932660C7CC00A2FAA2 /* pankki.png */,
@@ -5185,14 +5070,11 @@
 				CB91DC002660C7CD00A2FAA2 /* poista.png */,
 				CB91DA922660C7CC00A2FAA2 /* poistarivi.png */,
 				CB91DC272660C7CD00A2FAA2 /* Possu64.png */,
-				CB91DC2F2660C7CE00A2FAA2 /* Possu256.png */,
-				CB91DC162660C7CD00A2FAA2 /* possukirjaa.png */,
 				CB91DBD32660C7CD00A2FAA2 /* print.png */,
 				CB2AB832297D8F4E005A3181 /* procloud-64.png */,
 				CB91DA732660C7CC00A2FAA2 /* projekti.png */,
 				CB2AB828297D8F4A005A3181 /* propossu-64.png */,
 				CB91DC2C2660C7CE00A2FAA2 /* punainen.png */,
-				CB2D04D22B00DD140083F517 /* punainen.svg */,
 				CB91DAA62660C7CC00A2FAA2 /* punainenkuori.png */,
 				CB91DC0B2660C7CD00A2FAA2 /* qr.png */,
 				CB91DBD12660C7CD00A2FAA2 /* QtIcon.png */,
@@ -5201,38 +5083,27 @@
 				CB91DC3B2660C7CE00A2FAA2 /* raidoitus.png */,
 				CB91DC0C2660C7CD00A2FAA2 /* ratas.png */,
 				CB91DC402660C7CE00A2FAA2 /* refresh.png */,
-				CB91DA912660C7CC00A2FAA2 /* return.png */,
 				CB91DABC2660C7CC00A2FAA2 /* rf.png */,
 				CB91DC342660C7CE00A2FAA2 /* ristinolla.png */,
 				CB91DC452660C7CE00A2FAA2 /* risuaita.png */,
 				CB91DC102660C7CD00A2FAA2 /* roskis.png */,
-				CB91DAA72660C7CC00A2FAA2 /* sadepilvi.png */,
-				CB2AB82E297D8F4C005A3181 /* salama.png */,
-				CB91DAC52660C7CC00A2FAA2 /* salkku.png */,
 				CB91DC332660C7CE00A2FAA2 /* salkkupossu.png */,
 				CB91DACB2660C7CC00A2FAA2 /* se.png */,
-				CB91DAC22660C7CC00A2FAA2 /* select-all.png */,
 				CB91DC472660C7CE00A2FAA2 /* seuraava.png */,
 				CB91DBF92660C7CD00A2FAA2 /* siirra.png */,
-				CB91DA712660C7CC00A2FAA2 /* siirto.png */,
 				CB91DA692660C7CC00A2FAA2 /* siirtonuoli.png */,
 				CB91DBEA2660C7CD00A2FAA2 /* sivunasetukset.png */,
-				CB91DC2B2660C7CD00A2FAA2 /* skanneri.png */,
 				CB91DBDB2660C7CD00A2FAA2 /* splash_fi.png */,
 				CB91DAAB2660C7CC00A2FAA2 /* splash_sv.png */,
 				CB91DA6E2660C7CC00A2FAA2 /* stop.png */,
 				CB91DC0E2660C7CD00A2FAA2 /* sulje.png */,
 				CB91DC0F2660C7CD00A2FAA2 /* sum.png */,
-				CB91DA702660C7CC00A2FAA2 /* suomi.png */,
 				CB91DA9D2660C7CC00A2FAA2 /* suorite.png */,
-				CB91DC462660C7CE00A2FAA2 /* tab-detach.png */,
 				CB91DAB02660C7CC00A2FAA2 /* tag.png */,
 				CB91DC3C2660C7CE00A2FAA2 /* tahti.png */,
-				CB91DBE62660C7CD00A2FAA2 /* taikuri.png */,
 				CB91DC022660C7CD00A2FAA2 /* talleta.png */,
 				CB91DA672660C7CC00A2FAA2 /* talo.png */,
 				CB91DC282660C7CD00A2FAA2 /* teksti.png */,
-				CB91DC312660C7CE00A2FAA2 /* tekstisivu-aktiivinen.png */,
 				CB91DC062660C7CD00A2FAA2 /* tekstisivu.png */,
 				CB2D04D32B00DD140083F517 /* text64.png */,
 				CB91DC042660C7CD00A2FAA2 /* tiedostoon.png */,
@@ -5240,7 +5111,6 @@
 				CBF158AF2BCBAE87008BC29D /* tilille.png */,
 				CBF158B12BCBAE87008BC29D /* tililta.png */,
 				CB91DA5D2660C7CC00A2FAA2 /* tiliote.png */,
-				CB2AB84A297D8FD4005A3181 /* toimisto */,
 				CB91DBE22660C7CD00A2FAA2 /* tulosta.png */,
 				CB91DBE52660C7CD00A2FAA2 /* tuotiedosto.png */,
 				CB91DABB2660C7CC00A2FAA2 /* tyhja.png */,
@@ -5248,8 +5118,6 @@
 				CB91DAA52660C7CC00A2FAA2 /* up.png */,
 				CBF158B02BCBAE87008BC29D /* usbdrive.png */,
 				CB91DC432660C7CE00A2FAA2 /* uusiasiakas.png */,
-				CB91DA642660C7CC00A2FAA2 /* uusihlo.png */,
-				CB91DA6B2660C7CC00A2FAA2 /* uusikirja.png */,
 				CB91DAD52660C7CC00A2FAA2 /* uusitiedosto.png */,
 				CB91DC132660C7CD00A2FAA2 /* uusitosite.png */,
 				CB91DC1B2660C7CD00A2FAA2 /* valilehdet.png */,
@@ -5258,7 +5126,6 @@
 				CB91DBE72660C7CD00A2FAA2 /* vasara.png */,
 				CB91DBE12660C7CD00A2FAA2 /* verkkolasku.png */,
 				CB91DC142660C7CD00A2FAA2 /* verkkovirhe.png */,
-				CB2AB82A297D8F4B005A3181 /* verkossa.png */,
 				CB91DACD2660C7CC00A2FAA2 /* vero.png */,
 				CB91DAAC2660C7CC00A2FAA2 /* vero64.png */,
 				CB91DAA92660C7CC00A2FAA2 /* verotilitys.png */,
@@ -5301,14 +5168,10 @@
 			isa = PBXGroup;
 			children = (
 				CB91DA962660C7CC00A2FAA2 /* adminkey.png */,
-				CB91DA9B2660C7CC00A2FAA2 /* edit.png */,
 				CB91DA972660C7CC00A2FAA2 /* key.png */,
-				CB91DA992660C7CC00A2FAA2 /* pencil.png */,
 				CB2D04E22B00DDF20083F517 /* question.svg */,
 				CB91DA9A2660C7CC00A2FAA2 /* roskis.png */,
-				CB2D04E32B00DDF30083F517 /* support.svg */,
 				CB91DA952660C7CC00A2FAA2 /* timantti.svg */,
-				CB91DA982660C7CC00A2FAA2 /* view.png */,
 			);
 			path = freeicons;
 			sourceTree = "<group>";
@@ -5581,17 +5444,6 @@
 				CB7B54DD2AD5AC840060E50A /* yksityis.png */,
 			);
 			path = maksutavat;
-			sourceTree = "<group>";
-		};
-		CB91DC1C2660C7CD00A2FAA2 /* icon */ = {
-			isa = PBXGroup;
-			children = (
-				CB91DC1D2660C7CD00A2FAA2 /* poista.ico */,
-				CB91DC1E2660C7CD00A2FAA2 /* onweb.ico */,
-				CB91DC1F2660C7CD00A2FAA2 /* kitupiikki.ico */,
-				CB91DC202660C7CD00A2FAA2 /* velhopossu.bmp */,
-			);
-			path = icon;
 			sourceTree = "<group>";
 		};
 		CB91DC492660C7CE00A2FAA2 /* rekisteri */ = {
@@ -7719,7 +7571,7 @@
 				);
 				LIBRARY_SEARCH_PATHS = "$(PROJECT_DIR)/libraries";
 				MACOSX_DEPLOYMENT_TARGET = 11.0;
-				MARKETING_VERSION = 5.11.1;
+				MARKETING_VERSION = 6.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = fi.atfos.kitsas;
 				PRODUCT_NAME = Kitsas;
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -7763,7 +7615,7 @@
 				);
 				LIBRARY_SEARCH_PATHS = "$(PROJECT_DIR)/libraries";
 				MACOSX_DEPLOYMENT_TARGET = 11.0;
-				MARKETING_VERSION = 5.11.1;
+				MARKETING_VERSION = 6.0.0;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = fi.atfos.kitsas;
 				PRODUCT_NAME = Kitsas;
