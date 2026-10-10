@@ -92,6 +92,16 @@ bool UusiVelho::lataaKartta(const QString &polku)
     return true;
 }
 
+int UusiVelho::otsikoidenMaara(const QVariantList &tilit)
+{
+    int maara = 0;
+    for(const QVariant& tili : tilit) {
+        if( tili.toMap().value("tyyppi").toString().startsWith(QChar('H')))
+            maara++;
+    }
+    return maara;
+}
+
 QVariantMap UusiVelho::kartta(const QString &polku)
 {
     QFile kartta( polku );
@@ -364,6 +374,16 @@ void UusiVelho::Tilikarttasivu::tiedostosta()
                                                     UusiVelho::tr("Kitsaan tilikartta (*.kitsaskartta)",".kitsaskartta on tiedostopääte - älä käännä sitä"));
     if( !tiedosto.isEmpty() ) {
         if( velho->lataaKartta(tiedosto) ) {
+            // Ilman otsikoita tilikartta, tase ja tuloslaskelma jäävät ilman
+            // ryhmittelyä (esim. itse koottu tiedosto, josta otsikot puuttuvat).
+            if( UusiVelho::otsikoidenMaara(velho->tilit_) == 0 &&
+                QMessageBox::warning(this, UusiVelho::tr("Tilikartasta puuttuvat otsikot"),
+                                     UusiVelho::tr("Tilikarttatiedostossa %1 ei ole lainkaan otsikoita (H1, H2, ...). "
+                                                  "Kirjanpito luotaisiin ilman tilikartan otsikoita, jolloin tilikartta ja "
+                                                  "raportit jäävät ilman ryhmittelyä.\n\n"
+                                                  "Käytetäänkö tiedostoa silti?").arg(tiedosto),
+                                     QMessageBox::Yes | QMessageBox::No, QMessageBox::No) != QMessageBox::Yes )
+                return;
             karttaLadattu_ = true;
             wizard()->next();
         }

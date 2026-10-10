@@ -302,6 +302,52 @@ Covered by `route_eratListaaAvoimetTaseEratMolemmissa` in `unittest/dbparity`
 depend on `kp()` state the test fixture does not provide and were verified by
 running the rewritten SQL directly on Postgres only.
 
+### 7. New-client wizard wrote into *other* clients' databases (FIXED)
+
+**Symptom (2026-09-20, client `aleksei_kuzin`):** the book created by the
+"new client" wizard had only part of the chart of accounts (`Tili` up to
+6150), no headings at all (`Otsikko` empty) and no fiscal period, so every
+balance query failed with `invalid input syntax for type date: ""`.
+
+**Cause:** `SqlAlustaja` called `qApp->processEvents()` inside its insert
+loops. A click on the start page's customer list therefore ran
+`PostgresModel::avaa()` → `yhdista()` in the middle of the setup. That reopens
+the *shared* `tietokanta_` connection to another database, and the rest of the
+wizard's inserts were sent to whichever client was clicked. The server log
+shows them arriving in `alpha_bat_pro`, `andres_diez` and `andrey_prozorov`.
+They failed there only by luck: the QPSQL prepared statement did not exist on
+the new session, and the fiscal-period and `LaskuSeuraavaId` inserts hit
+existing keys. No `exec()` result was checked and `kirjoitaInit()` always
+returned `true`, so the wizard reported success.
+
+Two further silent failures turned up in the chart data while fixing this:
+`yritys.kitsaskartta` contains heading 262/H4 twice, and every bundled chart
+already sets `LaskuSeuraavaId`, so the wizard's extra
+`LaskuSeuraavaId = 100` insert always failed on a duplicate key (on SQLite too).
+
+**Fix:**
+- `PostgresModel::KirjoitusVaraus` locks the shared connection for the whole
+  of `uusiKirjanpito()` / `tuoSqlitesta()`. While it is held, `yhdista()` and
+  `sulje()` refuse to reopen or close the connection.
+- No more `processEvents()` in `SqlAlustaja`. `SqliteTuoja` still runs the
+  event loop for its progress display, which the lock covers.
+- `uusiKirjanpito()` runs `luo.sql` and the init data in one transaction. It
+  checks `current_database()` before committing and rolls back on any error.
+  It drops the database only when the caller just created it
+  (`pudotaVirheessa`); a database the user named is never dropped.
+- Every insert in `SqlAlustaja` is now checked. Duplicate charts or headings
+  in a chart file are skipped with a warning (first one wins, as before).
+  `LaskuSeuraavaId` defaults to 100 only when the chart does not set it.
+- The wizard warns, and asks before continuing, when a chart file chosen with
+  "from file" has no headings at all (`UusiVelho::otsikoidenMaara()`). The
+  recreated `aleksei_kuzin` and `lintu_tale` (2026-08-26) both had 0 headings
+  for exactly this reason: their imported `corosar.kitsaskartta` contained
+  881 accounts and no `H` rows. This was not a code fault.
+- Tests in `dbparity`: `uusiKirjanpito_velhonMuotoisillaTiedoillaTilikaudetOvatEhjat`
+  (account and heading counts), `postgresUusiKirjanpito_yhteyttaEiVaihdetaKeskenLuonnin`,
+  `postgresUusiKirjanpito_epaonnistuminenEiJataMitaan` and
+  `velho_otsikoidenMaaraTunnistaaOtsikottomanKartan`.
+
 ## Schema differences to account for in a migration tool
 
 ### Auto-increment: `AUTOINCREMENT` (SQLite) vs `GENERATED ... AS IDENTITY` (Postgres)
