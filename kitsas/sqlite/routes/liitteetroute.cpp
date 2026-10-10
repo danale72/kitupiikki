@@ -47,9 +47,17 @@ QVariant LiitteetRoute::get(const QString &polku, const QUrlQuery &urlquery)
     } else {
         QRegularExpression re(R"((\d+)\/(\S+))");
         QRegularExpressionMatch match = re.match(polku);
-        kysely.exec(QString("SELECT data FROM Liite WHERE tosite=%1 AND roolinimi='%2'")
-                    .arg(match.captured(1).toInt())
-                    .arg(match.captured(2)) );
+        const int tosite = match.captured(1).toInt();
+        if( tosite ) {
+            kysely.prepare("SELECT data FROM Liite WHERE tosite=? AND roolinimi=?");
+            kysely.addBindValue(tosite);
+        } else {
+            // Koko kirjanpidon liite (tilinpäätös, logo, banneri...), ks. kirjanpidonLiite()
+            kysely.prepare("SELECT data FROM Liite WHERE (tosite IS NULL OR tosite=0) AND roolinimi=? "
+                           "ORDER BY id DESC LIMIT 1");
+        }
+        kysely.addBindValue(match.captured(2));
+        kysely.exec();
     }
     if( kysely.next())
         return kysely.value(0).toByteArray();
@@ -77,6 +85,11 @@ QPair<const QVariant, int> LiitteetRoute::byteArray(SQLiteKysely *kysely, const 
             // Liite odottamaan tositetta
             query.addBindValue( QVariant());
         }
+    } else if( kysely->metodi() == KpKysely::PUT && !match.captured(1).toInt() ) {
+        const int id = kirjanpidonLiite(match.captured(2), ba, meta);
+        palautus.insert("liite", id);
+        palautus.insert("tosite", 0);
+        return QPair<const QVariant,int>(palautus, id);
     } else if( kysely->metodi() == KpKysely::PUT)
     {
         query.prepare("INSERT INTO Liite (tosite,nimi,data,tyyppi,sha,roolinimi) VALUES (:tosite, :nimi, :data, :tyyppi, :sha, :roolinimi) "
@@ -101,6 +114,44 @@ QPair<const QVariant, int> LiitteetRoute::byteArray(SQLiteKysely *kysely, const 
 
     return qMakePair<const QVariant,int>(palautus, query.lastInsertId().toInt());
 
+}
+
+int LiitteetRoute::kirjanpidonLiite(const QString &roolinimi, const QByteArray &ba, const QMap<QString, QString> &meta)
+{
+    // Koko kirjanpitoon liittyvät liitteet (polku /liitteet/0/<roolinimi>) tallennetaan
+    // tosite=NULL -rivinä. Aiemmin käytetty tosite=0 rikkoo liite_tosite_fkey-viiteavaimen
+    // sekä Postgresissa että SQLitessä (PRAGMA foreign_keys = ON), koska tositetta 0 ei ole.
+    // NULL-arvot eivät törmää UNIQUE(tosite,roolinimi) -rajoitteeseen, joten ON CONFLICT
+    // ei toimi: päivitetään ensin olemassa oleva rivi (myös vanha tosite=0 -rivi muunnetaan
+    // samalla NULL:ksi) ja lisätään uusi vain, jos päivitettävää ei ollut.
+    QSqlQuery query(db());
+    query.prepare("UPDATE Liite SET tosite=NULL, nimi=?, data=?, tyyppi=?, sha=?, luotu=current_timestamp "
+                  "WHERE (tosite IS NULL OR tosite=0) AND roolinimi=?");
+    query.addBindValue( meta.value("Filename", QString()) );
+    query.addBindValue( ba );
+    query.addBindValue( meta.value("Content-type", QString()) );
+    query.addBindValue( hash(ba) );
+    query.addBindValue( roolinimi );
+    if( !query.exec() )
+        throw SQLiteVirhe(query);
+
+    if( query.numRowsAffected() > 0) {
+        query.prepare("SELECT id FROM Liite WHERE tosite IS NULL AND roolinimi=? ORDER BY id DESC LIMIT 1");
+        query.addBindValue( roolinimi );
+        if( !query.exec() )
+            throw SQLiteVirhe(query);
+        return query.next() ? query.value(0).toInt() : 0;
+    }
+
+    query.prepare("INSERT INTO Liite (tosite,nimi,data,tyyppi,sha,roolinimi) VALUES (NULL,?,?,?,?,?)");
+    query.addBindValue( meta.value("Filename", QString()) );
+    query.addBindValue( ba );
+    query.addBindValue( meta.value("Content-type", QString()) );
+    query.addBindValue( hash(ba) );
+    query.addBindValue( roolinimi );
+    if( !query.exec() )
+        throw SQLiteVirhe(query);
+    return query.lastInsertId().toInt();
 }
 
 QVariant LiitteetRoute::doDelete(const QString &polku)

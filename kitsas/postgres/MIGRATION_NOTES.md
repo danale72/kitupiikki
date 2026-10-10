@@ -302,6 +302,57 @@ Covered by `route_eratListaaAvoimetTaseEratMolemmissa` in `unittest/dbparity`
 depend on `kp()` state the test fixture does not provide and were verified by
 running the rewritten SQL directly on Postgres only.
 
+### 7. Book-level attachments (`/liitteet/0/<roolinimi>`) could not be saved, and were deleted on close (FIXED)
+
+**Symptom:** on Kitsas PG 6.0.0, saving the tilinpäätös logged
+`[500 "/liitteet/0/TP_2026-06-30"] … violates foreign key constraint
+"liite_tosite_fkey" — Key (tosite)=(0) is not present in table "tosite"`, and
+the same for `TPTEKSTI_…`. Nothing was stored. On the imported `startecon`
+database, no tilinpäätös PDFs, texts, logos or banners remained at all.
+
+**Cause:** three things combined.
+1. Attachments that belong to the whole book, not to a voucher (tilinpäätös
+   PDF `TP_<date>`, its text `TPTEKSTI_<date>`, `logo`, `logo-N`,
+   `banner-N`), go through `LiitteetRoute` as `PUT /liitteet/0/<roolinimi>`,
+   which stored `tosite=0`. No `Tosite` row has id 0, so Postgres's FK
+   rejects it. SQLite used to accept it only because foreign keys were off;
+   since `789ffba3` (2026-08-22) `SQLiteModel` runs `PRAGMA foreign_keys = ON`,
+   so **new SQLite books fail the same way**.
+2. `SqliteTuoja` (and `migrate_sqlite_to_pg.py`) rightly import legacy
+   `tosite=0` rows as `tosite=NULL`, but the route still looked them up with
+   `WHERE tosite=0`, so they were never found again.
+3. `SqlModel::sulje()` ran `DELETE FROM Liite WHERE tosite IS NULL` (meant for
+   uploads that never got attached to a voucher), so those imported NULL rows
+   were **deleted the first time the book was closed**.
+
+**Fix applied (`LiitteetRoute`, `SqlModel::sulje()`):**
+- `PUT /liitteet/0/<roolinimi>` now stores `tosite=NULL`. Since NULLs never
+  collide in `UNIQUE(tosite,roolinimi)`, `ON CONFLICT` can't do the upsert,
+  so `kirjanpidonLiite()` runs `UPDATE … WHERE (tosite IS NULL OR tosite=0)
+  AND roolinimi=?` and only `INSERT`s when nothing was updated. The UPDATE
+  also turns a legacy `tosite=0` row into NULL.
+- `GET /liitteet/0/<roolinimi>` matches `tosite IS NULL OR tosite=0` (newest
+  row wins), so legacy SQLite books keep working.
+- The close cleanup only deletes `tosite IS NULL AND roolinimi IS NULL`, the
+  same distinction `PilveenSiirto` already makes.
+
+**Not fixed / still open:**
+- Postgres books imported before this fix have already lost their
+  book-level attachments. Re-import from the original `.kitsas` file (which
+  still has them), or re-save the tilinpäätös and re-upload the logos.
+- Two users saving the same book-level attachment at the same moment on
+  Postgres could produce two rows; reads return the newest. A partial unique
+  index (`… WHERE tosite IS NULL`) would prevent it, but needs a schema
+  change on existing databases.
+- The close cleanup still deletes *every* user's unattached uploads on a
+  shared Postgres book, including another user's in-progress ones.
+
+Covered by `route_kirjanpidonLiiteTallentuuJaSailyySuljettaessa` (save, re-save,
+close and reopen on both backends: exactly one updated `TP_` row plus `logo`,
+nameless upload removed) and `route_kirjanpidonLiiteLoytaaVanhanTosite0Rivin`
+(legacy SQLite `tosite=0` row is read, then converted to NULL on re-save) in
+`unittest/dbparity`.
+
 ## Schema differences to account for in a migration tool
 
 ### Auto-increment: `AUTOINCREMENT` (SQLite) vs `GENERATED ... AS IDENTITY` (Postgres)
