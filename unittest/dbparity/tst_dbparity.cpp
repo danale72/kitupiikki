@@ -63,6 +63,9 @@ private slots:
     void route_init();
     void uusiKirjanpito_velhonMuotoisillaTiedoillaTilikaudetOvatEhjat();
     void velho_postgresPolkuKulkeeTilikausisivunKautta();
+    void velho_otsikoidenMaaraTunnistaaOtsikottomanKartan();
+    void postgresUusiKirjanpito_yhteyttaEiVaihdetaKeskenLuonnin();
+    void postgresUusiKirjanpito_epaonnistuminenEiJataMitaan();
     void route_kohdennukset();
     void route_ryhmat();
     void route_kumppanit();
@@ -513,7 +516,27 @@ void DbParityTest::uusiKirjanpito_velhonMuotoisillaTiedoillaTilikaudetOvatEhjat(
                                                             "('Tilinavaus','TilinavausPvm','TilitPaatetty','AlvAlkaa') ORDER BY avain")));
         tulos.insert(QStringLiteral("tilit"),
                      TestDb::dump(db_.sql(), QStringLiteral("SELECT COUNT(*) AS lkm FROM Tili")));
+        tulos.insert(QStringLiteral("otsikot"),
+                     TestDb::dump(db_.sql(), QStringLiteral("SELECT COUNT(*) AS lkm FROM Otsikko")));
+        tulos.insert(QStringLiteral("laskuSeuraavaId"),
+                     TestDb::dump(db_.sql(), QStringLiteral("SELECT arvo FROM Asetus WHERE avain='LaskuSeuraavaId'")));
         return tulos;
+    };
+
+    // Tilikartan yksilölliset tilit ja otsikot (yritys.kitsaskartta sisältää
+    // otsikon 262/H4 kahdesti - ensimmäinen voittaa).
+    QSet<int> karttaTilit;
+    QSet<QPair<int,QString>> karttaOtsikot;
+    for (const QVariant& var : velho.tilit_) {
+        const QVariantMap tili = var.toMap();
+        const QString tyyppi = tili.value(QStringLiteral("tyyppi")).toString();
+        if (tyyppi.startsWith(QLatin1Char('H')))
+            karttaOtsikot.insert(qMakePair(tili.value(QStringLiteral("numero")).toInt(), tyyppi));
+        else
+            karttaTilit.insert(tili.value(QStringLiteral("numero")).toInt());
+    }
+    const auto lkm = [](const QVariantMap& tulos, const QString& avain) {
+        return tulos.value(avain).toList().value(0).toMap().value(QStringLiteral("lkm")).toInt();
     };
 
     if (!db_.postgresKaytossa()) {
@@ -530,7 +553,101 @@ void DbParityTest::uusiKirjanpito_velhonMuotoisillaTiedoillaTilikaudetOvatEhjat(
     QCOMPARE(sqlite.value(QStringLiteral("tilikaudet")).toList().count(), 2);
     QCOMPARE(sqlite.value(QStringLiteral("avaustosite")).toList().count(), 1);
     QCOMPARE(postgres.value(QStringLiteral("tilikaudet")).toList().count(), 2);
+    // Regressio: aleksei_kuzin-kannasta puuttuivat kaikki otsikot ja osa tileistä.
+    QCOMPARE(lkm(postgres, QStringLiteral("tilit")), karttaTilit.count());
+    QCOMPARE(lkm(postgres, QStringLiteral("otsikot")), karttaOtsikot.count());
+    QCOMPARE(postgres.value(QStringLiteral("laskuSeuraavaId")).toList().count(), 1);
     vertaa(sqlite, postgres);
+}
+
+void DbParityTest::velho_otsikoidenMaaraTunnistaaOtsikottomanKartan()
+{
+    // Regressio (aleksei_kuzin, lintu_tale): tiedostosta tuotu tilikartta, josta
+    // puuttuivat kaikki H-rivit, tuotti kirjanpidon ilman otsikoita. Velho
+    // varoittaa, kun otsikoidenMaara() on nolla.
+    UusiVelho velho;
+    QVERIFY(velho.lataaKartta(QStringLiteral(":/tilikartat/yritys.kitsaskartta")));
+    QCOMPARE(UusiVelho::otsikoidenMaara(velho.tilit_), 208);
+
+    QVariantList ilmanOtsikoita;
+    for (const QVariant& tili : std::as_const(velho.tilit_)) {
+        if (!tili.toMap().value(QStringLiteral("tyyppi")).toString().startsWith(QLatin1Char('H')))
+            ilmanOtsikoita.append(tili);
+    }
+    QVERIFY(!ilmanOtsikoita.isEmpty());
+    QCOMPARE(UusiVelho::otsikoidenMaara(ilmanOtsikoita), 0);
+}
+
+void DbParityTest::postgresUusiKirjanpito_yhteyttaEiVaihdetaKeskenLuonnin()
+{
+    if (!db_.postgresKaytossa())
+        QSKIP("PostgreSQL is not available (start docker compose or set KITSAS_PG_* )");
+
+    // Regressio (2026-09-20, asiakas aleksei_kuzin): luonnin aikana pyörinyt
+    // tapahtumasilmukka päästi aloitussivun asiakaslistan napsautuksen
+    // PostgresModel::avaa():an, joka avasi jaetun yhteyden toiseen asiakkaaseen,
+    // ja luonnin loput INSERTit ohjautuivat sinne. Varauksen aikana yhteyttä ei
+    // saa vaihtaa eikä sulkea.
+    QVERIFY(db_.avaaPostgres());
+    PostgresModel* malli = kp()->postgres();
+    const QString kanta = TestDb::postgresYhteys().database;
+    const auto nykyinenKanta = [malli]() {
+        QSqlQuery q(malli->tietokanta());
+        return q.exec(QStringLiteral("SELECT current_database()")) && q.next()
+                ? q.value(0).toString() : QString();
+    };
+    QCOMPARE(nykyinenKanta(), kanta);
+    {
+        PostgresModel::KirjoitusVaraus varaus(malli);
+        QVERIFY2(!malli->avaa(TestDb::postgresYhteys().asiakasYhteys(QStringLiteral("postgres")), false),
+                 "avaa() vaihtoi yhteyden kesken kirjanpidon luonnin");
+        QCOMPARE(nykyinenKanta(), kanta);
+        malli->sulje();
+        QVERIFY2(malli->tietokanta().isOpen(), "sulje() sulki yhteyden kesken kirjanpidon luonnin");
+        QCOMPARE(nykyinenKanta(), kanta);
+    }
+    db_.sulje();
+}
+
+void DbParityTest::postgresUusiKirjanpito_epaonnistuminenEiJataMitaan()
+{
+    if (!db_.postgresKaytossa())
+        QSKIP("PostgreSQL is not available (start docker compose or set KITSAS_PG_* )");
+
+    // Kaksi tilikautta samalla päättymispäivällä rikkoo Tilikausi.loppuu-
+    // yksilöllisyyden vasta kun asetukset ja koko tilikartta on jo kirjoitettu.
+    // Aiemmin virhe ohitettiin hiljaa ja syntyi kirjanpito ilman tilikautta;
+    // nyt luonnin pitää epäonnistua ja koko tapahtuman perua.
+    QVariantMap alustus = TestDb::initials();
+    QVariantMap init = alustus.value(QStringLiteral("init")).toMap();
+    init.insert(QStringLiteral("tilikaudet"), QVariantList{
+        QVariantMap{{QStringLiteral("alkaa"), QStringLiteral("2026-01-01")},
+                    {QStringLiteral("loppuu"), QStringLiteral("2026-12-31")}},
+        QVariantMap{{QStringLiteral("alkaa"), QStringLiteral("2026-06-01")},
+                    {QStringLiteral("loppuu"), QStringLiteral("2026-12-31")}}});
+    alustus.insert(QStringLiteral("init"), init);
+
+    QVERIFY2(!db_.avaaPostgres(alustus), "Rikkinäisellä init-datalla luonnin pitäisi epäonnistua");
+
+    // Kutsuja ei pyytänyt pudotusta (TestDb loi kannan itse), joten kanta jää,
+    // mutta tapahtuma on peruttu: kaaviota ei ole lainkaan.
+    const PostgresYhteys yhteys = TestDb::postgresYhteys();
+    {
+        QSqlDatabase tarkistus = QSqlDatabase::addDatabase(QStringLiteral("QPSQL"), QStringLiteral("LUONTIVIRHE_TARKISTUS"));
+        tarkistus.setHostName(yhteys.host);
+        tarkistus.setPort(yhteys.port);
+        tarkistus.setDatabaseName(yhteys.database);
+        tarkistus.setUserName(yhteys.username);
+        tarkistus.setPassword(yhteys.password);
+        QVERIFY(tarkistus.open());
+        QSqlQuery q(tarkistus);
+        QVERIFY(q.exec(QStringLiteral("SELECT to_regclass('asetus') IS NULL AND to_regclass('tili') IS NULL")));
+        QVERIFY(q.next());
+        QVERIFY2(q.value(0).toBool(), "Epäonnistunut luonti jätti kaavion tai tietoja kantaan");
+        tarkistus.close();
+    }
+    QSqlDatabase::removeDatabase(QStringLiteral("LUONTIVIRHE_TARKISTUS"));
+    db_.sulje();
 }
 
 void DbParityTest::velho_postgresPolkuKulkeeTilikausisivunKautta()

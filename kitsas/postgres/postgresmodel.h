@@ -21,6 +21,7 @@ struct PostgresAsiakas
 class PostgresModel : public SqlModel
 {
     Q_OBJECT
+    friend class DbParityTest;
 
 public:
     enum { AvainRooli = Qt::UserRole, NimiRooli = Qt::UserRole + 2 };
@@ -32,7 +33,14 @@ public:
 
     bool avaa(const PostgresYhteys& yhteys, bool ilmoitaVirheesta = true);
     bool testaaKirjautuminen(const PostgresYhteys& yhteys);
-    bool uusiKirjanpito(const PostgresYhteys& yhteys, const QVariantMap& initials, bool ilmoitaVirheesta = true);
+    /**
+     * @brief Luo kaavion ja velhon alkutiedot yhtenä tapahtumana
+     * @param pudotaVirheessa Pudota koko tietokanta epäonnistuessa. Vain kun
+     *        kutsuja on itse juuri luonut kannan (luoTietokanta()) - käyttäjän
+     *        nimeämää olemassa olevaa kantaa ei saa koskaan pudottaa.
+     */
+    bool uusiKirjanpito(const PostgresYhteys& yhteys, const QVariantMap& initials, bool ilmoitaVirheesta = true,
+                        bool pudotaVirheessa = false);
     bool tuoSqlitesta(const PostgresYhteys& yhteys, const QString& sqlitePolku, bool ilmoitaVirheesta = true);
 
     QList<PostgresAsiakas> listaaTietokannat(const PostgresYhteys& palvelin, bool ilmoitaVirheesta = true);
@@ -64,7 +72,21 @@ private:
     QSqlDatabase avaaHallinta(const PostgresYhteys& palvelin, bool ilmoitaVirheesta);
     Tietokantaprobe probaaTietokanta(const PostgresYhteys& yhteys, QString* nimi = nullptr);
     bool pudotaTietokanta(const PostgresYhteys& palvelin, const QString& nimi, bool ilmoitaVirheesta);
+    bool onkoYhteysKannassa(const QString& tietokanta, QString* virhe = nullptr);
 
+    // Varaa jaetun yhteyden kirjanpidon luonnille/tuonnille: sillä aikaa
+    // yhdista() ja sulje() kieltäytyvät vaihtamasta tai sulkemasta yhteyttä.
+    class KirjoitusVaraus {
+    public:
+        explicit KirjoitusVaraus(PostgresModel* malli) : malli_(malli) { malli_->kirjoitusKaynnissa_ = true; }
+        ~KirjoitusVaraus() { malli_->kirjoitusKaynnissa_ = false; }
+        KirjoitusVaraus(const KirjoitusVaraus&) = delete;
+        KirjoitusVaraus& operator=(const KirjoitusVaraus&) = delete;
+    private:
+        PostgresModel* malli_;
+    };
+
+    bool kirjoitusKaynnissa_ = false;
     PostgresYhteys nykyinen_;
     QVariantList viimeiset_;
 };

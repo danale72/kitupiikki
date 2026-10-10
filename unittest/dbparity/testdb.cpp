@@ -17,6 +17,7 @@
 #include <QDateTime>
 #include <QDebug>
 #include <QDir>
+#include <QThread>
 #include <QFile>
 #include <QJsonDocument>
 #include <QProcessEnvironment>
@@ -379,12 +380,33 @@ bool TestDb::pudotaJaLuoPostgresTietokanta()
                    "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
                    "WHERE datname='%1' AND pid <> pg_backend_pid()")
                    .arg(postgresDbNimi_));
-        q.exec(QStringLiteral("DROP DATABASE IF EXISTS %1 WITH (FORCE)").arg(postgresDbNimi_));
+        // WITH (FORCE) ei voi lopettaa superkäyttäjän prosesseja: juuri täytettyyn
+        // kantaan ehtii välillä autovacuum-työläinen, jolloin ei-superkäyttäjä-
+        // roolin pudotus epäonnistuu ("permission denied to terminate process").
+        // Työläinen valmistuu nopeasti, joten yritetään hetken päästä uudelleen.
+        bool pudotettu = false;
+        for (int yritys = 0; yritys < 20 && !pudotettu; ++yritys) {
+            if (yritys > 0)
+                QThread::msleep(250);
+            pudotettu = q.exec(QStringLiteral("DROP DATABASE IF EXISTS %1 WITH (FORCE)").arg(postgresDbNimi_));
+        }
+        if (!pudotettu) {
+            postgresVirhe_ = q.lastError().text();
+            qWarning() << "TestDb: DROP DATABASE" << postgresDbNimi_ << "epäonnistui:" << postgresVirhe_;
+            hallinta.close();
+            QSqlDatabase::removeDatabase(hallintaNimi);
+            return false;
+        }
         hallinta.close();
     }
     QSqlDatabase::removeDatabase(hallintaNimi);
 
-    return kp()->postgres()->luoTietokanta(yhteys.hallintaYhteys(), postgresDbNimi_, false);
+    if (!kp()->postgres()->luoTietokanta(yhteys.hallintaYhteys(), postgresDbNimi_, false)) {
+        postgresVirhe_ = QStringLiteral("luoTietokanta(%1) epäonnistui").arg(postgresDbNimi_);
+        qWarning() << "TestDb:" << postgresVirhe_;
+        return false;
+    }
+    return true;
 }
 
 SqlModel *TestDb::sqlModel() const
@@ -423,7 +445,11 @@ bool TestDb::avaaPostgres(const QVariantMap& alustus)
         return false;
     if (!pudotaJaLuoPostgresTietokanta())
         return false;
-    return kp()->postgres()->uusiKirjanpito(postgresYhteys(), alustus, false);
+    if (!kp()->postgres()->uusiKirjanpito(postgresYhteys(), alustus, false)) {
+        qWarning() << "TestDb: PostgresModel::uusiKirjanpito epäonnistui";
+        return false;
+    }
+    return true;
 }
 
 QVariant TestDb::kysy(const QString& polku, KpKysely::Metodi metodi, const QVariant& data)

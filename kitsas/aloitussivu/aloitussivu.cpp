@@ -465,7 +465,7 @@ void AloitusSivu::postgresUusiAsiakas()
         return;
     }
 
-    if( kp()->postgres()->uusiKirjanpito(pgSessioYhteys_.asiakasYhteys(nimi), velho.data()) )
+    if( kp()->postgres()->uusiKirjanpito(pgSessioYhteys_.asiakasYhteys(nimi), velho.data(), true, true) )
         paivitaPostgresLista();
 }
 
