@@ -46,7 +46,7 @@ ArkistohakemistoDialogi::ArkistohakemistoDialogi(QWidget *parent) :
     } else {
         QString nimi = kp()->asetukset()->asetus(AsetusModel::OrganisaatioNimi);
         nimi.replace(QRegularExpression("\\W",QRegularExpression::UseUnicodePropertiesOption),"");
-        ui->sijaintiEdit->setText( QDir::homePath() );
+        ui->sijaintiEdit->setText( Kirjanpito::oletusTallennuskansio() );
         ui->nimiEdit->setText(nimi);
     }
 

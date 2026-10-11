@@ -446,6 +446,12 @@ public:
     static QString satujono(int pituus = 10);
 
     /**
+     * @brief Kansio, josta tiedostojen tallennusdialogit aloittavat,
+     * kun käyttäjä ei ole vielä valinnut muuta kansiota (Lataukset / Downloads)
+     */
+    static QString oletusTallennuskansio();
+
+    /**
      * @brief Portable-ohjelman käynnistyshakemisto
      * @return Tyhjä, jos ei portable
      */

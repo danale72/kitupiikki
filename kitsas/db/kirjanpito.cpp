@@ -32,6 +32,8 @@
 #include <QRandomGenerator>
 #include <QFileDialog>
 #include <QRegularExpression>
+#include <QStandardPaths>
+#include <QDir>
 
 #include <QDebug>
 
@@ -367,6 +369,14 @@ void Kirjanpito::asetaInstanssi(Kirjanpito *kp)
     kp->postgres()->lataaViimeiset();
 }
 
+
+QString Kirjanpito::oletusTallennuskansio()
+{
+    const QString lataukset = QStandardPaths::writableLocation(QStandardPaths::DownloadLocation);
+    if( !lataukset.isEmpty() && QDir(lataukset).exists())
+        return lataukset;
+    return QDir::homePath();
+}
 
 QString Kirjanpito::satujono(int pituus)
 {

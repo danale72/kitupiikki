@@ -310,7 +310,7 @@ void KumppaniTuoteWidget::tuo()
 void KumppaniTuoteWidget::vie()
 {
     if( valilehti_ == ASIAKKAAT || valilehti_ == TOIMITTAJAT || valilehti_ == REKISTERI || valilehti_ == TUOTTEET) {
-        QString tiedosto = QFileDialog::getSaveFileName(this, tr("Vienti csv-tiedostoon"), QString(),
+        QString tiedosto = QFileDialog::getSaveFileName(this, tr("Vienti csv-tiedostoon"), Kirjanpito::oletusTallennuskansio(),
                                                         tr("Csv-tiedostot (*.csv);;Kaikki tiedostot (*)"));
         if( !tiedosto.isEmpty()) {
             if( valilehti_ == TUOTTEET) {

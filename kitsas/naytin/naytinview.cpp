@@ -369,7 +369,7 @@ void NaytinView::zoomOut()
 
 QString NaytinView::raporttipolku() const
 {
-    return kp()->settings()->value(kp()->asetukset()->uid() + "/raporttipolku", QDir::homePath()).toString();
+    return kp()->settings()->value(kp()->asetukset()->uid() + "/raporttipolku", Kirjanpito::oletusTallennuskansio()).toString();
 }
 
 void NaytinView::setRaporttipolku(const QString &polku)

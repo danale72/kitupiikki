@@ -59,6 +59,11 @@
 #include <QDebug>
 #include <QSizePolicy>
 
+// "Asetuksia on muutettu. Poistutko sivulta tallentamatta..." -vahvistus on poistettu
+// käytöstä: se tuli usein turhaan (esim. Perusvalinnat ilmoittaa itsensä muokatuksi
+// ilman muutoksia). Vahvistuksen saa takaisin asettamalla tämän true:ksi.
+static constexpr bool VAHVISTA_TALLENTAMATTOMAT_MUUTOKSET = false;
+
 MaaritysSivu::MaaritysSivu() :
     KitupiikkiSivu(nullptr), nykyinen(nullptr), nykyItem(nullptr)
 {
@@ -134,7 +139,7 @@ void MaaritysSivu::siirrySivulle()
 
 bool MaaritysSivu::poistuSivulta(int /* minne */)
 {
-    if( nykyinen && nykyinen->onkoMuokattu())
+    if( VAHVISTA_TALLENTAMATTOMAT_MUUTOKSET && nykyinen && nykyinen->onkoMuokattu())
     {
         // Nykyistä on muokattu eikä tallennettu
         if( QMessageBox::question(this, tr("Kitsas"), tr("Asetuksia on muutettu. Poistutko sivulta tallentamatta tekemiäsi muutoksia?")) != QMessageBox::Yes)
@@ -166,7 +171,7 @@ void MaaritysSivu::peru()
 {
     if( nykyinen )
     {
-        if( nykyinen->onkoMuokattu())
+        if( VAHVISTA_TALLENTAMATTOMAT_MUUTOKSET && nykyinen->onkoMuokattu())
         {
             // Jos on muokattu, varmistetaan vielä poistuminen!
             if( QMessageBox::question(this, tr("Kitsas"), tr("Asetuksia on muutettu. Poistutko sivulta tallentamatta tekemiäsi muutoksia?")) != QMessageBox::Yes)
@@ -198,7 +203,7 @@ void MaaritysSivu::valitseSivu(QListWidgetItem *item)
 
     if( nykyinen)
     {
-        if( nykyinen->onkoMuokattu() )
+        if( VAHVISTA_TALLENTAMATTOMAT_MUUTOKSET && nykyinen->onkoMuokattu() )
         {
             // Nykyistä on muokattu eikä tallennettu
             if( QMessageBox::question(this, tr("Kitsas"), tr("Asetuksia on muutettu. Poistutko sivulta tallentamatta tekemiäsi muutoksia?")) != QMessageBox::Yes)

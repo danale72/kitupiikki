@@ -162,7 +162,7 @@ void AineistoDialog::tallennaDialogi()
 void AineistoDialog::paivitaNimi()
 {
     if(!nimivaihdettu_) {
-        QDir hakemisto;
+        QDir hakemisto(Kirjanpito::oletusTallennuskansio());
         QString arkistopolku = kp()->settings()->value("arkistopolku/" + kp()->asetukset()->asetus(AsetusModel::UID)).toString();
         if( !arkistopolku.isEmpty() && QFile::exists(arkistopolku))
             hakemisto.cd(arkistopolku);
