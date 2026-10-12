@@ -190,7 +190,7 @@ jobs:
         with:
           version: "6.7.3"
           cache: true
-          arch: win64_msvc2022_64
+          arch: win64_msvc2019_64
           modules: >-
             qtwebengine
             qtwebchannel
