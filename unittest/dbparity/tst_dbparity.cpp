@@ -11,6 +11,7 @@
 #include "db/kirjanpito.h"
 #include "db/kohdennus.h"
 #include "db/tositetyyppimodel.h"
+#include "kitsas.h"
 #include "kieli/kielet.h"
 #include "model/tosite.h"
 #include "model/tositevienti.h"
@@ -82,6 +83,7 @@ private slots:
     void route_asiakkaatToimittajatLaskutAlv();
     void route_saldotSisaltaaViisinumeroisenVelkatilin();
     void route_eratListaaAvoimetTaseEratMolemmissa();
+    void route_alvIlmoituksenMuokkausTunnistetaan();
 
     void tositeViennit_kaannettyOstoKirjaaVeronJaVahennyksenTilinValinnassa();
     void tositeViennit_kaannetynOstonPoistettuVeroEiPalaa();
@@ -985,6 +987,152 @@ void DbParityTest::route_saldotSisaltaaViisinumeroisenVelkatilin()
              "tietokannoilla - SaldotRoute::get() jättää sen ulos numeerisella "
              "'tili < 3000' -rajauksella, vaikka kyseessä on tavallinen alle 3000-tilin "
              "sisällä oleva alatili.");
+}
+
+void DbParityTest::route_alvIlmoituksenMuokkausTunnistetaan()
+{
+    // Uuteen alv-ilmoitukseen tallennetaan kauden alv-kirjausten sormenjälki (TositeRoute),
+    // ja GET /alv vertaa sitä kauden nykyisiin kirjauksiin: alv-kirjausten muutos merkitsee
+    // ilmoituksen muokatuksi, alvittomat muutokset, muut kaudet, poistetut tositteet ja
+    // alv-ilmoitustositteen omat viennit eivät. Vanhat sormenjäljettömät ilmoitukset
+    // tarkistetaan kertaalleen PUT /alv/<id> -kutsulla.
+    const auto toiminto = [this]() -> QVariant {
+        const auto vienti = [](const QDate& pvm, int tili, double debet, double kredit,
+                               int alvkoodi = 0, double alvprosentti = 0.0) {
+            QVariantMap map{
+                {QStringLiteral("pvm"), pvm},
+                {QStringLiteral("tili"), tili},
+            };
+            if (debet)
+                map.insert(QStringLiteral("debet"), debet);
+            if (kredit)
+                map.insert(QStringLiteral("kredit"), kredit);
+            if (alvkoodi) {
+                map.insert(QStringLiteral("alvkoodi"), alvkoodi);
+                map.insert(QStringLiteral("alvprosentti"), alvprosentti);
+            }
+            return QVariant(map);
+        };
+        const auto tosite = [](const QDate& pvm, int tyyppi, const QVariantList& viennit) {
+            QVariantMap map;
+            map.insert(QStringLiteral("pvm"), pvm);
+            map.insert(QStringLiteral("tyyppi"), tyyppi);
+            map.insert(QStringLiteral("tila"), Tosite::KIRJANPIDOSSA);
+            map.insert(QStringLiteral("otsikko"), QStringLiteral("Alv-testi"));
+            map.insert(QStringLiteral("viennit"), viennit);
+            return map;
+        };
+        const auto myynti = [&](const QDate& pvm, double netto) {
+            return tosite(pvm, TositeTyyppi::TULO, {
+                vienti(pvm, 1910, netto * 1.255, 0),
+                vienti(pvm, 3000, 0, netto, AlvKoodi::MYYNNIT_NETTO, 25.5),
+            });
+        };
+        const auto alvIlmoitus = [&](const QDate& alkaa, const QDate& paattyy) {
+            // Ilmoitustositteen omalla alv-koodillisella viennillä ei saa olla vaikutusta
+            QVariantMap map = tosite(paattyy, TositeTyyppi::ALVLASKELMA,
+                                     {vienti(paattyy, 1910, 0, 25.5, AlvKoodi::MYYNNIT_NETTO + AlvKoodi::ALVKIRJAUS, 25.5)});
+            map.insert(QStringLiteral("alv"), QVariantMap{
+                {QStringLiteral("kausialkaa"), alkaa},
+                {QStringLiteral("kausipaattyy"), paattyy},
+                {QStringLiteral("maksettava"), QStringLiteral("25.50")},
+                {QStringLiteral("koodit"), QVariantMap{{QStringLiteral("301"), 2550}}},
+            });
+            return map;
+        };
+        const auto lisaa = [this](const QVariantMap& map) {
+            return db_.kysy(QStringLiteral("/tositteet"), KpKysely::POST, map)
+                .toMap().value(QStringLiteral("id")).toInt();
+        };
+        const auto tila = [this](int alvId) -> QString {
+            const QVariantList lista = db_.kysy(QStringLiteral("/alv")).toList();
+            for (const QVariant& item : lista) {
+                const QVariantMap map = item.toMap();
+                if (map.value(QStringLiteral("id")).toInt() != alvId)
+                    continue;
+                if (!map.value(QStringLiteral("tarkistettu")).toBool())
+                    return QStringLiteral("tarkistamaton");
+                return map.value(QStringLiteral("muokattu")).toBool() ? QStringLiteral("muokattu")
+                                                                       : QStringLiteral("ok");
+            }
+            return QStringLiteral("puuttuu");
+        };
+
+        const QDate maalis(2019, 3, 1);
+        const QDate maalisLoppu(2019, 3, 31);
+        const int myyntiId = lisaa(myynti(QDate(2019, 3, 5), 100.0));
+        const int alvId = lisaa(alvIlmoitus(maalis, maalisLoppu));
+
+        QVariantMap tulos;
+        tulos.insert(QStringLiteral("1_uusi"), tila(alvId));
+
+        lisaa(tosite(QDate(2019, 3, 10), TositeTyyppi::MENO,
+                     {vienti(QDate(2019, 3, 10), 4000, 10.0, 0), vienti(QDate(2019, 3, 10), 1910, 0, 10.0)}));
+        tulos.insert(QStringLiteral("2_alvitonMuutos"), tila(alvId));
+
+        lisaa(myynti(QDate(2019, 4, 2), 50.0));
+        tulos.insert(QStringLiteral("3_toinenKausi"), tila(alvId));
+
+        const int poistettava = lisaa(myynti(QDate(2019, 3, 20), 70.0));
+        tulos.insert(QStringLiteral("4_lisatty"), tila(alvId));
+        db_.kysy(QStringLiteral("/tositteet/%1").arg(poistettava), KpKysely::DELETE);
+        tulos.insert(QStringLiteral("5_poistettu"), tila(alvId));
+
+        db_.kysy(QStringLiteral("/tositteet/%1").arg(myyntiId), KpKysely::PUT, myynti(QDate(2019, 3, 5), 200.0));
+        tulos.insert(QStringLiteral("6_summaMuutettu"), tila(alvId));
+        db_.kysy(QStringLiteral("/tositteet/%1").arg(myyntiId), KpKysely::PUT, myynti(QDate(2019, 3, 5), 100.0));
+        tulos.insert(QStringLiteral("7_palautettu"), tila(alvId));
+
+        // Vanha ilmoitus ilman sormenjälkeä: poistetaan tallennettu sormenjälki suoraan kannasta
+        const int vanhaId = lisaa(alvIlmoitus(QDate(2019, 5, 1), QDate(2019, 5, 31)));
+        QSqlQuery kysely(db_.sql());
+        kysely.exec(QStringLiteral("SELECT json FROM Tosite WHERE id=%1").arg(vanhaId));
+        kysely.next();
+        QVariantMap json = QJsonDocument::fromJson(kysely.value(0).toString().toUtf8()).toVariant().toMap();
+        QVariantMap alv = json.value(QStringLiteral("alv")).toMap();
+        if (!alv.remove(QStringLiteral("sormenjalki")))
+            return QStringLiteral("uudella ilmoituksella ei ollut sormenjälkeä");
+        json.insert(QStringLiteral("alv"), alv);
+        kysely.prepare(QStringLiteral("UPDATE Tosite SET json=? WHERE id=?"));
+        kysely.addBindValue(QString::fromUtf8(QJsonDocument::fromVariant(json).toJson(QJsonDocument::Compact)));
+        kysely.addBindValue(vanhaId);
+        if (!kysely.exec())
+            return kysely.lastError().text();
+
+        tulos.insert(QStringLiteral("8_vanha"), tila(vanhaId));
+        for (const QVariant& item : db_.kysy(QStringLiteral("/alv")).toList()) {
+            if (item.toMap().value(QStringLiteral("id")).toInt() == vanhaId)
+                tulos.insert(QStringLiteral("8_vanhanKoodit"), item.toMap().value(QStringLiteral("koodit")));
+        }
+        db_.kysy(QStringLiteral("/alv/%1").arg(vanhaId), KpKysely::PUT,
+                 QVariantMap{{QStringLiteral("tarkistus"), QStringLiteral("ok")}});
+        tulos.insert(QStringLiteral("9_vanhaTarkistettu"), tila(vanhaId));
+        lisaa(myynti(QDate(2019, 5, 15), 10.0));
+        tulos.insert(QStringLiteral("10_vanhaMuutettu"), tila(vanhaId));
+        db_.kysy(QStringLiteral("/alv/%1").arg(vanhaId), KpKysely::PUT,
+                 QVariantMap{{QStringLiteral("tarkistus"), QStringLiteral("muokattu")}});
+        tulos.insert(QStringLiteral("11_merkittyMuokatuksi"), tila(vanhaId));
+
+        return tulos;
+    };
+    const QVariant tulos = suoritaMolemmissa(toiminto);
+    if (!db_.postgresKaytossa())
+        return;
+    const QVariantMap odotettu{
+        {QStringLiteral("1_uusi"), QStringLiteral("ok")},
+        {QStringLiteral("2_alvitonMuutos"), QStringLiteral("ok")},
+        {QStringLiteral("3_toinenKausi"), QStringLiteral("ok")},
+        {QStringLiteral("4_lisatty"), QStringLiteral("muokattu")},
+        {QStringLiteral("5_poistettu"), QStringLiteral("ok")},
+        {QStringLiteral("6_summaMuutettu"), QStringLiteral("muokattu")},
+        {QStringLiteral("7_palautettu"), QStringLiteral("ok")},
+        {QStringLiteral("8_vanha"), QStringLiteral("tarkistamaton")},
+        {QStringLiteral("8_vanhanKoodit"), QVariantMap{{QStringLiteral("301"), 2550}}},
+        {QStringLiteral("9_vanhaTarkistettu"), QStringLiteral("ok")},
+        {QStringLiteral("10_vanhaMuutettu"), QStringLiteral("muokattu")},
+        {QStringLiteral("11_merkittyMuokatuksi"), QStringLiteral("muokattu")},
+    };
+    vertaa(tulos, odotettu, QStringLiteral("Alv-ilmoituksen tila"));
 }
 
 void DbParityTest::route_eratListaaAvoimetTaseEratMolemmissa()

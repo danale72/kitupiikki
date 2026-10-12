@@ -169,12 +169,7 @@ void MuuMuokkausDlg::accept()
 {
 
    if(!ui->tiliLine->valittuTilinumero() ||
-      !ui->euroEdit->asCents() ||
-      ( ui->alvlajiCombo->currentData(VerotyyppiModel::KoodiRooli).toInt() &&
-       kp()->alvIlmoitukset()->onkoIlmoitettu(ui->pvmEdit->date()) &&
-         !( kp()->asetukset()->onko(AsetusModel::OhitaAlvLukko) && kp()->yhteysModel() && kp()->yhteysModel()->onkoOikeutta(YhteysModel::ALV_ILMOITUS))
-       )
-      )
+      !ui->euroEdit->asCents() )
        return;
 
     vienti_.setPvm( ui->pvmEdit->date());
@@ -427,11 +422,7 @@ void MuuMuokkausDlg::tarkasta()
 {
     ui->buttonBox->button(QDialogButtonBox::Ok)->setEnabled(
                 ui->tiliLine->valittuTilinumero() &&
-                ui->euroEdit->asCents() &&
-                ( ui->alvlajiCombo->currentData(VerotyyppiModel::KoodiRooli).toInt() == 0 ||
-                  !kp()->alvIlmoitukset()->onkoIlmoitettu(ui->pvmEdit->date()) ||
-                  ( kp()->asetukset()->onko(AsetusModel::OhitaAlvLukko) && kp()->yhteysModel() && kp()->yhteysModel()->onkoOikeutta(YhteysModel::ALV_ILMOITUS) )
-                )
+                ui->euroEdit->asCents()
             );
 }
 

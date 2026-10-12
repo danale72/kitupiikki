@@ -16,6 +16,7 @@
 */
 #include "tositeroute.h"
 #include "kumppanitroute.h"
+#include "alvroute.h"
 
 #include "kitsas.h"
 
@@ -267,6 +268,17 @@ int TositeRoute::lisaaTaiPaivita(const QVariant pyynto, const int paivitettavanT
             viitenro = viite.viite();
         }
         map.insert("lasku", laskumap);
+    }
+
+    // Uuteen alv-ilmoitukseen tallennetaan kauden alv-kirjausten sormenjälki, josta
+    // tunnistetaan myöhemmin kirjauksiin tehdyt muutokset (ks. AlvRoute::sormenjalki)
+    if( tyyppi == TositeTyyppi::ALVLASKELMA && !paivitettavanTositeId && tila >= Tosite::KIRJANPIDOSSA &&
+        map.contains("alv")) {
+        QVariantMap alv = map.value("alv").toMap();
+        if( !alv.contains("sormenjalki")) {
+            alv.insert("sormenjalki", AlvRoute::sormenjalki(db(), alv.value("kausialkaa").toDate(), alv.value("kausipaattyy").toDate()));
+            map.insert("alv", alv);
+        }
     }
 
     // Lisätään itse tosite

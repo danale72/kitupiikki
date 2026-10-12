@@ -948,12 +948,7 @@ void AlvLaskelma::valmisteleTosite()
     tosite_->asetaSarja( kp()->tositeTyypit()->sarja( TositeTyyppi::ALVLASKELMA ) ) ;
 
     QVariantMap lisat;
-    QVariantMap koodit;
-    QMapIterator<int,Euro> iter(koodattu_);
-    while( iter.hasNext()) {
-        iter.next();
-        koodit.insert( QString::number( iter.key() ), iter.value().cents());
-    }
+    QVariantMap koodit = this->koodit();
     if( kp()->onkoMaksuperusteinenAlv(loppupvm_) && loppupvm_ < QDate(2025,1,1))
         koodit.insert("337",1);
 
@@ -964,6 +959,8 @@ void AlvLaskelma::valmisteleTosite()
     lisat.insert("maksettava", maksettava());
     if( !marginaaliAlijaamat_.isEmpty() )
         lisat.insert("marginaalialijaama", marginaaliAlijaamat_);
+    if( korvattava_ )
+        lisat.insert("korvaa", korvattava_);
     tosite_->setData( Tosite::ALV, lisat);
 }
 
@@ -1000,7 +997,50 @@ void AlvLaskelma::tallenna()
     tosite_->liitteet()->lisaa( rk.pdf(), "alv.pdf", "alv" );
 
     connect( tosite_, &Tosite::talletettu, this, &AlvLaskelma::tallennusValmis);
+
+    if( korvattava_ ) {
+        // Korvattava ilmoitus poistetaan ensin, jotta kaudella ei ole koskaan
+        // kahta voimassa olevaa ilmoitusta
+        connect( tosite_, &Tosite::tallennusvirhe, this, &AlvLaskelma::palautaKorvattava);
+        KpKysely* poisto = kpk(QString("/tositteet/%1").arg(korvattava_), KpKysely::DELETE);
+        connect( poisto, &KpKysely::vastaus, this, &AlvLaskelma::tallennaTosite);
+        connect( poisto, &KpKysely::virhe, this, [this] {
+            emit tallennusVirhe(tr("Aiemman alv-ilmoituksen poistaminen epäonnistui."));
+        });
+        poisto->kysy();
+    } else {
+        tallennaTosite();
+    }
+}
+
+void AlvLaskelma::tallennaTosite()
+{
     tosite_->tallenna();
+}
+
+void AlvLaskelma::palautaKorvattava()
+{
+    KpKysely* palautus = kpk(QString("/tositteet/%1").arg(korvattava_), KpKysely::PATCH);
+    connect( palautus, &KpKysely::vastaus, kp()->alvIlmoitukset(), &AlvIlmoitustenModel::lataa);
+    palautus->kysy(QVariantMap{{"tila", Tosite::KIRJANPIDOSSA}});
+    emit tallennusVirhe(tr("Uuden alv-ilmoituksen tallentaminen epäonnistui. Aiempi ilmoitus on palautettu."));
+}
+
+void AlvLaskelma::asetaKorvattava(int tositeId, const Euro &maksettava)
+{
+    korvattava_ = tositeId;
+    korvattavaMaksettava_ = maksettava;
+}
+
+QVariantMap AlvLaskelma::koodit() const
+{
+    QVariantMap koodit;
+    QMapIterator<int,Euro> iter(koodattu_);
+    while( iter.hasNext()) {
+        iter.next();
+        koodit.insert( QString::number( iter.key() ), iter.value().cents());
+    }
+    return koodit;
 }
 
 void AlvLaskelma::lisaaKirjausVienti(TositeVienti vienti)

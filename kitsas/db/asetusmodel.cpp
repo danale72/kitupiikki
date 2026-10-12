@@ -351,7 +351,6 @@ std::map<int,QString> AsetusModel::avaimet__ = {
     { TilinAvausPvm, "TilinavausPvm"},
     { MaventaAutentikointiTila, "MaventaAutentikointiTila"},
     { VeroOmaViite, "VeroOmaViite"},
-    { OhitaAlvLukko, "OhitaAlvLukko"},
     { AlvAlkaa, "AlvAlkaa" },
     { NaytaTilinpaatoksenLaatimisPvm, "NaytaTilinpaatoksenLaatimisPvm"},
     { NaytaLaskunTulostusPvm, "LaskuNaytaTulostusPvm"}

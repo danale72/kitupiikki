@@ -437,8 +437,7 @@ void KirjausWg::tositeLadattu()
     bool poistoOikeus = kp()->yhteysModel() &&  kp()->yhteysModel()->onkoOikeutta(  tosite()->tila() < Tosite::KIRJANPIDOSSA ? YhteysModel::TOSITE_LUONNOS : YhteysModel::TOSITE_MUOKKAUS  );
     if(  poistoOikeus && tosite()->tila() >= Tosite::KIRJANPIDOSSA ) {
         for(auto vienti : tosite()->viennit()->viennit()) {
-            if( vienti.pvm() <= kp()->tilitpaatetty() ||
-              ( vienti.alvKoodi() && kp()->alvIlmoitukset()->onkoIlmoitettu(vienti.pvm())  )) {
+            if( vienti.pvm() <= kp()->tilitpaatetty() ) {
                 poistoOikeus = false;
                 break;
             }
@@ -488,11 +487,7 @@ void KirjausWg::paivita(bool muokattu, int virheet, const Euro &debet, const Eur
         ui->varoTeksti->setText( tr("Kirjanpito lukittu\n%1 saakka").arg(kp()->tilitpaatetty().toString("dd.MM.yyyy")));
         virheet |= Tosite::PVMLUKITTU;
     }
-    else if( virheet & Tosite::PVMALV )
-    {
-        ui->varoTeksti->setText( tr("Alv-ilmoitus on jo annettu") );
-        ui->varoKuva->setPixmap( QPixmap(":/pic/vero.png"));
-    } else if( virheet & Tosite::EITASMAA) {
+    else if( virheet & Tosite::EITASMAA) {
         ui->varoTeksti->setText( tr("Debet %1    Kredit %2    <b>Erotus %3</b>")
                      .arg(debet.display(true))
                      .arg(kredit.display(true))
@@ -525,7 +520,7 @@ void KirjausWg::paivita(bool muokattu, int virheet, const Euro &debet, const Eur
     const int tyyppi = tosite()->tyyppi();
 
     const bool valmisSallittu = (muokattu || ( tila > Tosite::POISTETTU && tila < Tosite::KIRJANPIDOSSA )) &&
-                                (!(virheet & ~Tosite::EITASMAAPVM) || (virheet == Tosite::PVMALV && (tila >= Tosite::KIRJANPIDOSSA || kp()->asetukset()->onko(AsetusModel::OhitaAlvLukko) )) || ( tyyppi == TositeTyyppi::TILIOTE && virheet == Tosite::TILIPUUTTUU && qobject_cast<PilviModel*>(kp()->yhteysModel()))) &&
+                                (!(virheet & ~Tosite::EITASMAAPVM) || ( tyyppi == TositeTyyppi::TILIOTE && virheet == Tosite::TILIPUUTTUU && qobject_cast<PilviModel*>(kp()->yhteysModel()))) &&
                           !tosite()->liitteet()->tallennetaanko();
 
     ui->valmisNappi->setEnabled( valmisSallittu );
@@ -534,7 +529,7 @@ void KirjausWg::paivita(bool muokattu, int virheet, const Euro &debet, const Eur
 
     salliMuokkaus( tosite()->tila() < Tosite::KIRJANPIDOSSA && (tosite_->tyyppi() < TositeTyyppi::MYYNTILASKU || tosite_->tyyppi() > TositeTyyppi::MAKSUMUISTUTUS) ?
                        Sallittu :
-                       ( virheet & Tosite::PVMLUKITTU ? Lukittu : (virheet & Tosite::PVMALV ? AlvLukittu : Sallittu) ));
+                       ( virheet & Tosite::PVMLUKITTU ? Lukittu : Sallittu ));
     if( muokattu )
         kirjausSivu_->piilotaTallennus();
 
@@ -884,19 +879,17 @@ void KirjausWg::lisaaLiiteDatasta(const QByteArray &data, const QString &nimi)
 
 void KirjausWg::salliMuokkaus(MuokkausSallinta sallitaanko)
 {
-     bool alvSallittu = sallitaanko == AlvLukittu ?
-                       ( kp()->asetukset()->onko(AsetusModel::OhitaAlvLukko) && kp()->yhteysModel() && kp()->yhteysModel()->onkoOikeutta(YhteysModel::ALV_ILMOITUS) ):
-                       sallitaanko == Sallittu;
+    const bool sallittu = sallitaanko == Sallittu;
 
 
-    ui->tositePvmEdit->setEnabled( alvSallittu );
-    ui->tositetyyppiCombo->setEnabled( alvSallittu );
+    ui->tositePvmEdit->setEnabled( sallittu );
+    ui->tositetyyppiCombo->setEnabled( sallittu );
     ui->kommentitEdit->setEnabled(sallitaanko != Lukittu);
     ui->otsikkoEdit->setEnabled(sallitaanko != Lukittu);
     ui->lisaaliiteNappi->setEnabled(sallitaanko != Lukittu);
-    ui->poistaLiiteNappi->setEnabled( alvSallittu );
-    ui->lisaaRiviNappi->setEnabled( alvSallittu );
-    ui->lisaaVientiNappi->setEnabled( alvSallittu );
+    ui->poistaLiiteNappi->setEnabled( sallittu );
+    ui->lisaaRiviNappi->setEnabled( sallittu );
+    ui->lisaaVientiNappi->setEnabled( sallittu );
     ui->huomioMerkki->setEnabled( sallitaanko != Lukittu);
 
     tyhjennaViennitAktio_->setEnabled( sallitaanko == Sallittu);
@@ -906,22 +899,22 @@ void KirjausWg::salliMuokkaus(MuokkausSallinta sallitaanko)
     else
         ui->tositePvmEdit->setDateRange( kp()->tilikaudet()->kirjanpitoAlkaa(), kp()->tilikaudet()->kirjanpitoLoppuu() );
 
-    tosite_->viennit()->asetaMuokattavissa( alvSallittu && !apuri_ );
+    tosite_->viennit()->asetaMuokattavissa( sallittu && !apuri_ );
 
     ui->lisaaRiviNappi->setVisible( !apuri_);
-    ui->lisaaRiviNappi->setEnabled( alvSallittu );
+    ui->lisaaRiviNappi->setEnabled( sallittu );
 
     ui->lisaaVientiNappi->setVisible(!apuri_);
-    ui->lisaaVientiNappi->setEnabled( alvSallittu );
+    ui->lisaaVientiNappi->setEnabled( sallittu );
 
     ui->muokkaaVientiNappi->setVisible(!apuri_);
-    ui->muokkaaVientiNappi->setEnabled( alvSallittu );
+    ui->muokkaaVientiNappi->setEnabled( sallittu );
 
     ui->poistariviNappi->setVisible( !apuri_);
-    ui->poistariviNappi->setEnabled( alvSallittu );
+    ui->poistariviNappi->setEnabled( sallittu );
 
     if( apuri_ ) {
-        apuri_->salliMuokkaus( alvSallittu );
+        apuri_->salliMuokkaus( sallittu );
     }
 }
 

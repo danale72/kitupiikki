@@ -410,35 +410,33 @@ void TuloMenoApuri::tiliMuuttui()
             poistoAikaMuuttuu();
         }
 
-        if( !kp()->alvIlmoitukset()->onkoIlmoitettu(tosite()->pvm())) {
-            if( kp()->onkoAlvVelvollinen(tosite()->pvm()) )
-            {
-                int verotyyppi = tili.luku("alvlaji");
-                bool maksuperuste = kp()->onkoMaksuperusteinenAlv(tosite()->pvm()) && ( ui->vastatiliLine->valittuTili().onko(TiliLaji::OSTOVELKA)
-                                                                    || ui->vastatiliLine->valittuTili().onko(TiliLaji::MYYNTISAATAVA));
+        if( kp()->onkoAlvVelvollinen(tosite()->pvm()) )
+        {
+            int verotyyppi = tili.luku("alvlaji");
+            bool maksuperuste = kp()->onkoMaksuperusteinenAlv(tosite()->pvm()) && ( ui->vastatiliLine->valittuTili().onko(TiliLaji::OSTOVELKA)
+                                                                || ui->vastatiliLine->valittuTili().onko(TiliLaji::MYYNTISAATAVA));
 
-                if( verotyyppi == AlvKoodi::OSTOT_NETTO && tosite()->tyyppi() == TositeTyyppi::TULO && tili.onko(TiliLaji::TASE))
-                    verotyyppi = AlvKoodi::MYYNNIT_NETTO;
-                if( verotyyppi == AlvKoodi::OSTOT_NETTO && maksuperuste)
-                    verotyyppi = AlvKoodi::MAKSUPERUSTEINEN_OSTO;
-                if( verotyyppi == AlvKoodi::MYYNNIT_NETTO && maksuperuste)
-                    verotyyppi = AlvKoodi::MAKSUPERUSTEINEN_MYYNTI;                
+            if( verotyyppi == AlvKoodi::OSTOT_NETTO && tosite()->tyyppi() == TositeTyyppi::TULO && tili.onko(TiliLaji::TASE))
+                verotyyppi = AlvKoodi::MYYNNIT_NETTO;
+            if( verotyyppi == AlvKoodi::OSTOT_NETTO && maksuperuste)
+                verotyyppi = AlvKoodi::MAKSUPERUSTEINEN_OSTO;
+            if( verotyyppi == AlvKoodi::MYYNNIT_NETTO && maksuperuste)
+                verotyyppi = AlvKoodi::MAKSUPERUSTEINEN_MYYNTI;                
 
-                // Varmistetaan, että verotyyppi säilyy
-                QString filtteri = veroFiltteri_->filterRegularExpression().pattern();
-                const QRegularExpression uusifiltteri = QRegularExpression(filtteri.left( filtteri.length() - 1 ) + "|" + QString::number(verotyyppi) + ")");
-                veroFiltteri_->setFilterRegularExpression( uusifiltteri );
+            // Varmistetaan, että verotyyppi säilyy
+            QString filtteri = veroFiltteri_->filterRegularExpression().pattern();
+            const QRegularExpression uusifiltteri = QRegularExpression(filtteri.left( filtteri.length() - 1 ) + "|" + QString::number(verotyyppi) + ")");
+            veroFiltteri_->setFilterRegularExpression( uusifiltteri );
 
-                ui->alvCombo->setCurrentIndex( ui->alvCombo->findData( verotyyppi, VerotyyppiModel::KoodiRooli ) );
-                double pohjaAlv = tili.alvprosentti();
-                // Automaattinen alv-muutos
-                double alv = pohjaAlv == 24.0 ? yleinenAlv(tosite()->pvm()) / 100.0 : 
-                    pohjaAlv == 14.00 ? keskimainenAlv(tosite()->pvm()) / 100.0 : 
-                    pohjaAlv;
-                setAlvProssa( alv );
-            } else {
-                ui->alvCombo->setCurrentIndex( ui->alvCombo->findData( AlvKoodi::EIALV, VerotyyppiModel::KoodiRooli) );
-            }
+            ui->alvCombo->setCurrentIndex( ui->alvCombo->findData( verotyyppi, VerotyyppiModel::KoodiRooli ) );
+            double pohjaAlv = tili.alvprosentti();
+            // Automaattinen alv-muutos
+            double alv = pohjaAlv == 24.0 ? yleinenAlv(tosite()->pvm()) / 100.0 : 
+                pohjaAlv == 14.00 ? keskimainenAlv(tosite()->pvm()) / 100.0 : 
+                pohjaAlv;
+            setAlvProssa( alv );
+        } else {
+            ui->alvCombo->setCurrentIndex( ui->alvCombo->findData( AlvKoodi::EIALV, VerotyyppiModel::KoodiRooli) );
         }
 
         if( tili.luku("vastatili") && rivit_->rowCount()<2) {

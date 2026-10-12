@@ -21,6 +21,8 @@
 #include <QDate>
 #include <QAbstractTableModel>
 #include <QList>
+#include <QQueue>
+#include <QSet>
 
 class VeroVarmenneTila;
 class AlvKaudet;
@@ -44,7 +46,9 @@ public:
         PaattyyRooli = Qt::UserRole + 1,
         EraPvmRooli = Qt::UserRole + 2,
         AlkaaRooli = Qt::UserRole + 3,
-        MapRooli = Qt::UserRole + 4
+        MapRooli = Qt::UserRole + 4,
+        MuokattuRooli = Qt::UserRole + 5,
+        MaksettavaRooli = Qt::UserRole + 6
     };
 
     AlvIlmoitustenModel(QObject *parent = nullptr);
@@ -75,6 +79,18 @@ public slots:
     void kaudetPaivitetetty();
 
 protected:
+    /**
+     * @brief Tarkistaa kertaalleen vanhat ilmoitukset, joilla ei ole sormenjälkeä
+     *
+     * Kauden alv-laskelma lasketaan uudelleen tallentamatta ja sitä verrataan ilmoitettuihin
+     * koodeihin. Jos ne täsmäävät, ilmoitukselle tallennetaan nykyinen sormenjälki,
+     * muuten ilmoitus merkitään muokatuksi.
+     */
+    void tarkistaVanhat();
+    void tarkistaSeuraava();
+    static bool samatKoodit(const QVariantMap& ilmoitetut, const QVariantMap& lasketut);
+
+protected:
     class AlvIlmoitusTieto {
     public:
         AlvIlmoitusTieto();
@@ -86,6 +102,9 @@ protected:
         Euro maksettava() const { return maksettava_;}
         QVariantMap marginaaliAliJaama() const { return marginaaliAliJaama_;}
         QDateTime ilmoitettu() const { return ilmoitettu_;}
+        bool muokattu() const { return muokattu_;}
+        bool tarkistettu() const { return tarkistettu_;}
+        QVariantMap koodit() const { return koodit_;}
 
         QVariantMap map() const;
 
@@ -96,6 +115,9 @@ protected:
         Euro maksettava_;
         QVariantMap marginaaliAliJaama_;
         QDateTime ilmoitettu_;
+        bool muokattu_ = false;
+        bool tarkistettu_ = true;
+        QVariantMap koodit_;
     };
 
 protected:
@@ -103,6 +125,10 @@ protected:
 
     VeroVarmenneTila* varmenneTila_;
     AlvKaudet* kaudet_;
+
+    QQueue<AlvIlmoitusTieto> tarkistettavat_;
+    QSet<int> tarkistusYritetty_;
+    bool tarkistusTallennettu_ = false;
 
 };
 

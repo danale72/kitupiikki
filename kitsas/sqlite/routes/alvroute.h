@@ -25,6 +25,18 @@ public:
     AlvRoute(SqlModel *model);
 
     QVariant get(const QString &polku, const QUrlQuery &urlquery = QUrlQuery()) override;
+    QVariant put(const QString &polku, const QVariant &data) override;
+
+    /**
+     * @brief Kauden alv-kirjausten sormenjälki
+     *
+     * Kauden alv-koodillisten vientien nettosumma (debet - kredit) alv-koodeittain ja
+     * -prosenteittain, alv-ilmoitustositteita lukuun ottamatta. Tallennetaan alv-ilmoitukseen
+     * sen laatimishetkellä; jos sormenjälki myöhemmin muuttuu, on kauden alv-kirjauksia
+     * muokattu ilmoituksen antamisen jälkeen.
+     */
+    static QVariantMap sormenjalki(QSqlDatabase db, const QDate& alkaa, const QDate& paattyy);
+    static bool samaSormenjalki(const QVariantMap& a, const QVariantMap& b);
 };
 
 #endif // ALVROUTE_H

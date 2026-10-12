@@ -23,7 +23,11 @@
 #include "verovarmennetila.h"
 #include "alvkaudet.h"
 
+#include "alvlaskelma.h"
 #include "pilvi/pilvimodel.h"
+#include "sql/sqlmodel.h"
+
+#include <QColor>
 
 AlvIlmoitustenModel::AlvIlmoitustenModel(QObject *parent)
     : QAbstractTableModel(parent),
@@ -90,6 +94,8 @@ QVariant AlvIlmoitustenModel::data(const QModelIndex &index, int role) const
         case VERO:
             return tieto.maksettava().display();
         case TILA: {
+                if( tieto.muokattu())
+                    return tr("Muokattu");
                 AlvKausi kausi = kaudet_->kausi(tieto.paattyy());
                 if( kausi.tila() == AlvKausi::PUUTTUVA && tieto.ilmoitettu().isValid()) {
                     return tr("Ilmoitettu %1").arg(tieto.ilmoitettu().toString("dd.MM.yyyy"));
@@ -117,6 +123,14 @@ QVariant AlvIlmoitustenModel::data(const QModelIndex &index, int role) const
         return tieto.alkaa();
     else if( role == MapRooli)
         return tieto.map();
+    else if( role == MuokattuRooli)
+        return tieto.muokattu();
+    else if( role == MaksettavaRooli)
+        return tieto.maksettava().toString();
+    else if( role == Qt::BackgroundRole && tieto.muokattu())
+        return QColor(255, 214, 153);   // Vaalea oranssi: kauden alv-kirjauksia muokattu ilmoituksen jälkeen
+    else if( role == Qt::ForegroundRole && tieto.muokattu())
+        return QColor(Qt::black);
     else if( role == Qt::DecorationRole && index.column() == TILA) {
         AlvKausi kausi = kaudet_->kausi(tieto.paattyy());
 
@@ -210,6 +224,72 @@ void AlvIlmoitustenModel::dataSaapuu(QVariant *data)
     }
 
     endResetModel();
+
+    tarkistaVanhat();
+}
+
+void AlvIlmoitustenModel::tarkistaVanhat()
+{
+    // Tarkistus vain paikallisille kirjanpidoille: pilven /alv ei tunne sormenjälkiä
+    if( !tarkistettavat_.isEmpty() || !qobject_cast<SqlModel*>(kp()->yhteysModel()))
+        return;
+
+    for(const auto& tieto : qAsConst(ilmoitukset_)) {
+        // Lukitun tilikauden kirjauksia ei voi muuttaa, joten niitä ei tarvitse tarkistaa
+        if( !tieto.tarkistettu() && tieto.paattyy() > kp()->tilitpaatetty() &&
+            !tarkistusYritetty_.contains(tieto.tositeId())) {
+            tarkistusYritetty_.insert(tieto.tositeId());
+            tarkistettavat_.enqueue(tieto);
+        }
+    }
+    tarkistusTallennettu_ = false;
+    tarkistaSeuraava();
+}
+
+void AlvIlmoitustenModel::tarkistaSeuraava()
+{
+    if( tarkistettavat_.isEmpty()) {
+        if( tarkistusTallennettu_ ) {
+            tarkistusTallennettu_ = false;
+            lataa();
+        }
+        return;
+    }
+
+    const AlvIlmoitusTieto tieto = tarkistettavat_.head();
+    AlvLaskelma* laskelma = new AlvLaskelma(this);
+    connect( laskelma, &AlvLaskelma::valmis, this, [this, laskelma, tieto] {
+        const bool ok = samatKoodit(tieto.koodit(), laskelma->koodit());
+        laskelma->deleteLater();
+
+        KpKysely* kysely = kpk(QString("/alv/%1").arg(tieto.tositeId()), KpKysely::PUT);
+        connect( kysely, &KpKysely::vastaus, this, [this] {
+            tarkistusTallennettu_ = true;
+            tarkistettavat_.dequeue();
+            tarkistaSeuraava();
+        });
+        connect( kysely, &KpKysely::virhe, this, [this] {
+            tarkistettavat_.dequeue();
+            tarkistaSeuraava();
+        });
+        kysely->kysy(QVariantMap{{"tarkistus", ok ? "ok" : "muokattu"}});
+    });
+    laskelma->laske(tieto.alkaa(), tieto.paattyy());
+}
+
+bool AlvIlmoitustenModel::samatKoodit(const QVariantMap &ilmoitetut, const QVariantMap &lasketut)
+{
+    // Huojennuksen koodit 315-317 riippuvat dialogiin syötetyistä luvuista ja
+    // 337 on pelkkä maksuperusteisuuden merkintä, joten niitä ei verrata
+    static const QStringList ohitettavat = {"315", "316", "317", "337"};
+    QStringList avaimet = ilmoitetut.keys() + lasketut.keys();
+    for(const QString& avain : qAsConst(avaimet)) {
+        if( ohitettavat.contains(avain))
+            continue;
+        if( ilmoitetut.value(avain).toLongLong() != lasketut.value(avain).toLongLong())
+            return false;
+    }
+    return true;
 }
 
 void AlvIlmoitustenModel::kaudetPaivitetetty()
@@ -231,6 +311,9 @@ AlvIlmoitustenModel::AlvIlmoitusTieto::AlvIlmoitusTieto(const QVariantMap &data)
     maksettava_ = Euro::fromString(data.value("maksettava").toString());
     marginaaliAliJaama_ = data.value("marginaalialijaama").toMap();
     ilmoitettu_ = data.value("ilmoitettu").toDateTime();
+    muokattu_ = data.value("muokattu").toBool();
+    tarkistettu_ = data.value("tarkistettu", true).toBool();
+    koodit_ = data.value("koodit").toMap();
 }
 
 QVariantMap AlvIlmoitustenModel::AlvIlmoitusTieto::map() const

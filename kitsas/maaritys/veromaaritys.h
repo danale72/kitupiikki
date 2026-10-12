@@ -34,7 +34,6 @@ protected:
     void paivitaMaksuAlvTieto();
     void maksuAlv();
 
-    void alvLukkoPurku();
 
 
 private:

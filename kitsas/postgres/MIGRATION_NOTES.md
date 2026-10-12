@@ -400,6 +400,25 @@ nameless upload removed) and `route_kirjanpidonLiiteLoytaaVanhanTosite0Rivin`
 `unittest/dbparity`.
 
 
+### Note: `Vienti.alvprosentti` (`numeric(5,2)`) reads back as a different type per backend
+
+Not a bug, but relevant to any route that keys or compares on the VAT rate:
+SQLite's numeric affinity returns `alvprosentti` as a REAL (`25.5`), QPSQL
+returns `numeric` as a string (`"25.50"`). Comparing or using the raw value
+as a map key gives different results per backend. `AlvRoute::sormenjalki`
+(ALV declaration edit detection, see below) therefore normalizes it with
+`qRound(value.toDouble() * 100)` before using it as part of a key. `SUM()` of
+`bigint` similarly comes back as `numeric`/string on Postgres; `toLongLong()`
+handles both.
+
+ALV declarations (`Tosite.tyyppi = 9100`) store a fingerprint of the period's
+VAT postings in `json.alv.sormenjalki` (net cents per `alvkoodi/rate`), set by
+`TositeRoute` when a new declaration is inserted. `GET /alv` recomputes it and
+reports `muokattu` when it no longer matches; `PUT /alv/<id>` records the
+one-time check result for older declarations that predate fingerprints. No
+schema change: it all lives in the existing `Tosite.json` text column. Covered
+by `dbparity`'s `route_alvIlmoituksenMuokkausTunnistetaan`.
+
 ## Schema differences to account for in a migration tool
 
 ### Auto-increment: `AUTOINCREMENT` (SQLite) vs `GENERATED ... AS IDENTITY` (Postgres)

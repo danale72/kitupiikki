@@ -51,12 +51,13 @@ AlvSivu::AlvSivu() :
 
     connect(ui->alkaaEdit, &QDateEdit::dateChanged, this, &AlvSivu::paivitaLoppu);
     connect(ui->paattyyEdit, &QDateEdit::dateChanged, this, &AlvSivu::paivitaErapaiva);
-    connect( kp()->alvIlmoitukset(), &AlvIlmoitustenModel::modelReset, this, &AlvSivu::siirrySivulle);
+    connect( kp()->alvIlmoitukset(), &AlvIlmoitustenModel::modelReset, this, &AlvSivu::paivita);
 
     connect( ui->tilitaNappi, SIGNAL(clicked(bool)), this, SLOT(ilmoita()));
     connect( ui->tilitysNappi, SIGNAL(clicked(bool)), this, SLOT(naytaIlmoitus()));
     connect(ui->ilmoituksetView->selectionModel(), SIGNAL(currentRowChanged(QModelIndex,QModelIndex)), this, SLOT(riviValittu()));
     connect( ui->poistaTilitysNappi, &QPushButton::clicked, this, &AlvSivu::poistaIlmoitus);
+    connect( ui->uudelleenNappi, &QPushButton::clicked, this, &AlvSivu::teeUudelleen);
     connect( ui->ilmoitinNappi, &QPushButton::clicked, this, &AlvSivu::tallennaIlmoitinAineisto);
 
     connect( ui->kaudelleCombo, &QComboBox::currentTextChanged, this, &AlvSivu::kausiValittu);
@@ -71,6 +72,14 @@ AlvSivu::~AlvSivu()
 }
 
 void AlvSivu::siirrySivulle()
+{
+    // Ilmoitukset haetaan uudelleen, jotta tositteisiin tehdyt muutokset näkyvät
+    // ilmoitusten tilassa. Haun valmistuttua sivu päivitetään (paivita)
+    paivita();
+    kp()->alvIlmoitukset()->lataa();
+}
+
+void AlvSivu::paivita()
 {
     alustaa_ = true;
     riviValittu();      // Jotta napit harmaantuvat
@@ -135,10 +144,26 @@ void AlvSivu::ilmoita()
     AlvLaskelma *laskelma = new AlvLaskelma(dlg, Kielet::instanssi()->nykyinen());
 
     connect(laskelma, &AlvLaskelma::valmis, dlg, &AlvIlmoitusDialog::naytaLaskelma);
-    connect(laskelma, &AlvLaskelma::tallennettu, this, &AlvSivu::siirrySivulle);
 
     laskelma->laske(ui->alkaaEdit->date(), ui->paattyyEdit->date());
 
+}
+
+void AlvSivu::teeUudelleen()
+{
+    const QModelIndex index = ui->ilmoituksetView->selectionModel()->currentIndex();
+    if( !index.isValid())
+        return;
+
+    AlvIlmoitusDialog *dlg = new AlvIlmoitusDialog(this);
+    AlvLaskelma *laskelma = new AlvLaskelma(dlg, Kielet::instanssi()->nykyinen());
+    laskelma->asetaKorvattava( index.data(AlvIlmoitustenModel::TositeIdRooli).toInt(),
+                               Euro::fromString(index.data(AlvIlmoitustenModel::MaksettavaRooli).toString()));
+
+    connect(laskelma, &AlvLaskelma::valmis, dlg, &AlvIlmoitusDialog::naytaLaskelma);
+
+    laskelma->laske(index.data(AlvIlmoitustenModel::AlkaaRooli).toDate(),
+                    index.data(AlvIlmoitustenModel::PaattyyRooli).toDate());
 }
 
 void AlvSivu::naytaIlmoitus()
@@ -173,6 +198,10 @@ void AlvSivu::riviValittu()
     ui->tilitysNappi->setEnabled( index.isValid() );
     ui->poistaTilitysNappi->setEnabled( index.isValid() &&                                        
                                         index.data(AlvIlmoitustenModel::PaattyyRooli).toDate() > kp()->tilitpaatetty() );
+    // Uudelleen tehdään vain ilmoitus, jonka kauden alv-kirjauksia on muokattu
+    ui->uudelleenNappi->setEnabled( index.isValid() &&
+                                    index.data(AlvIlmoitustenModel::MuokattuRooli).toBool() &&
+                                    index.data(AlvIlmoitustenModel::PaattyyRooli).toDate() > kp()->tilitpaatetty() );
 
     QDate pvm = index.data(AlvIlmoitustenModel::PaattyyRooli).toDate();
     AlvKausi kausi = kp()->alvIlmoitukset()->kaudet()->kausi(pvm);
