@@ -290,25 +290,23 @@ bool TositeViennit::setData(const QModelIndex &index, const QVariant &value, int
                     } else
                         rivi.setEra( 0);
                     if( kp()->onkoAlvVelvollinen(rivi.pvm()) ) {
-                        int alvkoodi = uusitili.arvo("alvlaji").toInt();                     
-                        if( !alvkoodi || !kp()->alvIlmoitukset()->onkoIlmoitettu(rivi.pvm())) {
-                            rivi.setAlvKoodi( alvkoodi );
-                            const double alvProsentti = uusitili.alvprosentti();
-                            rivi.setAlvProsentti( 
-                                alvProsentti == 24 ? yleinenAlv(rivi.pvm()) / 100.0 : 
-                                alvProsentti == 14.00 ? keskimainenAlv(rivi.pvm()) / 100.0 : 
-                                alvProsentti
-                            );
-                            // Käännetyn verovelvollisuuden ostolle kirjataan vero ja vähennys
-                            // aina, ellei käyttäjä ole erikseen poistanut niitä (AALV_EI)
-                            if( onkoKaannettyOsto(alvkoodi) && rivi.data(TositeVienti::AALV).toString().isEmpty())
-                                rivi.set(TositeVienti::AALV, "+-");
-                            // Rivi tallennetaan ennen paivitaAalv():ta, joka lukee rivin viennit_-listasta:
-                            // muuten verorivit laskettaisiin edellisen tilin alv-koodilla eikä niitä syntyisi
-                            viennit_[index.row()] = rivi;
-                            emit dataChanged( index.sibling(index.row(), ALV), index.sibling(index.row(), ALV) );
-                            paivitaAalv(index.row());
-                        }
+                        int alvkoodi = uusitili.arvo("alvlaji").toInt();
+                        rivi.setAlvKoodi( alvkoodi );
+                        const double alvProsentti = uusitili.alvprosentti();
+                        rivi.setAlvProsentti( 
+                            alvProsentti == 24 ? yleinenAlv(rivi.pvm()) / 100.0 : 
+                            alvProsentti == 14.00 ? keskimainenAlv(rivi.pvm()) / 100.0 : 
+                            alvProsentti
+                        );
+                        // Käännetyn verovelvollisuuden ostolle kirjataan vero ja vähennys
+                        // aina, ellei käyttäjä ole erikseen poistanut niitä (AALV_EI)
+                        if( onkoKaannettyOsto(alvkoodi) && rivi.data(TositeVienti::AALV).toString().isEmpty())
+                            rivi.set(TositeVienti::AALV, "+-");
+                        // Rivi tallennetaan ennen paivitaAalv():ta, joka lukee rivin viennit_-listasta:
+                        // muuten verorivit laskettaisiin edellisen tilin alv-koodilla eikä niitä syntyisi
+                        viennit_[index.row()] = rivi;
+                        emit dataChanged( index.sibling(index.row(), ALV), index.sibling(index.row(), ALV) );
+                        paivitaAalv(index.row());
                     }
                     if( uusitili.luku("kohdennus")) {
                         rivi.setKohdennus(uusitili.luku("kohdennus"));

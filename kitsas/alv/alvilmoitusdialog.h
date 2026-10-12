@@ -68,6 +68,7 @@ private:
     void paivitaHuojennus();
 
     void ilmoitusVirhe(const QString& koodi, const QString& viesti);
+    void tallennusVirhe(const QString& viesti);
 
 public slots:
     void naytaLaskelma(RaportinKirjoittaja rk);

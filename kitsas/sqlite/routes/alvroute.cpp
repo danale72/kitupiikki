@@ -17,6 +17,8 @@
 #include "alvroute.h"
 #include "db/tositetyyppimodel.h"
 
+#include <QJsonDocument>
+
 AlvRoute::AlvRoute(SqlModel *model)
     : SQLiteRoute(model, "/alv")
 {
@@ -36,9 +38,96 @@ QVariant AlvRoute::get(const QString &/*polku*/, const QUrlQuery &/*urlquery*/)
     for(const QVariant& item : qAsConst( kyselyntulos )) {
         QVariantMap map = item.toMap();
         QVariantMap vmap = map.value("alv").toMap();
-        vmap.remove("koodit");
+
+        // Muokattu: kauden alv-kirjaukset poikkeavat ilmoitusta laadittaessa tallennetusta
+        // sormenjäljestä. Tarkistettu: ilmoituksella on sormenjälki tai muokattu-merkintä;
+        // vanhoille ilmoituksille AlvIlmoitustenModel tekee tarkistuksen kertaalleen.
+        bool tarkistettu = true;
+        bool muokattu = vmap.value("muokattu").toBool();
+        if( !muokattu && vmap.contains("sormenjalki")) {
+            muokattu = !samaSormenjalki( vmap.value("sormenjalki").toMap(),
+                                         sormenjalki(db(), vmap.value("kausialkaa").toDate(), vmap.value("kausipaattyy").toDate()));
+        } else if( !muokattu ) {
+            tarkistettu = false;
+        }
+        vmap.remove("sormenjalki");
+        if( tarkistettu )
+            vmap.remove("koodit");
+        vmap.insert("muokattu", muokattu);
+        vmap.insert("tarkistettu", tarkistettu);
         vmap.insert("id", map.value("id"));
         vastaus.append(vmap);
     }
     return vastaus;
+}
+
+QVariant AlvRoute::put(const QString &polku, const QVariant &data)
+{
+    // Vanhan, sormenjäljettömän ilmoituksen kertatarkistuksen tulos:
+    // "ok" tallentaa nykyisen sormenjäljen, "muokattu" merkitsee ilmoituksen muokatuksi
+    const int tositeId = polku.toInt();
+    const QString tarkistus = data.toMap().value("tarkistus").toString();
+
+    QSqlQuery kysely(db());
+    kysely.exec( QString("SELECT json FROM Tosite WHERE id=%1 AND tyyppi=%2")
+                 .arg(tositeId).arg(TositeTyyppi::ALVLASKELMA));
+    if( !kysely.next())
+        return QVariant();
+
+    QVariantMap map = QJsonDocument::fromJson( kysely.value(0).toString().toUtf8() ).toVariant().toMap();
+    QVariantMap alv = map.value("alv").toMap();
+    if( tarkistus == "ok") {
+        alv.insert("sormenjalki", sormenjalki(db(), alv.value("kausialkaa").toDate(), alv.value("kausipaattyy").toDate()));
+        alv.remove("muokattu");
+    } else if( tarkistus == "muokattu") {
+        alv.insert("muokattu", true);
+    } else {
+        return QVariant();
+    }
+    map.insert("alv", alv);
+
+    kysely.prepare("UPDATE Tosite SET json=? WHERE id=?");
+    kysely.addBindValue( mapToJson(map) );
+    kysely.addBindValue( tositeId );
+    if( !kysely.exec())
+        throw SQLiteVirhe(kysely);
+
+    return QVariant();
+}
+
+QVariantMap AlvRoute::sormenjalki(QSqlDatabase db, const QDate &alkaa, const QDate &paattyy)
+{
+    QVariantMap jalki;
+    if( !alkaa.isValid() || !paattyy.isValid())
+        return jalki;
+
+    QSqlQuery kysely(db);
+    kysely.exec( QString("SELECT Vienti.alvkoodi, Vienti.alvprosentti, "
+                         "SUM(COALESCE(Vienti.debetsnt,0)) - SUM(COALESCE(Vienti.kreditsnt,0)) "
+                         "FROM Vienti JOIN Tosite ON Vienti.tosite=Tosite.id "
+                         "WHERE Tosite.tila >= 100 AND Tosite.tyyppi <> %1 AND Vienti.alvkoodi > 0 "
+                         "AND Vienti.pvm BETWEEN '%2' AND '%3' "
+                         "GROUP BY Vienti.alvkoodi, Vienti.alvprosentti")
+                 .arg(TositeTyyppi::ALVLASKELMA)
+                 .arg(alkaa.toString(Qt::ISODate), paattyy.toString(Qt::ISODate)));
+    while( kysely.next()) {
+        const qlonglong summa = kysely.value(2).toLongLong();
+        if( !summa )
+            continue;
+        // Avaimena koodi/prosentin sadasosat: SQLite palauttaa numericin reaalilukuna, Postgres merkkijonona
+        const QString avain = QString("%1/%2").arg(kysely.value(0).toInt())
+                                              .arg(qRound(kysely.value(1).toDouble() * 100));
+        jalki.insert(avain, jalki.value(avain).toLongLong() + summa);
+    }
+    return jalki;
+}
+
+bool AlvRoute::samaSormenjalki(const QVariantMap &a, const QVariantMap &b)
+{
+    QStringList avaimet = a.keys() + b.keys();
+    for(const QString& avain : qAsConst(avaimet)) {
+        if( a.value(avain).toLongLong() != b.value(avain).toLongLong())
+            return false;
+    }
+    return true;
 }

@@ -191,6 +191,23 @@
       </widget>
      </item>
      <item>
+      <widget class="QPushButton" name="uudelleenNappi">
+       <property name="enabled">
+        <bool>false</bool>
+       </property>
+       <property name="toolTip">
+        <string>Kauden alv-kirjauksia on muokattu ilmoituksen antamisen jälkeen. Aiempi ilmoitus poistetaan ja korvataan uudella.</string>
+       </property>
+       <property name="text">
+        <string>Tee &amp;uudelleen</string>
+       </property>
+       <property name="icon">
+        <iconset resource="../pic/pic.qrc">
+         <normaloff>:/pic/muokkaa.png</normaloff>:/pic/muokkaa.png</iconset>
+       </property>
+      </widget>
+     </item>
+     <item>
       <spacer name="horizontalSpacer_2">
        <property name="orientation">
         <enum>Qt::Horizontal</enum>

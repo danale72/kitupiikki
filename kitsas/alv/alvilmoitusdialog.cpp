@@ -85,6 +85,7 @@ void AlvIlmoitusDialog::accept()
 
     connect( laskelma_, &AlvLaskelma::tallennettu, this, &AlvIlmoitusDialog::laskemaTallennettu);
     connect( laskelma_, &AlvLaskelma::ilmoitusVirhe, this, &AlvIlmoitusDialog::ilmoitusVirhe);
+    connect( laskelma_, &AlvLaskelma::tallennusVirhe, this, &AlvIlmoitusDialog::tallennusVirhe);
 
 
     if( ui->ilmoitaGroup->isChecked() ) {
@@ -154,10 +155,34 @@ void AlvIlmoitusDialog::ilmoitusVirhe(const QString &koodi, const QString &viest
 }
 
 
+void AlvIlmoitusDialog::tallennusVirhe(const QString &viesti)
+{
+    kp()->odotusKursori(false);
+    QMessageBox::critical(this, tr("Virhe tallentamisessa"), viesti);
+    ui->buttonBox->setEnabled(true);
+}
+
 void AlvIlmoitusDialog::naytaLaskelma(RaportinKirjoittaja rk)
 {
     laskelma_ = qobject_cast<AlvLaskelma*>( sender() );
-    ui->ilmoitusBrowser->setHtml( rk.html() );
+
+    QString html = rk.html();
+    if( laskelma_->korvattava()) {
+        // Uudelleen tehtävä ilmoitus: näytetään muutos aiemmin ilmoitettuun, jotta
+        // korjaus voidaan ilmoittaa verottajalle
+        const Euro aiempi = laskelma_->korvattavaMaksettava();
+        const Euro uusi = laskelma_->maksettava();
+        const QString vertailu = QString("<table style=\"background-color: #ffd699; color: black;\" cellpadding=\"6\" width=\"100%\"><tr><td>"
+                                         "<b>%1</b><br>%2 %3<br>%4 %5<br><b>%6 %7</b></td></tr></table><br>")
+                .arg( tr("Alv-ilmoitus tehdään uudelleen. Aiempi ilmoitus poistetaan ja korvataan tällä."),
+                      tr("Aiemmin ilmoitettu maksettava vero:"), aiempi.display(true),
+                      tr("Uusi maksettava vero:"), uusi.display(true),
+                      tr("Muutos:"), (uusi - aiempi).display(true));
+        html.replace("<body>", "<body>" + vertailu);
+        if( !html.contains(vertailu))
+            html.prepend(vertailu);
+    }
+    ui->ilmoitusBrowser->setHtml( html );
 
     ui->alarajaGroup->setVisible( laskelma_->huojennusAika() );
     ui->alarajaGroup->setChecked( laskelma_->huojennus());
@@ -198,6 +223,11 @@ void AlvIlmoitusDialog::laskemaTallennettu()
         QMessageBox::information(this, tr("Arvonlisäverolaskelma tallennettu"),
                                  tr("Et valinnut ilmoittamista verottajalle rajapinnan kautta") + "\n" +
                                  tr("Huolehdi ilmoittamisesta verottajalle esimerkiksi OmaVerossa."));
+    } else if( laskelma_->korvattava() && !ui->ilmoitaGroup->isChecked()) {
+        QMessageBox::information(this, tr("Alv-ilmoitus tehty uudelleen"),
+                                 tr("Aiempi alv-ilmoitus on korvattu uudella.") + "\n" +
+                                 tr("Muutos maksettavaan veroon: %1").arg((laskelma_->maksettava() - laskelma_->korvattavaMaksettava()).display(true)) + "\n" +
+                                 tr("Huolehdi korjauksen ilmoittamisesta verottajalle esimerkiksi OmaVerossa."));
     } else if( ui->ilmoitaGroup->isChecked()) {
         emit kp()->onni(tr("Arvonlisäveroilmoitus annettu"));
     } else {

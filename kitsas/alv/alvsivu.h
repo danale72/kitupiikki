@@ -52,11 +52,13 @@ public slots:
     void ilmoita();
     void naytaIlmoitus();
     void poistaIlmoitus();
+    void teeUudelleen();
     void riviValittu();
     void tallennaIlmoitinAineisto();     
 
 
 protected:
+    void paivita();
     void paivitaKaudet();
     void kausiValittu();
 

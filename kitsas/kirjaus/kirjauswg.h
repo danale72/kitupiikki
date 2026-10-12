@@ -66,7 +66,7 @@ public slots:
     void tyhjenna();
 
 private:
-    enum MuokkausSallinta { Lukittu = 0, AlvLukittu = 1, Sallittu = 2};
+    enum MuokkausSallinta { Lukittu = 0, Sallittu = 2};
 
 private slots:
 

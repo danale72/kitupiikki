@@ -83,12 +83,28 @@ public:
     Euro huojennuksenMaara(Euro liikevaihto, Euro verohuojennukseen) const;
 
     QDate loppupvm() const { return loppupvm_;}
+    /**
+     * @brief Ilmoituksen koodit sentteinä samassa muodossa kuin tositteelle tallennetaan
+     */
+    QVariantMap koodit() const;
+
+    /**
+     * @brief Asettaa laskelman korvaamaan aiemman saman kauden ilmoituksen
+     *
+     * Tallennettaessa korvattava ilmoitus poistetaan ensin, jotta kaudella on aina
+     * vain yksi voimassa oleva ilmoitus. Jos uuden tallentaminen epäonnistuu,
+     * korvattava palautetaan.
+     */
+    void asetaKorvattava(int tositeId, const Euro& maksettava);
+    int korvattava() const { return korvattava_;}
+    Euro korvattavaMaksettava() const { return korvattavaMaksettava_;}
 
     static int huojennusKuukaudet(const QDate& alku, const QDate& loppu);
 
 signals:
     void tallennettu();
     void ilmoitusVirhe(const QString& koodi, const QString& viesti);
+    void tallennusVirhe(const QString& viesti);
 
 public slots:
     void laske(const QDate& alkupvm, const QDate& loppupvm, AlvKausi::KaudenPituus pituus = AlvKausi::EITIEDOSSA);
@@ -105,6 +121,8 @@ protected:
     void haeHuojennusJosTarpeen();
     void laskeHuojennus(QVariant* viennit);
     void tallennusValmis();
+    void tallennaTosite();
+    void palautaKorvattava();
     void ilmoitettu(QVariant* data);
 
 protected:
@@ -158,6 +176,9 @@ protected:
 
     Tosite* tosite_;
     AlvKausi::KaudenPituus pituus_;
+
+    int korvattava_ = 0;
+    Euro korvattavaMaksettava_;
 
 
 public:

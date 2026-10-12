@@ -102,25 +102,6 @@
     </widget>
    </item>
    <item>
-    <widget class="QGroupBox" name="alvLukkoGroup">
-     <property name="title">
-      <string>Tositteiden lukitseminen</string>
-     </property>
-     <layout class="QVBoxLayout" name="verticalLayout_4">
-      <item>
-       <widget class="QCheckBox" name="ohitaLukkoCheck">
-        <property name="text">
-         <string>Salli tositteiden muokkaaminen alv-ilmoituksen antamisen jälkeen</string>
-        </property>
-        <property name="Asetus" stdset="0">
-         <string notr="true">OhitaAlvLukko</string>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item>
     <widget class="QGroupBox" name="groupBox_3">
      <property name="title">
       <string>Viitenumerot</string>

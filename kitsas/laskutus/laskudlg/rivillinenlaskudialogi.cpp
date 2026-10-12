@@ -198,13 +198,6 @@ bool RivillinenLaskuDialogi::tarkasta()
                                      "toiseen EU-maahan"));
             return false;
         }
-        if( rivi.alvkoodi() != AlvKoodi::EIALV &&
-                kp()->alvIlmoitukset()->onkoIlmoitettu(paivamaara()) &&
-                !kp()->asetukset()->onko(AsetusModel::OhitaAlvLukko)) {
-            QMessageBox::critical(this, tr("Arvonlisäveroilmoitus annettu"),
-                                  tr("Laskun päivämäärältä on jo annettu arvonlisäveroilmoitus"));
-            return false;
-        }
     }
 
     tarkastaJakso();
