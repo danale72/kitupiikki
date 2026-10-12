@@ -319,7 +319,9 @@ bool TallentavaMaaritysWidget::onkoMuokattu()
 
         KpDateEdit* kpdate = qobject_cast<KpDateEdit*>(widget);
         if( kpdate) {
-            if( kpdate->date().isValid() ? kpdate->date() != kp()->asetukset()->pvm(asetusavain) : !kp()->asetukset()->onko(asetusavain))
+            // Tyhjä kenttä on muokattu vain, jos asetuksella on arvo (esim. AlvLoppuu
+            // puuttuu lähes aina - aiempi !onko() teki Perusvalinnoista aina muokatun)
+            if( kpdate->date().isValid() ? kpdate->date() != kp()->asetukset()->pvm(asetusavain) : kp()->asetukset()->onko(asetusavain))
                 return true;
             continue;
         }

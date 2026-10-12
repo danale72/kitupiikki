@@ -15,6 +15,8 @@
 #include "model/tosite.h"
 #include "model/tositevienti.h"
 #include "model/tositeviennit.h"
+#include "maaritys/perusvalinnat.h"
+#include "tools/kpdateedit.h"
 #include "postgres/postgresmodel.h"
 #include "postgres/sqlitetuoja.h"
 #include "sql/sqlalustaja.h"
@@ -83,6 +85,8 @@ private slots:
 
     void tositeViennit_kaannettyOstoKirjaaVeronJaVahennyksenTilinValinnassa();
     void tositeViennit_kaannetynOstonPoistettuVeroEiPalaa();
+    void perusvalinnat_eiMuokattuHetiAvattaessa_data();
+    void perusvalinnat_eiMuokattuHetiAvattaessa();
 
     void sqliteTuoja_kopioiKaikkiTaulut();
     void sqliteTuoja_hylkaaVaarinVersioidunTiedoston();
@@ -1138,6 +1142,52 @@ void DbParityTest::tositeViennit_kaannetynOstonPoistettuVeroEiPalaa()
         muokattu.set(TositeVienti::AALV, QStringLiteral("+-"));
         viennit->asetaVienti(0, muokattu);
         QCOMPARE(viennit->rowCount(), 3);
+    }
+    db_.sulje();
+}
+
+void DbParityTest::perusvalinnat_eiMuokattuHetiAvattaessa_data()
+{
+    QTest::addColumn<QString>("alvVelvollinen");
+    QTest::addColumn<QString>("alvAlkaa");
+    QTest::addColumn<QString>("alvLoppuu");
+    QTest::newRow("ei alv-velvollinen") << QString() << QString() << QString();
+    QTest::newRow("alv-velvollinen, ei paattymista") << QStringLiteral("ON") << QStringLiteral("2019-01-01") << QString();
+    QTest::newRow("alv-velvollisuus paattynyt") << QStringLiteral("ON") << QStringLiteral("2019-01-01") << QStringLiteral("2019-06-30");
+}
+
+void DbParityTest::perusvalinnat_eiMuokattuHetiAvattaessa()
+{
+    // Asetukset > Perusvalinnat näytti Tallenna-napin aktiivisena heti avattaessa,
+    // jolloin sivulta poistuminen kysyi "Asetuksia on muutettu...". Syy:
+    // TallentavaMaaritysWidget::onkoMuokattu() piti tyhjää KpDateEdit-kenttää
+    // muokattuna juuri silloin, kun asetusta ei ole (esim. AlvLoppuu).
+    QFETCH(QString, alvVelvollinen);
+    QFETCH(QString, alvAlkaa);
+    QFETCH(QString, alvLoppuu);
+
+    QVariantMap alustus = TestDb::initials();
+    QVariantMap init = alustus.value(QStringLiteral("init")).toMap();
+    QVariantMap asetukset = init.value(QStringLiteral("asetukset")).toMap();
+    if (!alvVelvollinen.isEmpty())
+        asetukset.insert(QStringLiteral("AlvVelvollinen"), alvVelvollinen);
+    if (!alvAlkaa.isEmpty())
+        asetukset.insert(QStringLiteral("AlvAlkaa"), alvAlkaa);
+    if (!alvLoppuu.isEmpty())
+        asetukset.insert(QStringLiteral("AlvLoppuu"), alvLoppuu);
+    init.insert(QStringLiteral("asetukset"), asetukset);
+    alustus.insert(QStringLiteral("init"), init);
+    QVERIFY(db_.avaaSqlite(alustus));
+    {
+        Perusvalinnat sivu;
+        QVERIFY(sivu.nollaa());
+        QVERIFY2(!sivu.onkoMuokattu(), "Perusvalinnat on muokattu heti avattaessa");
+
+        // Todellinen muutos tunnistetaan edelleen
+        KpDateEdit *loppuu = sivu.findChild<KpDateEdit*>(QStringLiteral("alvPaattyyEdit"));
+        QVERIFY(loppuu);
+        loppuu->setDate(QDate(2030, 12, 31));
+        QVERIFY(sivu.onkoMuokattu());
     }
     db_.sulje();
 }
