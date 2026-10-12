@@ -70,6 +70,8 @@ private slots:
     void route_budjetti();
     void route_vakioviitteet();
     void route_liitteet();
+    void route_kirjanpidonLiiteTallentuuJaSailyySuljettaessa();
+    void route_kirjanpidonLiiteLoytaaVanhanTosite0Rivin();
     void route_tositeLogic();
     void route_asiakkaatToimittajatLaskutAlv();
     void route_saldotSisaltaaViisinumeroisenVelkatilin();
@@ -664,6 +666,73 @@ void DbParityTest::route_liitteet()
         return db_.kysy(QStringLiteral("/liitteet?alkupvm=2019-01-01&loppupvm=2019-12-31"));
     };
     suoritaMolemmissa(toiminto);
+}
+
+void DbParityTest::route_kirjanpidonLiiteTallentuuJaSailyySuljettaessa()
+{
+    // Tilinpäätös, tilinpäätösteksti, logo ja bannerit tallennetaan polkuun
+    // /liitteet/0/<roolinimi>. tosite=0 rikkoi liite_tosite_fkey:n molemmissa
+    // kannoissa, ja SqlModel::sulje() poisti tosite=NULL -rivit (ks. MIGRATION_NOTES).
+    const auto toiminto = [this]() -> QVariant {
+        QMap<QString, QString> meta;
+        meta.insert(QStringLiteral("Filename"), QStringLiteral("tilinpaatos.pdf"));
+        meta.insert(QStringLiteral("Content-type"), QStringLiteral("application/pdf"));
+        db_.lahetaTiedosto(QStringLiteral("/liitteet/0/TP_2019-12-31"), QByteArray("%PDF vanha"), meta, KpKysely::PUT);
+        db_.lahetaTiedosto(QStringLiteral("/liitteet/0/TP_2019-12-31"), QByteArray("%PDF uusi"), meta, KpKysely::PUT);
+        meta.insert(QStringLiteral("Filename"), QStringLiteral("logo.png"));
+        meta.insert(QStringLiteral("Content-type"), QStringLiteral("image/png"));
+        db_.lahetaTiedosto(QStringLiteral("/liitteet/0/logo"), QByteArray("logo"), meta, KpKysely::PUT);
+        // Tositetta odottamaan jäävä nimetön liite siivotaan edelleen suljettaessa
+        db_.lahetaTiedosto(QStringLiteral("/liitteet"), QByteArray("odottaa"), meta);
+
+        if (!QTest::qVerify(db_.avaaUudelleen(), "db_.avaaUudelleen()", "", __FILE__, __LINE__))
+            return {};
+
+        const QByteArray tp = db_.kysy(QStringLiteral("/liitteet/0/TP_2019-12-31")).toByteArray();
+        const QByteArray logo = db_.kysy(QStringLiteral("/liitteet/0/logo")).toByteArray();
+        if (!QTest::qCompare(tp, QByteArray("%PDF uusi"), "tp", "\"%PDF uusi\"", __FILE__, __LINE__))
+            return {};
+        if (!QTest::qCompare(logo, QByteArray("logo"), "logo", "\"logo\"", __FILE__, __LINE__))
+            return {};
+
+        QVariantMap tulos;
+        tulos.insert(QStringLiteral("tp"), tp);
+        tulos.insert(QStringLiteral("logo"), logo);
+        tulos.insert(QStringLiteral("rivit"), TestDb::dump(db_.sql(),
+            QStringLiteral("SELECT tosite, roolinimi, nimi, tyyppi, sha FROM Liite ORDER BY id")));
+        return tulos;
+    };
+    const QVariantList rivit = suoritaMolemmissa(toiminto).toMap().value(QStringLiteral("rivit")).toList();
+    if (QTest::currentTestFailed() || rivit.isEmpty())
+        return;
+    // Täsmälleen yksi TP-rivi (päivitetty, ei kahdennettu) ja logo; nimetön liite poistettu
+    QCOMPARE(rivit.count(), 2);
+    for (const QVariant& rivi : rivit)
+        QVERIFY(rivi.toMap().value(QStringLiteral("tosite")).isNull());
+}
+
+void DbParityTest::route_kirjanpidonLiiteLoytaaVanhanTosite0Rivin()
+{
+    // Vanhoissa SQLite-kirjanpidoissa kirjanpidon liitteet ovat tosite=0 -riveinä
+    // (syntyneet ennen kuin SQLiten viiteavaimet otettiin käyttöön). Ne on löydettävä,
+    // ja uudelleentallennus muuntaa rivin NULL:ksi kahdentamatta sitä.
+    QVERIFY(db_.avaaSqlite());
+    QSqlQuery q(db_.sql());
+    QVERIFY(q.exec(QStringLiteral("PRAGMA foreign_keys = OFF")));
+    QVERIFY(q.exec(QStringLiteral("INSERT INTO Liite(tosite,nimi,data,roolinimi) "
+                                  "VALUES (0,'tpteksti.txt',X'56616E6861','TPTEKSTI_2019-12-31')")));
+    QVERIFY(q.exec(QStringLiteral("PRAGMA foreign_keys = ON")));
+
+    QCOMPARE(db_.kysy(QStringLiteral("/liitteet/0/TPTEKSTI_2019-12-31")).toByteArray(), QByteArray("Vanha"));
+
+    db_.lahetaTiedosto(QStringLiteral("/liitteet/0/TPTEKSTI_2019-12-31"), QByteArray("Uusi"), {}, KpKysely::PUT);
+    QCOMPARE(db_.kysy(QStringLiteral("/liitteet/0/TPTEKSTI_2019-12-31")).toByteArray(), QByteArray("Uusi"));
+
+    QVERIFY(q.exec(QStringLiteral("SELECT tosite FROM Liite WHERE roolinimi='TPTEKSTI_2019-12-31'")));
+    QVERIFY(q.next());
+    QVERIFY(q.value(0).isNull());
+    QVERIFY(!q.next());
+    db_.sulje();
 }
 
 void DbParityTest::route_tositeLogic()

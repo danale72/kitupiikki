@@ -426,6 +426,18 @@ bool TestDb::avaaPostgres(const QVariantMap& alustus)
     return kp()->postgres()->uusiKirjanpito(postgresYhteys(), alustus, false);
 }
 
+bool TestDb::avaaUudelleen()
+{
+    const bool sqlite = kp()->yhteysModel() == kp()->sqlite();
+    const bool postgres = kp()->yhteysModel() == kp()->postgres();
+    sulje();
+    if (sqlite)
+        return kp()->sqlite()->avaaTiedosto(sqlitePolku_, false);
+    if (postgres)
+        return kp()->postgres()->avaa(postgresYhteys(), false);
+    return false;
+}
+
 QVariant TestDb::kysy(const QString& polku, KpKysely::Metodi metodi, const QVariant& data)
 {
     KpKysely *kysely = kpk(polku, metodi);
@@ -440,9 +452,10 @@ QVariant TestDb::kysy(const QString& polku, KpKysely::Metodi metodi, const QVari
     return tulos;
 }
 
-QVariant TestDb::lahetaTiedosto(const QString& polku, const QByteArray& data, const QMap<QString, QString>& meta)
+QVariant TestDb::lahetaTiedosto(const QString& polku, const QByteArray& data, const QMap<QString, QString>& meta,
+                                KpKysely::Metodi metodi)
 {
-    KpKysely *kysely = kpk(polku, KpKysely::POST);
+    KpKysely *kysely = kpk(polku, metodi);
     if (!kysely)
         return QVariant();
     QVariant tulos;

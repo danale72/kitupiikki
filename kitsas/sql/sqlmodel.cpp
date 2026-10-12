@@ -81,7 +81,9 @@ KpKysely *SqlModel::kysely(const QString &polku, KpKysely::Metodi metodi)
 void SqlModel::sulje()
 {
     if( tietokanta_.isOpen()) {
-        tietokanta_.exec("DELETE FROM Liite WHERE tosite IS NULL");
+        // Poistetaan vain tositetta odottamaan jääneet nimettömät liitteet: roolinimellinen
+        // tosite=NULL -rivi on koko kirjanpidon liite (tilinpäätös, logo...), ks. LiitteetRoute
+        tietokanta_.exec("DELETE FROM Liite WHERE tosite IS NULL AND roolinimi IS NULL");
         tietokanta_.close();
     }
 }
