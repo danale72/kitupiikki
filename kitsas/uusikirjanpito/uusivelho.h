@@ -43,6 +43,8 @@ public:
     enum Sivut { ALOITUS, VARMISTA, HARJOITUS, VASTUU, ALUSTUS, TILIKARTTA, TIEDOT, TILIKAUSI, NUMEROINTI, SIJAINTI, POSTGRES, LOPPU };
     bool lataaKartta(const QString& polku);
     static QVariantMap kartta(const QString& polku);
+    /** @brief Otsikkorivien (tyyppi H1, H2, ...) määrä tilikartan tileissä */
+    static int otsikoidenMaara(const QVariantList& tilit);
     bool ladattu() const { return !tilit_.isEmpty();}
 
     QVariantMap data() const;

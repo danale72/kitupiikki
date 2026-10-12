@@ -14,6 +14,7 @@
 #include <QVariantMap>
 
 class QProgressDialog;
+class QSqlQuery;
 
 /**
  * @brief Yhteiset SQL-taustajärjestelmän alustustoiminnot
@@ -22,15 +23,22 @@ class SqlAlustaja
 {
 public:
     static bool suoritaSqlResurssi(QSqlDatabase db, const QString& resurssi);
-    static bool kirjoitaInit(QSqlDatabase db, const QVariantMap& initMap, QProgressDialog *progress = nullptr);
+    /**
+     * @brief Kirjoittaa velhon init-datan (asetukset, tilikartta, tilikaudet)
+     * @return false heti ensimmäisestä epäonnistuneesta lisäyksestä; syy
+     *         virhetekstiin. Kutsujan on peruttava tapahtuma.
+     */
+    static bool kirjoitaInit(QSqlDatabase db, const QVariantMap& initMap, QProgressDialog *progress = nullptr,
+                             QString *virheteksti = nullptr);
 
 private:
     static QString json(const QVariant& var);
-    static void aseta(QSqlDatabase db, const QString& avain, const QVariant& arvo);
-    static void kirjoitaAsetukset(QSqlDatabase db, const QVariantMap& asetukset);
-    static void kirjoitaTilit(QSqlDatabase db, const QVariantList& tililista);
-    static void kirjoitaTilikaudet(QSqlDatabase db, const QVariantList& kausilista);
-    static void kirjoitaAvausTosite(QSqlDatabase db, const QDate& tilinavauspaiva);
+    static bool virhe(const QSqlQuery& kysely, const QString& kohde, QString *virheteksti);
+    static bool aseta(QSqlDatabase db, const QString& avain, const QVariant& arvo, QString *virheteksti);
+    static bool kirjoitaAsetukset(QSqlDatabase db, const QVariantMap& asetukset, QString *virheteksti);
+    static bool kirjoitaTilit(QSqlDatabase db, const QVariantList& tililista, QString *virheteksti);
+    static bool kirjoitaTilikaudet(QSqlDatabase db, const QVariantList& kausilista, QString *virheteksti);
+    static bool kirjoitaAvausTosite(QSqlDatabase db, const QDate& tilinavauspaiva, QString *virheteksti);
 };
 
 #endif // SQLALUSTAJA_H

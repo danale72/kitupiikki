@@ -69,6 +69,18 @@ bool PostgresModel::yhdista(const PostgresYhteys &yhteys, bool ilmoitaVirheesta)
         return false;
     }
 
+    // Kirjanpidon luonnin/tuonnin aikana jaettu yhteys on varattu sille.
+    // Jos se avattaisiin nyt uudelleen (esim. käyttäjä napsauttaa aloitussivun
+    // asiakaslistaa), keskeneräisen alustuksen loput kyselyt kirjoittuisivat
+    // toisen asiakkaan tietokantaan.
+    if( kirjoitusKaynnissa_ ) {
+        qWarning() << "PostgresModel: yhteyttä ei vaihdeta kesken kirjanpidon luonnin:" << yhteys.avain();
+        if( ilmoitaVirheesta )
+            QMessageBox::warning(nullptr, tr("Kirjanpidon luonti kesken"),
+                                 tr("Uuden kirjanpidon luonti on vielä kesken. Odota, että se valmistuu, ennen kuin avaat toisen kirjanpidon."));
+        return false;
+    }
+
     if( tietokanta_.isOpen())
         tietokanta_.close();
 
@@ -479,8 +491,11 @@ bool PostgresModel::avaa(const PostgresYhteys &yhteys, bool ilmoitaVirheesta)
     return true;
 }
 
-bool PostgresModel::uusiKirjanpito(const PostgresYhteys &yhteys, const QVariantMap &initials, bool ilmoitaVirheesta)
+bool PostgresModel::uusiKirjanpito(const PostgresYhteys &yhteys, const QVariantMap &initials, bool ilmoitaVirheesta,
+                                   bool pudotaVirheessa)
 {
+    kp()->yhteysAvattu(nullptr);
+
     if( !yhdista(yhteys, ilmoitaVirheesta) )
         return false;
 
@@ -493,14 +508,38 @@ bool PostgresModel::uusiKirjanpito(const PostgresYhteys &yhteys, const QVariantM
         return false;
     }
 
-    if( !SqlAlustaja::suoritaSqlResurssi(tietokanta_, QStringLiteral(":/postgres/luo.sql")) ) {
-        tietokanta_.close();
-        return false;
+    QString virhe;
+    bool ok = false;
+    {
+        KirjoitusVaraus varaus(this);
+
+        // Kaavio ja alkutiedot yhtenä tapahtumana: joko koko kirjanpito
+        // syntyy tai ei mitään.
+        ok = tietokanta_.transaction() &&
+             SqlAlustaja::suoritaSqlResurssi(tietokanta_, QStringLiteral(":/postgres/luo.sql")) &&
+             SqlAlustaja::kirjoitaInit(tietokanta_, initials.value("init").toMap(), nullptr, &virhe) &&
+             onkoYhteysKannassa(yhteys.database, &virhe) &&
+             tietokanta_.commit();
+
+        if( !ok ) {
+            if( virhe.isEmpty() )
+                virhe = tietokanta_.lastError().text();
+            tietokanta_.rollback();
+            tietokanta_.close();
+        }
     }
 
-    QVariantMap initMap = initials.value("init").toMap();
-    if( !SqlAlustaja::kirjoitaInit(tietokanta_, initMap) ) {
-        tietokanta_.close();
+    if( !ok ) {
+        qWarning() << "PostgresModel: kirjanpidon luonti epäonnistui" << yhteys.avain() << virhe;
+        // Tapahtuma on peruttu, joten kantaan ei jäänyt mitään. Juuri tätä varten
+        // luotu tyhjä kanta pudotetaan, ettei se jää asiakaslistaan (ja
+        // ei-Kitsas-välimuistiin) estämään saman nimen uudelleenluontia.
+        if( pudotaVirheessa )
+            pudotaTietokanta(yhteys, yhteys.database, false);
+        if( ilmoitaVirheesta )
+            QMessageBox::critical(nullptr, tr("Kirjanpidon luominen epäonnistui"),
+                                  tr("Kirjanpitoa %1 ei voitu luoda, eikä tietokantaan jäänyt mitään.\n%2")
+                                  .arg(yhteys.avain(), virhe));
         return false;
     }
 
@@ -510,6 +549,8 @@ bool PostgresModel::uusiKirjanpito(const PostgresYhteys &yhteys, const QVariantM
 
 bool PostgresModel::tuoSqlitesta(const PostgresYhteys &yhteys, const QString &sqlitePolku, bool ilmoitaVirheesta)
 {
+    kp()->yhteysAvattu(nullptr);
+
     if( !yhdista(yhteys, ilmoitaVirheesta) )
         return false;
 
@@ -522,26 +563,43 @@ bool PostgresModel::tuoSqlitesta(const PostgresYhteys &yhteys, const QString &sq
         return false;
     }
 
-    if( !SqlAlustaja::suoritaSqlResurssi(tietokanta_, QStringLiteral(":/postgres/luo.sql")) ) {
+    bool ok = false;
+    {
+        // SqliteTuoja pyörittää tapahtumasilmukkaa edistymisen näyttämiseksi,
+        // joten yhteys on lukittava tälle tuonnille koko sen ajaksi.
+        KirjoitusVaraus varaus(this);
+        ok = SqlAlustaja::suoritaSqlResurssi(tietokanta_, QStringLiteral(":/postgres/luo.sql")) &&
+             SqliteTuoja::tuo(tietokanta_, sqlitePolku, ilmoitaVirheesta) &&
+             onkoYhteysKannassa(yhteys.database);
         tietokanta_.close();
-        // Kaavio jäi kesken - poistetaan koko tietokanta, ettei rikkinäistä
-        // asiakasta jää näkyviin listaan.
+    }
+
+    if( !ok ) {
+        // Kaavio jäi kesken tai tuonti epäonnistui - SqliteTuoja on jo peruuttanut
+        // oman tapahtumansa, mutta luo.sql:n luoma kaavio jäisi silti näkyviin
+        // tyhjänä, näennäisesti kelvollisena asiakkaana. Poistetaan koko tietokanta,
+        // jotta epäonnistunut tuonti ei jätä mitään jälkeä asiakaslistaan.
         pudotaTietokanta(yhteys, yhteys.database, false);
         return false;
     }
 
-    if( !SqliteTuoja::tuo(tietokanta_, sqlitePolku, ilmoitaVirheesta) ) {
-        tietokanta_.close();
-        // Tuonti epäonnistui - SqliteTuoja on jo peruuttanut oman tapahtumansa, mutta
-        // luo.sql:n luoma kaavio jäisi silti näkyviin tyhjänä, näennäisesti kelvollisena
-        // asiakkaana. Poistetaan koko tietokanta, jotta epäonnistunut tuonti ei jätä
-        // mitään jälkeä asiakaslistaan.
-        pudotaTietokanta(yhteys, yhteys.database, false);
-        return false;
-    }
-
-    tietokanta_.close();
     return avaa(yhteys, ilmoitaVirheesta);
+}
+
+bool PostgresModel::onkoYhteysKannassa(const QString &tietokanta, QString *virhe)
+{
+    // Viimeinen varmistus ennen tallennusta: kirjoitettiinko varmasti siihen
+    // kantaan, joka luotiin?
+    QSqlQuery query(tietokanta_);
+    if( query.exec(QStringLiteral("SELECT current_database()")) && query.next() &&
+        query.value(0).toString() == tietokanta )
+        return true;
+    const QString teksti = tr("Yhteys osoittaa tietokantaan %1, vaikka kirjoitettiin tietokantaan %2.")
+            .arg(query.value(0).toString(), tietokanta);
+    qWarning() << "PostgresModel:" << teksti;
+    if( virhe )
+        *virhe = teksti;
+    return false;
 }
 
 void PostgresModel::lataaViimeiset()
@@ -566,6 +624,10 @@ void PostgresModel::poistaListalta(const PostgresYhteys &yhteys)
 
 void PostgresModel::sulje()
 {
+    if( kirjoitusKaynnissa_ ) {
+        qWarning() << "PostgresModel: yhteyttä ei suljeta kesken kirjanpidon luonnin";
+        return;
+    }
     nykyinen_ = PostgresYhteys();
     disconnect( kp(), &Kirjanpito::perusAsetusMuuttui, this, &PostgresModel::lisaaViimeisiin );
     SqlModel::sulje();
