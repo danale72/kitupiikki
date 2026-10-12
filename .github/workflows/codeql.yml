@@ -1,0 +1,150 @@
+# Compiles Kitsas and uploads CodeQL results.
+# GitHub default setup analyzes C++ with build-mode "none", so it never
+# runs qmake/make and the C++ scan has no compiled code to report on.
+# After this workflow is on the default branch, turn default setup off
+# (Settings → Code security → Code scanning) so the two do not both upload.
+
+name: CodeQL
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  schedule:
+    - cron: "17 4 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: c-cpp
+            build-mode: manual
+          - language: python
+            build-mode: none
+          - language: actions
+            build-mode: none
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Install system libraries
+        if: matrix.build-mode == 'manual'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            libzip-dev \
+            libgl-dev \
+            libxkbcommon-x11-0 \
+            libxcb-cursor0 \
+            libxcb-icccm4 \
+            libxcb-image0 \
+            libxcb-keysyms1 \
+            libxcb-randr0 \
+            libxcb-render-util0 \
+            libxcb-shape0 \
+            libxcb-xinerama0 \
+            libnss3 \
+            libnspr4 \
+            libdbus-1-3 \
+            libasound2t64
+
+      - name: Install Qt
+        if: matrix.build-mode == 'manual'
+        uses: jurplel/install-qt-action@a9c63c7c123f3069cff414e7e482d95dfa9d8125 # v4.4.1
+        with:
+          version: "6.7.3"
+          cache: true
+          modules: >-
+            qtwebengine
+            qtwebchannel
+            qtpositioning
+            qt5compat
+            qtpdf
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+
+      - name: Build Kitsas
+        if: matrix.build-mode == 'manual'
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          cd build
+          qmake ../kitsas/kitsas.pro -spec linux-g++ "CONFIG+=release"
+          make -j"$(nproc)"
+          test -x kiswaspg
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        with:
+          category: "/language:${{ matrix.language }}"
+          output: ${{ github.workspace }}/codeql-results/${{ matrix.language }}
+          upload: always
+
+      - name: Summarize results
+        if: always()
+        env:
+          LANG_NAME: ${{ matrix.language }}
+          SARIF_DIR: ${{ github.workspace }}/codeql-results/${{ matrix.language }}
+        run: |
+          python3 - << 'PY'
+          import json, os, pathlib
+          lang = os.environ["LANG_NAME"]
+          root = pathlib.Path(os.environ["SARIF_DIR"])
+          files = sorted(root.rglob("*.sarif")) if root.is_dir() else []
+          lines = [f"## CodeQL ({lang})", ""]
+          if not files:
+              lines.append("No SARIF file was produced.")
+          for path in files:
+              data = json.loads(path.read_text())
+              total = 0
+              by_rule = {}
+              for run in data.get("runs", []):
+                  for result in run.get("results", []):
+                      total += 1
+                      rule = result.get("ruleId", "?")
+                      level = result.get("level", "warning")
+                      by_rule[(rule, level)] = by_rule.get((rule, level), 0) + 1
+              lines.append(f"`{path.name}`: **{total}** results.")
+              lines.append("")
+              if by_rule:
+                  lines.append("| Rule | Level | Count |")
+                  lines.append("| --- | --- | --- |")
+                  for (rule, level), count in sorted(by_rule.items(), key=lambda item: (-item[1], item[0])):
+                      lines.append(f"| `{rule}` | {level} | {count} |")
+              else:
+                  lines.append("No alerts.")
+              lines.append("")
+          text = "\n".join(lines) + "\n"
+          print(text)
+          summary = os.environ.get("GITHUB_STEP_SUMMARY")
+          if summary:
+              with open(summary, "a", encoding="utf-8") as handle:
+                  handle.write(text)
+          if not files:
+              raise SystemExit("CodeQL did not write a SARIF file")
+          PY
+
+      - name: Upload SARIF
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: codeql-${{ matrix.language }}
+          path: codeql-results/${{ matrix.language }}
+          if-no-files-found: error
+          retention-days: 14
