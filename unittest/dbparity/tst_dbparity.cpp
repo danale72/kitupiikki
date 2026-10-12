@@ -14,6 +14,7 @@
 #include "kieli/kielet.h"
 #include "model/tosite.h"
 #include "model/tositevienti.h"
+#include "model/tositeviennit.h"
 #include "postgres/postgresmodel.h"
 #include "postgres/sqlitetuoja.h"
 #include "sql/sqlalustaja.h"
@@ -80,6 +81,9 @@ private slots:
     void route_saldotSisaltaaViisinumeroisenVelkatilin();
     void route_eratListaaAvoimetTaseEratMolemmissa();
 
+    void tositeViennit_kaannettyOstoKirjaaVeronJaVahennyksenTilinValinnassa();
+    void tositeViennit_kaannetynOstonPoistettuVeroEiPalaa();
+
     void sqliteTuoja_kopioiKaikkiTaulut();
     void sqliteTuoja_hylkaaVaarinVersioidunTiedoston();
 
@@ -89,6 +93,7 @@ private slots:
     void postgresTuoSqlitesta_siivoaaEpaonnistuneenTuonninJaljet();
 
 private:
+    bool avaaKaannetynOstonKirjanpito();
     void vertaa(const QVariant& sqlite, const QVariant& postgres, const QString& konteksti = QString());
     QVariant suoritaMolemmissa(const std::function<QVariant()>& toiminto);
 
@@ -1031,6 +1036,110 @@ void DbParityTest::route_eratListaaAvoimetTaseEratMolemmissa()
     QCOMPARE(avoimet.count(), 1);
     QCOMPARE(avoimet.first().toMap().value(QStringLiteral("avoin")).toDouble(), 60.0);
     QCOMPARE(avoimet.first().toMap().value(QStringLiteral("selite")).toString(), QStringLiteral("Myyntilasku"));
+}
+
+bool DbParityTest::avaaKaannetynOstonKirjanpito()
+{
+    // Alv-velvollinen kirjanpito, jossa käännetyn verovelvollisuuden ostotili
+    // kuten robotx:n 7661 (alvlaji 25 = palveluiden yhteisöhankinnat, 25,5 %)
+    QVariantMap alustus = TestDb::initials();
+    QVariantMap init = alustus.value(QStringLiteral("init")).toMap();
+    QVariantMap asetukset = init.value(QStringLiteral("asetukset")).toMap();
+    asetukset.insert(QStringLiteral("AlvVelvollinen"), QStringLiteral("ON"));
+    init.insert(QStringLiteral("asetukset"), asetukset);
+    QVariantList tilit = init.value(QStringLiteral("tilit")).toList();
+    tilit.append(QVariantMap{{QStringLiteral("numero"), 1763}, {QStringLiteral("tyyppi"), QStringLiteral("AL")},
+                             {QStringLiteral("nimi"), QVariantMap{{QStringLiteral("fi"), QStringLiteral("Alv-saatava")}}}});
+    tilit.append(QVariantMap{{QStringLiteral("numero"), 2939}, {QStringLiteral("tyyppi"), QStringLiteral("BL")},
+                             {QStringLiteral("nimi"), QVariantMap{{QStringLiteral("fi"), QStringLiteral("Alv-velka")}}}});
+    tilit.append(QVariantMap{{QStringLiteral("numero"), 7661}, {QStringLiteral("tyyppi"), QStringLiteral("D")},
+                             {QStringLiteral("alvlaji"), AlvKoodi::YHTEISOHANKINNAT_PALVELUT},
+                             {QStringLiteral("alvprosentti"), 25.5},
+                             {QStringLiteral("nimi"), QVariantMap{{QStringLiteral("fi"), QStringLiteral("Ohjelmistot EU")}}}});
+    init.insert(QStringLiteral("tilit"), tilit);
+    alustus.insert(QStringLiteral("init"), init);
+    return db_.avaaSqlite(alustus) && kp()->onkoAlvVelvollinen(QDate(2019, 3, 1));
+}
+
+void DbParityTest::tositeViennit_kaannettyOstoKirjaaVeronJaVahennyksenTilinValinnassa()
+{
+    // Kirjausruudukossa: pankkirivi, sitten uusi rivi (tabulointi), jolle syötetään
+    // käännetyn alv:n tili. Vero- ja vähennysrivien pitää syntyä heti tilin valinnasta,
+    // ei vasta "Muokkaa vientiä" -dialogin OK:sta (aiemmin paivitaAalv() luki vielä
+    // tallentamattoman rivin, jolla oli edellisen tilin alv-koodi).
+    QVERIFY(avaaKaannetynOstonKirjanpito());
+    {
+        Tosite tosite;
+        tosite.setData(Tosite::PVM, QDate(2019, 3, 1));
+        TositeViennit *viennit = tosite.viennit();
+
+        viennit->lisaaVienti(0);
+        viennit->setData(viennit->index(0, TositeViennit::TILI), 1910);
+        viennit->setData(viennit->index(0, TositeViennit::KREDIT), 24.72);
+
+        viennit->lisaaVienti(viennit->rowCount());
+        viennit->setData(viennit->index(1, TositeViennit::TILI), 7661);
+
+        QCOMPARE(viennit->rowCount(), 4);
+        const TositeVienti vero = viennit->vienti(2);
+        QCOMPARE(vero.tyyppi(), int(TositeVienti::ALVKIRJAUS));
+        QCOMPARE(vero.tili(), 2939);
+        QCOMPARE(vero.alvKoodi(), AlvKoodi::YHTEISOHANKINNAT_PALVELUT + AlvKoodi::ALVKIRJAUS);
+        QCOMPARE(qRound64(vero.kredit() * 100), 630LL);
+        const TositeVienti vahennys = viennit->vienti(3);
+        QCOMPARE(vahennys.tyyppi(), int(TositeVienti::ALVKIRJAUS));
+        QCOMPARE(vahennys.tili(), 1763);
+        QCOMPARE(vahennys.alvKoodi(), AlvKoodi::YHTEISOHANKINNAT_PALVELUT + AlvKoodi::ALVVAHENNYS);
+        QCOMPARE(qRound64(vahennys.debet() * 100), 630LL);
+        QVERIFY(viennit->debetKreditTasmaa());
+
+        // Rivi ilman AALV-tietoa (esim. csv-tuonnista) saa sen, kun tiliksi valitaan
+        // käännetyn alv:n tili ruudukossa
+        TositeVienti tuotu;
+        tuotu.setPvm(QDate(2019, 3, 1));
+        tuotu.setTili(4000);
+        tuotu.setDebet(10.0);
+        viennit->lisaa(tuotu);
+        const int rivi = viennit->rowCount() - 1;
+        QVERIFY(viennit->vienti(rivi).data(TositeVienti::AALV).toString().isEmpty());
+        viennit->setData(viennit->index(rivi, TositeViennit::TILI), 7661);
+        QCOMPARE(viennit->vienti(rivi).data(TositeVienti::AALV).toString(), QStringLiteral("+-"));
+        QCOMPARE(viennit->rowCount(), rivi + 3);
+        QCOMPARE(viennit->vienti(rivi + 1).tili(), 2939);
+        QCOMPARE(viennit->vienti(rivi + 2).tili(), 1763);
+    }
+    db_.sulje();
+}
+
+void DbParityTest::tositeViennit_kaannetynOstonPoistettuVeroEiPalaa()
+{
+    // Jos käyttäjä on poistanut molemmat ruksit "Muokkaa vientiä" -dialogissa (AALV_EI),
+    // tilin valinta ei saa palauttaa vero- ja vähennysrivejä.
+    QVERIFY(avaaKaannetynOstonKirjanpito());
+    {
+        Tosite tosite;
+        tosite.setData(Tosite::PVM, QDate(2019, 3, 1));
+        TositeViennit *viennit = tosite.viennit();
+
+        TositeVienti rivi;
+        rivi.setPvm(QDate(2019, 3, 1));
+        rivi.setTili(4000);
+        rivi.setDebet(24.72);
+        rivi.set(TositeVienti::AALV, TositeViennit::AALV_EI);
+        viennit->lisaa(rivi);
+
+        viennit->setData(viennit->index(0, TositeViennit::TILI), 7661);
+        QCOMPARE(viennit->rowCount(), 1);
+        QCOMPARE(viennit->vienti(0).alvKoodi(), int(AlvKoodi::YHTEISOHANKINNAT_PALVELUT));
+        QCOMPARE(viennit->vienti(0).data(TositeVienti::AALV).toString(), TositeViennit::AALV_EI);
+
+        // Ruksien palautus (dialogi tallentaa "+-") tuo rivit takaisin
+        TositeVienti muokattu = viennit->vienti(0);
+        muokattu.set(TositeVienti::AALV, QStringLiteral("+-"));
+        viennit->asetaVienti(0, muokattu);
+        QCOMPARE(viennit->rowCount(), 3);
+    }
+    db_.sulje();
 }
 
 void DbParityTest::sqliteTuoja_kopioiKaikkiTaulut()

@@ -297,8 +297,15 @@ bool TositeViennit::setData(const QModelIndex &index, const QVariant &value, int
                             rivi.setAlvProsentti( 
                                 alvProsentti == 24 ? yleinenAlv(rivi.pvm()) / 100.0 : 
                                 alvProsentti == 14.00 ? keskimainenAlv(rivi.pvm()) / 100.0 : 
-                                alvProsentti 
+                                alvProsentti
                             );
+                            // Käännetyn verovelvollisuuden ostolle kirjataan vero ja vähennys
+                            // aina, ellei käyttäjä ole erikseen poistanut niitä (AALV_EI)
+                            if( onkoKaannettyOsto(alvkoodi) && rivi.data(TositeVienti::AALV).toString().isEmpty())
+                                rivi.set(TositeVienti::AALV, "+-");
+                            // Rivi tallennetaan ennen paivitaAalv():ta, joka lukee rivin viennit_-listasta:
+                            // muuten verorivit laskettaisiin edellisen tilin alv-koodilla eikä niitä syntyisi
+                            viennit_[index.row()] = rivi;
                             emit dataChanged( index.sibling(index.row(), ALV), index.sibling(index.row(), ALV) );
                             paivitaAalv(index.row());
                         }
@@ -686,6 +693,17 @@ bool TositeViennit::onkoKaanteistaAlvia() const
             return true;
     }
     return false;
+}
+
+const QString TositeViennit::AALV_EI = QStringLiteral("ei");
+
+bool TositeViennit::onkoKaannettyOsto(int alvkoodi)
+{
+    return alvkoodi == AlvKoodi::YHTEISOHANKINNAT_TAVARAT ||
+           alvkoodi == AlvKoodi::YHTEISOHANKINNAT_PALVELUT ||
+           alvkoodi == AlvKoodi::RAKENNUSPALVELU_OSTO ||
+           alvkoodi == AlvKoodi::MAAHANTUONTI ||
+           alvkoodi == AlvKoodi::MAAHANTUONTI_PALVELUT;
 }
 
 void TositeViennit::paivitaAalv(int rivi)

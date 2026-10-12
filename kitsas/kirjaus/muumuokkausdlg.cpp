@@ -20,6 +20,7 @@
 
 #include "db/verotyyppimodel.h"
 #include "alv/alvilmoitustenmodel.h"
+#include "model/tositeviennit.h"
 
 #include <QSortFilterProxyModel>
 #include <QPushButton>
@@ -238,8 +239,10 @@ void MuuMuokkausDlg::accept()
     if( ui->poistoSpin->isVisible())
         vienti_.setTasaerapoisto(ui->poistoSpin->value() * 12);
 
-    if( !aalv.isEmpty())
-        vienti_.set(TositeVienti::AALV, aalv);
+    // Tyhjä arvo poistaisi AALV-kentän (TositeVienti::set). Käännetyn alv:n tilille
+    // puuttuva AALV tulkitaan oletukseksi "+-" (TositeViennit::setData, TILI), joten
+    // molempien ruksien poisto tallennetaan erikseen, ettei se palaudu tiliä vaihdettaessa.
+    vienti_.set(TositeVienti::AALV, aalv.isEmpty() ? TositeViennit::AALV_EI : aalv);
 
     if( ui->reskontraGroup->isVisible()) {
         if( ui->myyntiReskontraRadio->isChecked())

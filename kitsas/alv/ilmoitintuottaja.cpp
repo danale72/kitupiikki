@@ -82,7 +82,7 @@ void IlmoitinTuottaja::tositeSaapuu(QVariant *data)
 {
     QVariantMap alv = data->toMap().value("alv").toMap();
     if( muodosta(alv)) {        
-        QString hakemisto = kp()->settings()->value("IlmoitinHakemisto", QDir::homePath()).toString();
+        QString hakemisto = kp()->settings()->value("IlmoitinHakemisto", Kirjanpito::oletusTallennuskansio()).toString();
         QDir dir(hakemisto);
 
         QDate loppupvm = alv.value("kausipaattyy").toDate();

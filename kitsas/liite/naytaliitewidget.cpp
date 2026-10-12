@@ -92,7 +92,7 @@ void NaytaLiiteWidget::tallenna()
     const QModelIndex& nykyinen = model_->index( model_->naytettavaIndeksi(),0 );
     if( !nykyinen.isValid()) return;
 
-    const QDir polku(kp()->settings()->value(kp()->asetukset()->uid() + "/raporttipolku", QDir::homePath()).toString());
+    const QDir polku(kp()->settings()->value(kp()->asetukset()->uid() + "/raporttipolku", Kirjanpito::oletusTallennuskansio()).toString());
     const QString& tiedostonnimi = nykyinen.data(LiitteetModel::NimiRooli).toString();
     const QString tiedosto = QFileDialog::getSaveFileName(this, tr("Tallenna liite"), polku.absoluteFilePath(tiedostonnimi));
     if( !tiedosto.isEmpty()) {

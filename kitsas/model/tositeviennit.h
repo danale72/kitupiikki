@@ -96,6 +96,16 @@ public:
     QString alvTarkastus() const;
     bool onkoKaanteistaAlvia() const;
 
+    /**
+     * @brief Onko alv-koodi käännetyn verovelvollisuuden osto (EU-tavarat ja -palvelut,
+     * rakentamispalvelut, tavaroiden maahantuonti, palvelujen osto EU:n ulkopuolelta),
+     * jolle kirjataan sekä vero että vähennys
+     */
+    static bool onkoKaannettyOsto(int alvkoodi);
+
+    /// TositeVienti::AALV-arvo, kun käyttäjä on poistanut sekä veron että vähennyksen kirjaamisen
+    static const QString AALV_EI;
+
     void paivitaAalv(int rivi);
     Euro summa() const;
     bool debetKreditTasmaa() const;

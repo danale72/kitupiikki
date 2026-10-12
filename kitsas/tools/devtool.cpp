@@ -259,7 +259,7 @@ void DevTool::vie()
 {
     QString nimi = ui->tilikarttaNimi->text().toLower().replace(QRegularExpression("\\W"),"") + ".kitsaskartta";
 
-    QString tiedosto = QFileDialog::getSaveFileName(this, QString(), nimi,
+    QString tiedosto = QFileDialog::getSaveFileName(this, QString(), QDir(Kirjanpito::oletusTallennuskansio()).absoluteFilePath(nimi),
                                                     tr("Kitsaan tilikartta (*.kitsaskartta)","kitsaskartta on tiedostopääte - älä käännä!"));
     if( !tiedosto.isEmpty()) {
         KpKysely* kysely = kpk("/init");

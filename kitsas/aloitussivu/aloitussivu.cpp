@@ -501,7 +501,7 @@ void AloitusSivu::varmuuskopioi()
 
     // Suljetaan tiedostoyhteys, jotta saadaan varmasti varmuuskopioitua kaikki
     const QString& asetusAvain = kp()->asetukset()->asetus(AsetusModel::UID) + "/varmistuspolku";
-    const QString varmuushakemisto = kp()->settings()->value( asetusAvain, QDir::homePath()).toString();
+    const QString varmuushakemisto = kp()->settings()->value( asetusAvain, Kirjanpito::oletusTallennuskansio()).toString();
 
     kp()->sqlite()->sulje();
 
