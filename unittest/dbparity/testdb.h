@@ -37,6 +37,8 @@ public:
 
     bool avaaSqlite(const QVariantMap& alustus = initials());
     bool avaaPostgres(const QVariantMap& alustus = initials());
+    // Sulkee avoimen kirjanpidon (ajaen SqlModel::sulje():n siivouksen) ja avaa saman uudelleen
+    bool avaaUudelleen();
 
     bool postgresKaytossa() const { return postgresKaytossa_; }
     QString postgresVirhe() const { return postgresVirhe_; }
@@ -49,7 +51,8 @@ public:
                   const QVariant& data = QVariant());
     QVariant lahetaTiedosto(const QString& polku,
                             const QByteArray& data,
-                            const QMap<QString, QString>& meta = {});
+                            const QMap<QString, QString>& meta = {},
+                            KpKysely::Metodi metodi = KpKysely::POST);
 
     static QVariantMap initials();
     static PostgresYhteys postgresYhteys();

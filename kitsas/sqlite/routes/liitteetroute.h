@@ -32,6 +32,9 @@ public:
 
     static QString hash(const QByteArray& ba);
 
+protected:
+    int kirjanpidonLiite(const QString& roolinimi, const QByteArray& ba, const QMap<QString,QString>& meta);
+
 };
 
 #endif // LIITTEETROUTE_H
