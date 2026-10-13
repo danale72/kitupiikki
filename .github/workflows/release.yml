@@ -76,6 +76,10 @@ jobs:
         run: |
           set -euo pipefail
           version="${RELEASE_TAG#v}"
+          # Unused SQL plugins pull in missing system libraries (Mimer, ODBC, …).
+          # Keep SQLite and PostgreSQL; drop the rest before linuxdeploy-plugin-qt runs.
+          rm -f "$QT_ROOT_DIR/plugins/sqldrivers"/libqsql{mimer,odbc,mysql,oci,ibase}.so
+
           tools="$RUNNER_TEMP/linuxdeploy"
           mkdir -p "$tools"
           wget -q -O "$tools/linuxdeploy-x86_64.AppImage" \
@@ -94,9 +98,9 @@ jobs:
             -d "$GITHUB_WORKSPACE/kitsas.desktop" \
             -l /usr/lib/x86_64-linux-gnu/libssl.so.3 \
             -l /usr/lib/x86_64-linux-gnu/libcrypto.so.3 \
-            -l /usr/lib/x86_64-linux-gnu/libpq.so.5 \
-            --plugin qt \
-            --output appimage
+            -l /usr/lib/x86_64-linux-gnu/libpq.so.5
+          linuxdeploy-plugin-qt-x86_64.AppImage --appdir AppDir
+          linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage
           appimage="$(find . -maxdepth 1 -name '*.AppImage' -printf '%f\n')"
           test -n "$appimage"
           mv "$appimage" "$GITHUB_WORKSPACE/KiswasPG-${version}-linux-x86_64.AppImage"
@@ -112,10 +116,9 @@ jobs:
           test -f "$asset"
           if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             gh release create "$RELEASE_TAG" \
-              --target "$RELEASE_TAG" \
+              --verify-tag \
               --title "Kiswas PG ${version}" \
-              --notes "$(printf '%s\n' "Kiswas PG ${version}" "" "Linux, macOS and Windows binaries. macOS and Windows packages are unsigned.")" \
-              || true
+              --notes "$(printf '%s\n' "Kiswas PG ${version}" "" "Linux, macOS and Windows binaries. macOS and Windows packages are unsigned.")"
           fi
           gh release upload "$RELEASE_TAG" "$asset" --clobber
 
@@ -138,15 +141,23 @@ jobs:
             qt5compat
             qtpdf
 
+      - name: Install libpq
+        run: brew install libpq
+
       - name: Build and package
         env:
           RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
         run: |
           set -euo pipefail
           version="${RELEASE_TAG#v}"
+          # Drop SQL plugins that need libraries we do not ship.
+          rm -f "$QT_ROOT_DIR/plugins/sqldrivers"/libqsql{mimer,odbc}.dylib
+
           mkdir -p build-macos
           cd build-macos
-          qmake ../kitsas/kitsas.pro -spec macx-xcode
+          qmake ../kitsas/kitsas.pro -spec macx-xcode \
+            "LIBS+=-L$(brew --prefix libpq)/lib -lpq" \
+            "INCLUDEPATH+=$(brew --prefix libpq)/include"
           xcodebuild \
             -project kiswaspg.xcodeproj \
             -target kiswaspg \
@@ -158,7 +169,24 @@ jobs:
             CODE_SIGN_IDENTITY=-
           app="build/Release/kiswaspg.app"
           test -d "$app"
-          macdeployqt "$app"
+          # macdeployqt exits non-zero when optional SQL plugin deps are missing;
+          # the app is still usable after we prune broken plugins.
+          macdeployqt "$app" -verbose=1 || true
+          rm -f "$app/Contents/PlugIns/sqldrivers"/libqsql{mimer,odbc}.dylib
+          # Ship Homebrew libpq next to the QPSQL plugin.
+          mkdir -p "$app/Contents/Frameworks"
+          pq="$(brew --prefix libpq)/lib/libpq.5.dylib"
+          cp -f "$pq" "$app/Contents/Frameworks/"
+          if [[ -f "$app/Contents/PlugIns/sqldrivers/libqsqlpsql.dylib" ]]; then
+            install_name_tool -change \
+              /Applications/Postgres.app/Contents/Versions/14/lib/libpq.5.dylib \
+              @executable_path/../Frameworks/libpq.5.dylib \
+              "$app/Contents/PlugIns/sqldrivers/libqsqlpsql.dylib" || true
+            install_name_tool -change \
+              "$(otool -L "$app/Contents/PlugIns/sqldrivers/libqsqlpsql.dylib" | awk '/libpq/{print $1; exit}')" \
+              @executable_path/../Frameworks/libpq.5.dylib \
+              "$app/Contents/PlugIns/sqldrivers/libqsqlpsql.dylib" || true
+          fi
           ditto -c -k --keepParent "$app" "$GITHUB_WORKSPACE/KiswasPG-${version}-macOS.zip"
 
       - name: Attach to GitHub release
@@ -172,10 +200,9 @@ jobs:
           test -f "$asset"
           if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             gh release create "$RELEASE_TAG" \
-              --target "$RELEASE_TAG" \
+              --verify-tag \
               --title "Kiswas PG ${version}" \
-              --notes "$(printf '%s\n' "Kiswas PG ${version}" "" "Linux, macOS and Windows binaries. macOS and Windows packages are unsigned.")" \
-              || true
+              --notes "$(printf '%s\n' "Kiswas PG ${version}" "" "Linux, macOS and Windows binaries. macOS and Windows packages are unsigned.")"
           fi
           gh release upload "$RELEASE_TAG" "$asset" --clobber
 
@@ -184,6 +211,11 @@ jobs:
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@cec98b9d092141f74527d0afa6feb2af698cfe89 # v1.13.0
+        with:
+          arch: x64
 
       - name: Install Qt
         uses: jurplel/install-qt-action@a9c63c7c123f3069cff414e7e482d95dfa9d8125 # v4.4.1
@@ -199,22 +231,41 @@ jobs:
             qtpdf
 
       - name: Build and package
-        shell: bash
+        shell: cmd
         env:
           RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
         run: |
-          set -euo pipefail
-          version="${RELEASE_TAG#v}"
-          mkdir -p build
+          setlocal EnableDelayedExpansion
+          set "VERSION=%RELEASE_TAG:v=%"
+          mkdir build
           cd build
-          qmake ../kitsas/kitsas.pro -spec win32-msvc "CONFIG+=release"
+          qmake ..\kitsas\kitsas.pro -spec win32-msvc "CONFIG+=release"
+          if errorlevel 1 exit /b 1
           nmake
-          exe="$(find . -type f -name 'kiswaspg.exe' | head -n 1)"
-          test -n "$exe"
-          windeployqt --release --compiler-runtime "$exe"
-          python -c 'import os, shutil, sys; shutil.make_archive(sys.argv[1], "zip", sys.argv[2])' \
-            "$GITHUB_WORKSPACE/KiswasPG-${version}-windows-x64" \
-            "$(dirname "$exe")"
+          if errorlevel 1 exit /b 1
+          if not exist release\kiswaspg.exe (
+            if not exist kiswaspg.exe (
+              echo kiswaspg.exe not found
+              exit /b 1
+            )
+            set "EXE=kiswaspg.exe"
+          ) else (
+            set "EXE=release\kiswaspg.exe"
+          )
+          windeployqt --release --compiler-runtime "!EXE!"
+          if errorlevel 1 exit /b 1
+          rem Drop unused SQL plugins that need libraries we do not ship.
+          if exist release\sqldrivers (
+            del /q release\sqldrivers\qsqlmimer.dll 2>nul
+            del /q release\sqldrivers\qsqlodbc.dll 2>nul
+            del /q release\sqldrivers\qsqlmysql.dll 2>nul
+            del /q release\sqldrivers\qsqloci.dll 2>nul
+            del /q release\sqldrivers\qsqlibase.dll 2>nul
+          )
+          powershell -NoProfile -Command "Compress-Archive -Path 'release\*' -DestinationPath '%GITHUB_WORKSPACE%\KiswasPG-%VERSION%-windows-x64.zip' -Force"
+          if errorlevel 1 (
+            powershell -NoProfile -Command "Compress-Archive -Path '.\*' -DestinationPath '%GITHUB_WORKSPACE%\KiswasPG-%VERSION%-windows-x64.zip' -Force"
+          )
 
       - name: Attach to GitHub release
         shell: bash
@@ -228,9 +279,8 @@ jobs:
           test -f "$asset"
           if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             gh release create "$RELEASE_TAG" \
-              --target "$RELEASE_TAG" \
+              --verify-tag \
               --title "Kiswas PG ${version}" \
-              --notes "$(printf '%s\n' "Kiswas PG ${version}" "" "Linux, macOS and Windows binaries. macOS and Windows packages are unsigned.")" \
-              || true
+              --notes "$(printf '%s\n' "Kiswas PG ${version}" "" "Linux, macOS and Windows binaries. macOS and Windows packages are unsigned.")"
           fi
           gh release upload "$RELEASE_TAG" "$asset" --clobber
