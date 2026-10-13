@@ -76,9 +76,10 @@ jobs:
         run: |
           set -euo pipefail
           version="${RELEASE_TAG#v}"
-          # Unused SQL plugins pull in missing system libraries (Mimer, ODBC, …).
-          # Keep SQLite and PostgreSQL; drop the rest before linuxdeploy-plugin-qt runs.
+          # Drop optional plugins that pull in libraries we do not ship.
+          # Keep SQLite + PostgreSQL SQL drivers; keep the poll position plugin.
           rm -f "$QT_ROOT_DIR/plugins/sqldrivers"/libqsql{mimer,odbc,mysql,oci,ibase}.so
+          rm -f "$QT_ROOT_DIR/plugins/position"/libqtposition_nmea.so
 
           tools="$RUNNER_TEMP/linuxdeploy"
           mkdir -p "$tools"
