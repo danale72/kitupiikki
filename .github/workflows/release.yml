@@ -89,12 +89,16 @@ jobs:
           chmod +x "$tools"/*.AppImage
           export PATH="$tools:$PATH"
 
+          # Desktop file has Icon=kitsas; linuxdeploy requires a kitsas.png basename.
+          icon="$RUNNER_TEMP/kitsas.png"
+          cp "$GITHUB_WORKSPACE/kitsas/pic/Possu64.png" "$icon"
+
           mkdir -p dist
           cd dist
           linuxdeploy-x86_64.AppImage \
             --appdir AppDir \
             -e "$GITHUB_WORKSPACE/build/kiswaspg" \
-            -i "$GITHUB_WORKSPACE/kitsas/pic/Possu64.png" \
+            -i "$icon" \
             -d "$GITHUB_WORKSPACE/kitsas.desktop" \
             -l /usr/lib/x86_64-linux-gnu/libssl.so.3 \
             -l /usr/lib/x86_64-linux-gnu/libcrypto.so.3 \
