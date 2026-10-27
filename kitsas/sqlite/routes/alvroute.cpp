@@ -17,6 +17,7 @@
 #include "alvroute.h"
 #include "db/tositetyyppimodel.h"
 
+#include <QDate>
 #include <QJsonDocument>
 
 AlvRoute::AlvRoute(SqlModel *model)

@@ -1,0 +1,8 @@
+<RCC>
+  <qresource prefix="/tr">
+    <file alias="kitsas_en.qm">@KITSAS_EN@</file>
+    <file alias="kitsas_sv.qm">@KITSAS_SV@</file>
+    <file alias="qtbase_fi.qm">@QTBASE_FI@</file>
+    <file alias="qtbase_sv.qm">@QTBASE_SV@</file>
+  </qresource>
+</RCC>
