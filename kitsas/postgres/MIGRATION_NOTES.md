@@ -419,6 +419,19 @@ one-time check result for older declarations that predate fingerprints. No
 schema change: it all lives in the existing `Tosite.json` text column. Covered
 by `dbparity`'s `route_alvIlmoituksenMuokkausTunnistetaan`.
 
+
+### 8. New-book `AlvAlkaa` setting stored with literal quotes on Postgres (OPEN)
+
+Found 2026-11-09 by `dbparity`'s
+`uusiKirjanpito_velhonMuotoisillaTiedoillaTilikaudetOvatEhjat` (Linux,
+Qt 6.11.1, Postgres 16). With wizard-shaped init data (`AlvAlkaa` and
+`TilinavausPvm` both `QDate`), SQLite stores `Asetus.arvo = 2026-01-01` for
+`AlvAlkaa` while Postgres stores `'2026-01-01'`, including the single quotes.
+`TilinavausPvm` comes out unquoted on both backends, so it is not simply
+QPSQL's `QDate` binding in `SqlAlustaja::aseta`; the write path for `AlvAlkaa`
+still needs to be traced. `AsetusModel::pvm("AlvAlkaa")` cannot parse the
+quoted value, so a new Postgres book would lose its VAT start date.
+
 ## Schema differences to account for in a migration tool
 
 ### Auto-increment: `AUTOINCREMENT` (SQLite) vs `GENERATED ... AS IDENTITY` (Postgres)

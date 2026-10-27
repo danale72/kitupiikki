@@ -2,9 +2,7 @@
 # Host port 5433 avoids clashing with an existing server on 5432.
 #
 #   docker compose up -d postgres
-#   mkdir -p build-tests/dbparity && cd build-tests/dbparity
-#   qmake ../../unittest/dbparity/dbparity.pro && make
-#   QT_QPA_PLATFORM=offscreen KITSAS_PG_PORT=5433 KITSAS_REQUIRE_POSTGRES=1 ./dbparity
+#   KITSAS_PG_PORT=5433 KITSAS_REQUIRE_POSTGRES=1 meson test -C build dbparity --print-errorlogs
 #
 # Without the compose plugin:
 #   docker run -d --name kitsas-parity-pg \

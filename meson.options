@@ -1,0 +1,13 @@
+option(
+  'use_zip',
+  type: 'feature',
+  value: 'auto',
+  description: 'Archive export via libzip (defines USE_ZIPLIB when enabled)',
+)
+
+option(
+  'qt_translations_dir',
+  type: 'string',
+  value: '',
+  description: 'Directory with qtbase_fi.qm and qtbase_sv.qm. Empty asks qmake.',
+)

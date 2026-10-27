@@ -69,8 +69,9 @@ AlvLaskelmaTest::~AlvLaskelmaTest()
 }
 
 void AlvLaskelmaTest::initTestCase() {
-    char *argv[] = {"Test"};
-    int argc = 1;
+    static char appName[] = "Test";
+    static char *argv[] = {appName, nullptr};
+    static int argc = 1;
     new QApplication(argc, argv);
     Kielet::alustaKielet(":/tr/tulkki.json");
     kp()->asetaInstanssi(new Kirjanpito());
