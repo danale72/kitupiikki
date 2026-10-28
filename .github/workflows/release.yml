@@ -26,6 +26,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             build-essential \
+            meson \
+            ninja-build \
+            pkg-config \
             file \
             wget \
             patchelf \
@@ -63,11 +66,9 @@ jobs:
       - name: Build Kitsas
         run: |
           set -euo pipefail
-          mkdir -p build
-          cd build
-          qmake ../kitsas/kitsas.pro -spec linux-g++ "CONFIG+=release"
-          make -j"$(nproc)"
-          test -x kiswaspg
+          meson setup build --buildtype=release
+          meson compile -C build
+          test -x build/kiswaspg
 
       - name: Package AppImage
         env:
@@ -146,8 +147,8 @@ jobs:
             qt5compat
             qtpdf
 
-      - name: Install libpq
-        run: brew install libpq
+      - name: Install libpq and Meson
+        run: brew install libpq meson ninja
 
       - name: Build and package
         env:
@@ -158,21 +159,9 @@ jobs:
           # Drop SQL plugins that need libraries we do not ship.
           rm -f "$QT_ROOT_DIR/plugins/sqldrivers"/libqsql{mimer,odbc}.dylib
 
-          mkdir -p build-macos
-          cd build-macos
-          qmake ../kitsas/kitsas.pro -spec macx-xcode \
-            "LIBS+=-L$(brew --prefix libpq)/lib -lpq" \
-            "INCLUDEPATH+=$(brew --prefix libpq)/include"
-          xcodebuild \
-            -project kiswaspg.xcodeproj \
-            -target kiswaspg \
-            -configuration Release \
-            -destination 'generic/platform=macOS' \
-            SYMROOT="$PWD/build" \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY=-
-          app="build/Release/kiswaspg.app"
+          meson setup build-macos --buildtype=release
+          meson compile -C build-macos
+          app="build-macos/kiswaspg.app"
           test -d "$app"
           # macdeployqt exits non-zero when optional SQL plugin deps are missing;
           # the app is still usable after we prune broken plugins.
@@ -242,35 +231,32 @@ jobs:
         run: |
           setlocal EnableDelayedExpansion
           set "VERSION=%RELEASE_TAG:v=%"
-          mkdir build
-          cd build
-          qmake ..\kitsas\kitsas.pro -spec win32-msvc "CONFIG+=release"
+          python -m pip install meson ninja
           if errorlevel 1 exit /b 1
-          nmake
+          for /f "delims=" %%i in ('python -c "import sysconfig; print(sysconfig.get_path('scripts'))"') do set "PATH=%%i;!PATH!"
+          meson setup build --buildtype=release
           if errorlevel 1 exit /b 1
-          if not exist release\kiswaspg.exe (
-            if not exist kiswaspg.exe (
-              echo kiswaspg.exe not found
-              exit /b 1
-            )
-            set "EXE=kiswaspg.exe"
-          ) else (
-            set "EXE=release\kiswaspg.exe"
+          meson compile -C build
+          if errorlevel 1 exit /b 1
+          if not exist build\kiswaspg.exe (
+            echo kiswaspg.exe not found
+            exit /b 1
           )
-          windeployqt --release --compiler-runtime "!EXE!"
+          mkdir package
+          copy /y build\kiswaspg.exe package\kiswaspg.exe
+          if errorlevel 1 exit /b 1
+          windeployqt --release --compiler-runtime package\kiswaspg.exe
           if errorlevel 1 exit /b 1
           rem Drop unused SQL plugins that need libraries we do not ship.
-          if exist release\sqldrivers (
-            del /q release\sqldrivers\qsqlmimer.dll 2>nul
-            del /q release\sqldrivers\qsqlodbc.dll 2>nul
-            del /q release\sqldrivers\qsqlmysql.dll 2>nul
-            del /q release\sqldrivers\qsqloci.dll 2>nul
-            del /q release\sqldrivers\qsqlibase.dll 2>nul
+          if exist package\sqldrivers (
+            del /q package\sqldrivers\qsqlmimer.dll 2>nul
+            del /q package\sqldrivers\qsqlodbc.dll 2>nul
+            del /q package\sqldrivers\qsqlmysql.dll 2>nul
+            del /q package\sqldrivers\qsqloci.dll 2>nul
+            del /q package\sqldrivers\qsqlibase.dll 2>nul
           )
-          powershell -NoProfile -Command "Compress-Archive -Path 'release\*' -DestinationPath '%GITHUB_WORKSPACE%\KiswasPG-%VERSION%-windows-x64.zip' -Force"
-          if errorlevel 1 (
-            powershell -NoProfile -Command "Compress-Archive -Path '.\*' -DestinationPath '%GITHUB_WORKSPACE%\KiswasPG-%VERSION%-windows-x64.zip' -Force"
-          )
+          powershell -NoProfile -Command "Compress-Archive -Path 'package\*' -DestinationPath '%GITHUB_WORKSPACE%\KiswasPG-%VERSION%-windows-x64.zip' -Force"
+          if errorlevel 1 exit /b 1
 
       - name: Attach to GitHub release
         shell: bash

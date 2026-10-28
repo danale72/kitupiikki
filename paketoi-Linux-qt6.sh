@@ -8,16 +8,12 @@ VERSION=6.0.0
 LIBSSLPATH=/usr/lib/x86_64-linux-gnu/libssl.so.3
 LIBCRYPTOPATH=/usr/lib/x86_64-linux-gnu/libcrypto.so.3
 
-export QMAKE=$QMAKE
+export PATH="$(dirname "$QMAKE"):$PATH"
 
-
-rm -R $BUILDIR
-mkdir -p $BUILDIR
-cd $BUILDIR
-
-$QMAKE ../kitsas/kitsas.pro -spec linux-g++ "CONFIG+=release" && make qmake_all
-
-make -j 20
+rm -rf "$BUILDIR"
+meson setup "$BUILDIR" --buildtype=release
+meson compile -C "$BUILDIR"
+cd "$BUILDIR"
 
 wget https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
 

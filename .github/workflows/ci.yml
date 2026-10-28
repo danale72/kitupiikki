@@ -14,14 +14,40 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - name: Install Qt 6 and build tools
+      - name: Install system libraries
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             build-essential \
-            qt6-base-dev \
-            qt6-base-dev-tools \
-            libgl-dev
+            meson \
+            ninja-build \
+            pkg-config \
+            libgl-dev \
+            libxkbcommon-x11-0 \
+            libxcb-cursor0 \
+            libxcb-icccm4 \
+            libxcb-image0 \
+            libxcb-keysyms1 \
+            libxcb-randr0 \
+            libxcb-render-util0 \
+            libxcb-shape0 \
+            libxcb-xinerama0 \
+            libnss3 \
+            libnspr4 \
+            libdbus-1-3 \
+            libasound2t64
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@a9c63c7c123f3069cff414e7e482d95dfa9d8125 # v4.4.1
+        with:
+          version: "6.7.3"
+          cache: true
+          modules: >-
+            qtwebengine
+            qtwebchannel
+            qtpositioning
+            qt5compat
+            qtpdf
 
       - name: Build and run unit tests
         env:
@@ -29,26 +55,8 @@ jobs:
         run: |
           set -euo pipefail
           qmake6 -v
-          tests=(
-            unittest/eurotest/eurotest.pro
-            unittest/viitetesti/viitetesti.pro
-            unittest/ValidatorTest/ValidatorTest.pro
-            unittest/KieliTesti/KieliTesti.pro
-            unittest/tositerivitesti/tositerivitesti.pro
-            unittest/liitecachetest/liitecachetest.pro
-          )
-          for pro in "${tests[@]}"; do
-            name="$(basename "$pro" .pro)"
-            echo "::group::Build and run $name"
-            mkdir -p "build-tests/$name"
-            (
-              cd "build-tests/$name"
-              qmake6 "../../$pro" -spec linux-g++ "CONFIG+=release"
-              make -j"$(nproc)"
-              "./$name"
-            )
-            echo "::endgroup::"
-          done
+          meson setup build --buildtype=release
+          meson test -C build --suite unit --print-errorlogs
 
   db-parity:
     name: SQLite vs PostgreSQL parity
@@ -83,6 +91,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             build-essential \
+            meson \
+            ninja-build \
+            pkg-config \
             libzip-dev \
             libgl-dev \
             libpq5 \
@@ -116,11 +127,8 @@ jobs:
       - name: Build and run dbparity
         run: |
           set -euo pipefail
-          mkdir -p build-tests/dbparity
-          cd build-tests/dbparity
-          qmake ../../unittest/dbparity/dbparity.pro -spec linux-g++ "CONFIG+=release"
-          make -j"$(nproc)"
-          ./dbparity
+          meson setup build --buildtype=release
+          meson test -C build --suite dbparity --print-errorlogs
 
   build:
     name: Build Kitsas
@@ -133,6 +141,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             build-essential \
+            meson \
+            ninja-build \
+            pkg-config \
             libzip-dev \
             libgl-dev \
             libxkbcommon-x11-0 \
@@ -161,25 +172,31 @@ jobs:
             qt5compat
             qtpdf
 
-      - name: Build Kitsas
+      - name: Configure
         run: |
           set -euo pipefail
-          mkdir -p build
-          cd build
-          qmake ../kitsas/kitsas.pro -spec linux-g++ "CONFIG+=release"
-          make -j"$(nproc)"
-          test -x kiswaspg
+          meson setup build --buildtype=release
 
-      - name: Build and run stability tests
+      - name: Generate CycloneDX SBOM
+        run: |
+          set -euo pipefail
+          python3 tools/sbom/meson_to_cyclonedx.py build -o build/sbom.cdx.json | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: sbom.cdx.json
+          path: build/sbom.cdx.json
+          if-no-files-found: error
+
+      - name: Build Kitsas and run stability tests
         env:
           QT_QPA_PLATFORM: offscreen
         run: |
           set -euo pipefail
-          mkdir -p build-tests/vakaustesti
-          cd build-tests/vakaustesti
-          qmake ../../unittest/vakaustesti/vakaustesti.pro -spec linux-g++ "CONFIG+=release"
-          make -j"$(nproc)"
-          ./vakaustesti
+          meson compile -C build
+          test -x build/kiswaspg
+          meson test -C build --suite vakaus --print-errorlogs
 
   build-macos:
     name: Build Kitsas (macOS)
@@ -203,35 +220,28 @@ jobs:
             qt5compat
             qtpdf
 
-      - name: Generate Xcode project and build
+      - name: Install Meson
+        run: brew install meson ninja
+
+      - name: Build
         run: |
           set -euo pipefail
           qmake -v
-          mkdir -p build-macos
-          cd build-macos
-          qmake ../kitsas/kitsas.pro -spec macx-xcode
-          xcodebuild \
-            -project kiswaspg.xcodeproj \
-            -target kiswaspg \
-            -configuration Release \
-            -destination 'generic/platform=macOS' \
-            SYMROOT="$PWD/build" \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY=-
-          test -d build/Release/kiswaspg.app
+          meson setup build-macos --buildtype=release
+          meson compile -C build-macos
+          test -d build-macos/kiswaspg.app
 
       - name: Bundle Qt frameworks and package ZIP
         run: |
           set -euo pipefail
-          app="build-macos/build/Release/kiswaspg.app"
+          app="build-macos/kiswaspg.app"
           test -d "$app"
           macdeployqt "$app"
-          ditto -c -k --keepParent "$app" build-macos/build/Release/kiswaspg-macOS.zip
+          ditto -c -k --keepParent "$app" build-macos/kiswaspg-macOS.zip
 
       - name: Upload kiswaspg-macOS
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: kiswaspg-macOS
-          path: build-macos/build/Release/kiswaspg-macOS.zip
+          path: build-macos/kiswaspg-macOS.zip
           if-no-files-found: error
