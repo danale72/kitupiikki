@@ -8,47 +8,46 @@ Kitsas (formerly Kitupiikki) — a Finnish bookkeeping/accounting desktop app wr
 
 ## Build
 
-Qt 6.4+ required (6.7/6.8 for full feature set: QtWidgets, QtPdf, QtWebEngine, qt5compat). Uses qmake, not CMake.
+Qt 6.4+ required (6.7/6.8 for full feature set: QtWidgets, QtPdf, QtWebEngine, qt5compat). Meson 1.3+ and Ninja. Meson finds Qt with `qmake` (`method: 'config-tool'`), so Qt's `bin` directory has to be on `PATH` (`qmake6` or `qmake`). PDF handling is Qt Pdf, not Poppler.
 
 ```
-qmake kitsasproject.pro && make qmake_all   # whole workspace: app + unit tests
-make
+meson setup build
+meson compile -C build
 ```
 
-To build just the app:
-```
-qmake kitsas/kitsas.pro -spec <spec> "CONFIG+=release"
-make
-```
+The app binary is `build/kiswaspg` (`build/kiswaspg.exe` on Windows). On macOS, `meson compile` also writes `build/kiswaspg.app` for `macdeployqt`. Release builds pass `--buildtype=release`.
 
-Linux also needs `libzip-dev`; `libpoppler-qt5-dev` is used for PDF handling on Linux.
+Linux archive export uses libzip when pkg-config can see it (`-Duse_zip=auto`, the default). Install `libzip-dev` and `pkg-config`. `-Duse_zip=enabled` fails configure if the library is missing; `-Duse_zip=disabled` builds without `USE_ZIPLIB`. Qt's own `qtbase_fi.qm` is taken from `qmake -query QT_INSTALL_TRANSLATIONS` unless `-Dqt_translations_dir=` is set. Swedish uses `qtbase_sv.qm` when the SDK has it, and `qt_sv.qm` on Qt 6.7, where that catalog is the one that exists.
 
-Packaging scripts at the repo root (`paketoi-*.sh`, `kaanna-*.sh`) build/translate release artifacts for Linux/Windows/mac cross-builds — read one before using it, they assume specific toolchains (mxe, qt6, etc.) not necessarily present locally.
+`paketoi-Linux-qt6.sh` configures with Meson and still packs the AppImage with linuxdeploy. The older `paketoi-*.sh` / `kaanna-*.sh` scripts (including the MXE cross build) still call qmake and are not part of this build. `testit/` is the old manual harness: its `.pro` files still include the removed qmake source lists, so they are not built. `mac/update_project.sh` no longer generates an Xcode project.
 
 ### Local macOS dev builds (Kitsas PG)
 
-The maintainer's local builds live in git-ignored dirs at the repo root, configured with Qt 6.7.3 at `~/Qt/6.7.3/macos`:
+The maintainer's local builds live in git-ignored dirs at the repo root, configured with Qt 6.7.3 at `~/Qt/6.7.3/macos`. Put that `bin` on `PATH`, and point pkg-config at Homebrew libzip when archive export should be on:
 
-- `build-pg/` — the app (debug, Postgres flavour). qmake line (see the `# Command:` header of its `Makefile`): `qmake -o Makefile ../kitsas/kitsas.pro 'DEFINES+=KITSAS_PG_BUILD USE_ZIPLIB' CONFIG+=debug CONFIG-=release QMAKE_CXXFLAGS+=-Wno-error=implicit-function-declaration 'LIBS+=-lzip -L/opt/homebrew/lib' 'QMAKE_LIBS_OPENGL=-framework OpenGL'`, then `CPATH=/opt/homebrew/include make -j8` (the qmake line adds no include path for Homebrew's `zip.h`, so any recompile of `arkisto/arkistosivu.cpp` fails with `'zip.h' file not found` without `CPATH`). Only rebuild when asked (see Notes).
-- `build-dbparity/` — the `dbparity` test: `qmake -o Makefile ../unittest/dbparity/dbparity.pro QMAKE_CXXFLAGS+=-Wno-error=implicit-function-declaration 'QMAKE_LIBS_OPENGL=-framework OpenGL'`.
-- `QMAKE_LIBS_OPENGL=-framework OpenGL` is required on the current macOS SDK: Qt 6.7.3 otherwise links the removed `AGL` framework (`ld: framework 'AGL' not found`).
-- If qmake/make says "The macosx platform SDK has been changed … wipe the build directory including .qmake.stash", do exactly that (`rm -rf` the build dir, re-run qmake). A stale test Makefile can also reference generated files that no longer exist (e.g. `ui_trkisto.h`) — same remedy.
-- After a successful `build-pg` build, install it: quit `/Applications/Kitsas_PG.app` if running, `rm` then `cp` `build-pg/kiswaspg.app/Contents/MacOS/kiswaspg` (the qmake `TARGET` is `kiswaspg` since PR #18; the bundle's `CFBundleExecutable` is still `kitsas`, so keep that destination name) over `/Applications/Kitsas_PG.app/Contents/MacOS/kitsas`, `chmod 755`, then `codesign --force --sign - /Applications/Kitsas_PG.app` (the swapped binary invalidates the signature and arm64 refuses to launch it), and delete the throwaway `build-pg/kiswaspg.app`. The bundle's `PlugIns/sqldrivers` (QPSQL) and `Frameworks/libpq.5.dylib` were patched in by hand and must survive — replace only the executable.
+```
+export PATH="$HOME/Qt/6.7.3/macos/bin:$PATH"
+export PKG_CONFIG_PATH="$(brew --prefix libzip)/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+meson setup build-pg
+meson compile -C build-pg
+```
+
+Only rebuild when asked (see Notes). `build-pg/kiswaspg` is the debug binary; `build-pg/kiswaspg.app` is the bundle wrapper. dbparity is the same build: `meson test -C build-pg dbparity`.
+
+- After a successful `build-pg` build, install it: quit `/Applications/Kitsas_PG.app` if running, `rm` then `cp` `build-pg/kiswaspg` over `/Applications/Kitsas_PG.app/Contents/MacOS/kitsas` (that bundle's `CFBundleExecutable` is still `kitsas`; the Meson binary is `kiswaspg`), `chmod 755`, then `codesign --force --sign - /Applications/Kitsas_PG.app` (the swapped binary invalidates the signature and arm64 refuses to launch it). The bundle's `PlugIns/sqldrivers` (QPSQL) and `Frameworks/libpq.5.dylib` were patched in by hand and must survive — replace only the executable. Do not replace the bundle with `build-pg/kiswaspg.app`; that wrapper has no deployed Qt frameworks.
 
 ## Tests
 
-Each unit test is its own qmake project under `unittest/`; there's no single "run all tests" command — build and run each `.pro` individually (mirrors `.github/workflows/ci.yml`):
+Tests are Meson targets in the same build as the app. `meson test` sets `QT_QPA_PLATFORM=offscreen`. Suites: `unit` (euro, viite, validator, kieli, tositerivi, liitecache), `dbparity`, `vakaus`, `alv`.
 
 ```
-mkdir -p build-tests/<name> && cd build-tests/<name>
-qmake ../../unittest/<name>/<name>.pro -spec linux-g++ "CONFIG+=release"
-make -j
-./<name>
+meson test -C build --print-errorlogs
+meson test -C build --suite unit --print-errorlogs
 ```
 
-Test projects: `eurotest`, `viitetesti`, `ValidatorTest`, `KieliTesti`, `tositerivitesti`, `liitecachetest`, `vakaustesti`, `dbparity`, `AlvLaskelmaTesti`. Most link `QT += testlib` only; `dbparity` and `vakaustesti` additionally pull in `kitsas/sources.pri` (the whole app's sources) via `unittest/apptest.pri`, since they exercise real app classes (`dbparity` real `SQLiteModel`/`PostgresModel` instances).
+`dbparity`, `vakaustesti`, and `AlvLaskelmaTesti` link the static `kitsas_core` library (the app sources, without `main.cpp`). The smaller tests compile only the files they need.
 
-Headless/CI runs need `QT_QPA_PLATFORM=offscreen`.
+Headless runs that execute a test binary directly still need `QT_QPA_PLATFORM=offscreen`.
 
 ### dbparity (SQLite vs PostgreSQL backend parity)
 

@@ -57,15 +57,12 @@ ja libzip
 
 ## Kääntäminen
 
-Kiswas PG käyttää QMakea. Kääntäminen on helpointa tehdä [QtCreatorin](http://doc.qt.io/qtcreator/) ympäristössä. Komentorivillä koko työtila (sovellus + yksikkötestit) kääntyy komennoilla
+Kiswas PG käyttää Mesonia (1.3+) ja Ninjaa. Qt:n `bin`-hakemiston on oltava `PATH`-polussa, jotta `qmake6` löytyy.
 
-    qmake kitsasproject.pro && make qmake_all
-    make
+    meson setup build --buildtype=release
+    meson compile -C build
 
-Pelkkä sovellus:
-
-    qmake kitsas/kitsas.pro -spec linux-g++ "CONFIG+=release"
-    make
+Sovellus on `build/kiswaspg`. Testit: `meson test -C build --print-errorlogs`. Linuxilla zip-vienti kytkeytyy päälle, kun `pkg-config` löytää libzipin.
 
 
 ## Ylläpitäjä
