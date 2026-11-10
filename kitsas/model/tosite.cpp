@@ -676,5 +676,6 @@ std::map<int,QString> Tosite::avaimet__ = {
     { KOMMENTTI, "kommentti"},
     { KOMMENTIT, "kommentit"},
     { TILIOTERIVI, "tilioterivi"},
-    { MAVENTAID, "maventaid"}
+    { MAVENTAID, "maventaid"},
+    { VERO, "vero"}
 };

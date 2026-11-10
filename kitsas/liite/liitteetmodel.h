@@ -57,6 +57,7 @@ public:
 
     void liitteenTilaVaihtui(Liite::LiiteTila uusiTila);
     void ocr(const QVariantMap& data);
+    void ilmoitaTallennusVirhe(int virhe, const QString& selitys) { emit tallennusVirhe(virhe, selitys); }
 
     bool canDropMimeData(const QMimeData* data, Qt::DropAction action, int row, int column, const QModelIndex &parent) const override;
     bool dropMimeData(const QMimeData* data, Qt::DropAction action, int row, int column, const QModelIndex &parent) override;
@@ -86,6 +87,8 @@ signals:
     void tuonti(const QVariantMap& data);
     void ocrKaynnissa(bool onko);
     void hakuVirhe(int virhe, int liiteId);
+    /// Liitteen tallennus tositteelle epäonnistui
+    void tallennusVirhe(int virhe, const QString& selitys);
 
 private:
     QList<Liite*> liitteet_;
