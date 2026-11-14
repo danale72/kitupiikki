@@ -25,7 +25,18 @@ public:
     AsetuksetRoute(SqlModel *model);
 
     QVariant get(const QString &polku, const QUrlQuery &urlquery = QUrlQuery()) override;
+    QVariant post(const QString &polku, const QVariant &data) override;
     QVariant patch(const QString &polku, const QVariant &data) override;
+    QVariant doDelete(const QString &polku) override;
+
+private:
+    /// Alv-lähetyksen varaus: Asetus-rivin pääavain estää kahta yhteyttä lähettämästä
+    /// saman kauden ilmoitusta yhtä aikaa. Ei muuta tietokannan rakennetta.
+    QVariant varaaLahetys(const QVariant &data);
+    /// Palauttaa varauksen iän; tunnusta ei vuodata. Jos tunnus annetaan, mukana oma=true/false.
+    QVariant haeVaraus(const QString &viite, const QString &tunnus = QString());
+    QVariant vapautaVaraus(const QString &viite, const QString &tunnus);
+    static QString varausAvain(const QString &viite);
 };
 
 #endif // ASETUKSETROUTE_H

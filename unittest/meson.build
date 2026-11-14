@@ -150,6 +150,30 @@ liitecachetest = executable(
 )
 test('liitecachetest', liitecachetest, suite: 'unit', env: test_env)
 
+qt_net_test = dependency('qt6', modules: ['Core', 'Network', 'Test'], method: qt_method)
+
+vero_moc = qt6.compile_moc(
+  headers: files('../kitsas/vero/veroclient.h'),
+  sources: files('verotesti/tst_verotesti.cpp'),
+  include_directories: kitsas_inc,
+  dependencies: qt_net_test,
+  method: qt_method,
+)
+verotesti = executable(
+  'verotesti',
+  files(
+    'verotesti/tst_verotesti.cpp',
+    '../kitsas/vero/veroapu.cpp',
+    '../kitsas/vero/veroasetukset.cpp',
+    '../kitsas/vero/veroclient.cpp',
+  ),
+  vero_moc,
+  include_directories: kitsas_inc,
+  dependencies: qt_net_test,
+  build_rpath: qt_build_rpath,
+)
+test('verotesti', verotesti, suite: 'unit', env: test_env)
+
 kitsas_src = (meson.project_source_root() / 'kitsas').replace('\\', '/')
 
 dbparity_moc = qt6.compile_moc(

@@ -188,6 +188,7 @@ void Liite::tallennusVirhe(int virhe, const QString selitys)
     QMessageBox::critical(nullptr, tr("Liitteen tallentaminen epäonnistui"),
                                    tr("Liitteen tallentamisessa tapahtui virhe %1 : %2")
                           .arg(virhe).arg(selitys));
+    model_->ilmoitaTallennusVirhe(virhe, selitys);
 }
 
 void Liite::vaihdaTila(LiiteTila uusiTila)

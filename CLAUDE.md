@@ -96,6 +96,7 @@ Kitsas PG's server-login customer list (`PostgresModel::listaaTietokannat`, `kit
 - `arkisto/` / `arkistoija/` — document/attachment archive.
 - `tuonti/` — importers (CSV, bank statement PDFs via `pdftiliote/`, Tesseract OCR, payroll).
 - `pilvi/` — Kitsas Oy cloud-service client integration.
+- `vero/` — Vero (Finnish Tax Administration) API on behalf of the open book: fetches letters and filed VAT returns, files VAT returns (`FileVATReturn` is batch processing: HTTP 200 = accepted, not processed). Local books only (`SqlModel`). Exchanged messages are stored as `MUISTIO` vouchers with a `vero` map in `Tosite.json`, keyed by `Tosite.viite` (`FVR<yyyymmdd>` sent VAT return, `GFV<yyyymmdd>` received, `VKI<letter number>` letter), so no schema change. Certificate, key and software ids live in machine-local `QSettings` (`Vero/<testi|tuotanto>/...`), never in the book. `veroapu.{h,cpp}` is the pure helper layer (`unittest/verotesti`).
 - `maaritys/`, `uusikirjanpito/` — settings and the "new book" creation wizard (`uusivelho`).
 - `kieli/` — i18n/translation helpers; UI strings translated via `tr/kitsas_en.ts`, `tr/kitsas_sv.ts` (source language is Finnish).
 
