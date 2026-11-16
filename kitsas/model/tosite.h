@@ -63,7 +63,8 @@ public:
         KOMMENTIT,
         KOMMENTTI,
         TILIOTERIVI,
-        MAVENTAID
+        MAVENTAID,
+        VERO        ///< Verohallinnon kanssa vaihdetun sanoman tiedot (vero-kirjeet ja alv-ilmoitukset)
     };
 
     enum Virheet {

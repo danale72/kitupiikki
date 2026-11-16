@@ -50,6 +50,7 @@
 #include "laskutus/laskusivu.h"
 #include "kierto/kiertosivu.h"
 #include "alv/alvsivu.h"
+#include "vero/verosivu.h"
 #include "kirjaus/tallennettuwidget.h"
 #include "toimisto/hubtoimistosivu.h"
 #include "lisaosat/lisaosasivu.h"
@@ -66,6 +67,7 @@
 #include "tools/devtool.h"
 
 #include "sqlite/sqlitemodel.h"
+#include "sql/sqlmodel.h"
 #include "pilvi/pilvimodel.h"
 
 #include "saldodock/saldodock.h"
@@ -85,6 +87,7 @@ KitupiikkiIkkuna::KitupiikkiIkkuna(QWidget *parent) : QMainWindow(parent),
     maarityssivu( new MaaritysSivu()),
     arkistosivu( new ArkistoSivu()),
     alvsivu( new AlvSivu()),
+    verosivu( new VeroSivu()),
     lisaosaSivu( new LisaosaSivu(this)),    
     hubToimistoSivu(new HubToimistoSivu(this)),
     majavaSivu(new HubToimistoSivu(this, HubToimistoSivu::MAJAVA)),
@@ -143,6 +146,7 @@ KitupiikkiIkkuna::KitupiikkiIkkuna(QWidget *parent) : QMainWindow(parent),
 
     connect( selaussivu, &SelausWg::tositeValittu, this, &KitupiikkiIkkuna::naytaTosite );
     connect( kiertosivu, &KiertoSivu::tositeValittu, this, &KitupiikkiIkkuna::naytaTosite);
+    connect( verosivu, &VeroSivu::tositeValittu, this, [this] (int tositeid) { naytaTosite(tositeid); });
     connect( aloitussivu, &AloitusSivu::selaus, this, &KitupiikkiIkkuna::selaaTilia);
     connect( kirjaussivu, &KirjausSivu::palaaEdelliselleSivulle, this, &KitupiikkiIkkuna::palaaSivulta);
 
@@ -254,12 +258,17 @@ void KitupiikkiIkkuna::paivitaAktiivisuudet()
         sivuaktiot[KIERTOSIVU]->setVisible(kp()->yhteysModel()->onkoOikeutta(YhteysModel::KIERTO_LISAAMINEN | YhteysModel::KIERTO_SELAAMINEN | YhteysModel::KIERTO_HYVAKSYMINEN | YhteysModel::KIERTO_TARKASTAMINEN) );
         sivuaktiot[LISAOSASIVU]->setVisible( kp()->yhteysModel()->onkoOikeutta(YhteysModel::LISAOSA_KAYTTO));
         sivuaktiot[ALVSIVU]->setVisible(  kp()->asetukset()->onko("AlvVelvollinen") );
+        // Vero-asiointi tallentaa sanomat tositteina, joten se on käytössä vain paikallisissa kirjanpidoissa
+        const bool paikallinen = qobject_cast<SqlModel*>( kp()->yhteysModel() ) != nullptr;
+        sivuaktiot[VEROSIVU]->setVisible( paikallinen );
+        sivuaktiot[VEROSIVU]->setEnabled( paikallinen && kp()->yhteysModel()->onkoOikeutta( YhteysModel::ALV_ILMOITUS | YhteysModel::TOSITE_MUOKKAUS ));
 
     } else {
         for(int i=KIRJAUSSIVU; i < MAARITYSSIVU; i++ )
             sivuaktiot[i]->setEnabled(false);
         setWindowTitle(tr("Kitsas %1").arg(qApp->applicationVersion()));
         sivuaktiot[LISAOSASIVU]->setVisible(false);
+        sivuaktiot[VEROSIVU]->setVisible(false);
     }
 
     if( kp()->pilvi()->kayttajaPilvessa()) {
@@ -323,7 +332,8 @@ void KitupiikkiIkkuna::aktivoiSivu(QAction *aktio)
 void KitupiikkiIkkuna::naytaTosite(int tositeid, QList<int> lista, KirjausSivu::Takaisinpaluu paluu)
 {
     // valitseSivu( KIRJAUSSIVU );        
-    edellisetIndeksit.push( pino->currentIndex() == KIERTOSIVU ? KIERTOSIVU : SELAUSSIVU );
+    const int edellinen = pino->currentIndex();
+    edellisetIndeksit.push( edellinen == KIERTOSIVU || edellinen == VEROSIVU ? edellinen : SELAUSSIVU );
     pino->setCurrentWidget(kirjaussivu);
     nykysivu = kirjaussivu;
     kirjaussivu->naytaTosite(tositeid, -1, lista, paluu);
@@ -538,6 +548,7 @@ void KitupiikkiIkkuna::lisaaSivut()
     lisaaSivu(tr("Raportit"),":/pic/print.png",tr("Tulosta erilaisia raportteja"),"Ctrl+5", TULOSTESIVU, raporttisivu);
     lisaaSivu(tr("Tilikaudet"),":/pic/kirja64.png",tr("Tilinpäätös ja arkistot"),"Ctrl+6", ARKISTOSIVU, arkistosivu);
     lisaaSivu(tr("ALV"), ":/pic/vero64.png", tr("Arvonlisäveron ilmoittaminen"), "Ctrl+7",ALVSIVU, alvsivu );
+    lisaaSivu(tr("Vero"), ":/pic/verotilitys.png", tr("Verohallinnon kirjeet ja alv-ilmoituksen lähetys"), "Ctrl+0", VEROSIVU, verosivu );
     lisaaSivu(tr("Asetukset"),":/pic/ratas.png",tr("Kirjanpitoon liittyvät määritykset"),"Ctrl+8", MAARITYSSIVU, maarityssivu);
     lisaaSivu(tr("Lisäosat"), ":/pic/palat.svg", tr("Lisäosien hallinta"), "Ctrl+9", LISAOSASIVU, lisaosaSivu);
     lisaaSivu(tr("Toimisto"), ":/pic/pixaby/toimisto.svg", tr("Tilitoimistojen käyttäjien ja kirjanpitojen hallinta"), "Ctrl+F9", HUBTOIMISTOSIVU, hubToimistoSivu);

@@ -400,6 +400,32 @@ nameless upload removed) and `route_kirjanpidonLiiteLoytaaVanhanTosite0Rivin`
 `unittest/dbparity`.
 
 
+### 9. Reservation age on `Asetus.muokattu` (FIXED, kept dialect-specific on purpose)
+
+**Where:** `AsetuksetRoute` (`kitsas/sqlite/routes/asetuksetroute.cpp`), the
+VAT-send reservation row `VeroLahetys/<viite>`.
+
+**Cause:** the row's age has to come from the database clock, not the
+client's, so two users of the same book agree on whether a reservation is
+still in flight. SQLite and Postgres have no shared function for
+"seconds since a timestamp": SQLite uses `julianday('now') - julianday(muokattu)`,
+Postgres uses `EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - muokattu))`.
+
+**Do not** collapse those into one expression. A fresh reservation must
+read back as a few seconds old on both, and a row moved an hour into the
+past must read back as older than the 180-second takeover limit.
+Posting the same token again refreshes `muokattu` on both backends so a
+long token or POST call can keep its own lease; a different token still
+cannot take a fresh row. `route_veroLahetysvarausEstaaRinnakkaisen` checks both.
+
+**Hardening (2026-11):** takeover `UPDATE` includes the age predicate in the
+same statement (`EXTRACT(EPOCH …) >= 180` / SQLite `julianday` equivalent)
+and requires `numRowsAffected >= 1`, so a holder who renews between a
+stale age-read and the steal cannot lose a live lease (TOCTOU).
+`GET /asetukset/verovaraus/<viite>` no longer returns the lease token
+(only `ika`, and `oma` when `?tunnus=` is supplied); bulk `GET /asetukset`
+omits `VeroLahetys/*` rows so the token is not dumped into `AsetusModel`.
+
 ### Note: `Vienti.alvprosentti` (`numeric(5,2)`) reads back as a different type per backend
 
 Not a bug, but relevant to any route that keys or compares on the VAT rate:

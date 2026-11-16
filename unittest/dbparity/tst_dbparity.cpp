@@ -84,6 +84,8 @@ private slots:
     void route_saldotSisaltaaViisinumeroisenVelkatilin();
     void route_eratListaaAvoimetTaseEratMolemmissa();
     void route_alvIlmoituksenMuokkausTunnistetaan();
+    void route_veroTositeViiteJaJsonKulkevatMolemmissa();
+    void route_veroLahetysvarausEstaaRinnakkaisen();
 
     void tositeViennit_kaannettyOstoKirjaaVeronJaVahennyksenTilinValinnassa();
     void tositeViennit_kaannetynOstonPoistettuVeroEiPalaa();
@@ -1211,6 +1213,176 @@ bool DbParityTest::avaaKaannetynOstonKirjanpito()
     init.insert(QStringLiteral("tilit"), tilit);
     alustus.insert(QStringLiteral("init"), init);
     return db_.avaaSqlite(alustus) && kp()->onkoAlvVelvollinen(QDate(2019, 3, 1));
+}
+
+void DbParityTest::route_veroTositeViiteJaJsonKulkevatMolemmissa()
+{
+    // Vero-sanomat tallennetaan muistiotositteina: sanoman tunniste on Tosite.viite ja tiedot
+    // json-sarakkeen "vero"-avaimen alla (ei skeeman muutoksia). Viitteellä haku, json-rakenne
+    // sekä liitteen tallennus ja päivitys ilman kaksoiskappaleita pitää toimia samoin SQLitellä
+    // ja Postgresillä.
+    const auto toiminto = [this]() -> QVariant {
+        const QString viite = QStringLiteral("FVR20190630");
+        const QByteArray pyynto = "{\"BusinessId\":\"1234567-1\"}";
+
+        QVariantMap vero{
+            {QStringLiteral("suunta"), QStringLiteral("lahetetty")},
+            {QStringLiteral("tyyppi"), QStringLiteral("alv")},
+            {QStringLiteral("tila"), QStringLiteral("kasittelyssa")},
+            {QStringLiteral("lahetykset"), QVariantList{QVariantMap{
+                 {QStringLiteral("aika"), QStringLiteral("2019-07-01T10:00:00")},
+                 {QStringLiteral("http"), 200}}}},
+        };
+
+        QVariantMap tosite;
+        tosite.insert(QStringLiteral("pvm"), QDate(2019, 7, 1));
+        tosite.insert(QStringLiteral("tyyppi"), TositeTyyppi::MUISTIO);
+        tosite.insert(QStringLiteral("tila"), Tosite::KIRJANPIDOSSA);
+        tosite.insert(QStringLiteral("otsikko"), QStringLiteral("Alv-ilmoitus Verohallintoon"));
+        tosite.insert(QStringLiteral("viite"), viite);
+        tosite.insert(QStringLiteral("vero"), vero);
+        const int id = db_.kysy(QStringLiteral("/tositteet"), KpKysely::POST, tosite)
+                           .toMap().value(QStringLiteral("id")).toInt();
+        if (!QTest::qVerify(id > 0, "id > 0", "", __FILE__, __LINE__))
+            return {};
+
+        db_.lahetaTiedosto(QStringLiteral("/liitteet/%1").arg(id), pyynto,
+                           {{QStringLiteral("Filename"), QStringLiteral("FileVATReturn.json")},
+                            {QStringLiteral("Content-type"), QStringLiteral("text/plain")}});
+
+        // Haku viitteellä löytää tositteen, tuntematon viite ei löydä mitään
+        const QVariantList loydetyt = db_.kysy(QStringLiteral("/tositteet?viite=") + viite).toList();
+        if (!QTest::qVerify(loydetyt.count() == 1, "loydetyt.count() == 1", "", __FILE__, __LINE__))
+            return {};
+        const QVariantList tuntematon = db_.kysy(QStringLiteral("/tositteet?viite=FVR20190731")).toList();
+        if (!QTest::qVerify(tuntematon.isEmpty(), "tuntematon.isEmpty()", "", __FILE__, __LINE__))
+            return {};
+
+        // Vero-tiedot palautuvat sellaisenaan tositteen mukana, samoin liite
+        const QVariantMap luettu = db_.kysy(QStringLiteral("/tositteet/%1").arg(id)).toMap();
+        if (!QTest::qVerify(luettu.value(QStringLiteral("liitteet")).toList().count() == 1, "liite tallentui", "", __FILE__, __LINE__))
+            return {};
+        if (!QTest::qVerify(luettu.value(QStringLiteral("vero")).toMap() == vero, "vero roundtrip", "", __FILE__, __LINE__))
+            return {};
+
+        // Päivitys (uusi lähetys / käsitelty-tila) korvaa json:n eikä tee uutta tositetta
+        QVariantMap paivitetty = tosite;
+        QVariantMap uusiVero = vero;
+        uusiVero.insert(QStringLiteral("tila"), QStringLiteral("kasitelty"));
+        paivitetty.insert(QStringLiteral("vero"), uusiVero);
+        db_.kysy(QStringLiteral("/tositteet/%1").arg(id), KpKysely::PUT, paivitetty);
+
+        const QVariantList paivityksenJalkeen = db_.kysy(QStringLiteral("/tositteet?viite=") + viite).toList();
+        if (!QTest::qVerify(paivityksenJalkeen.count() == 1, "paivityksenJalkeen.count() == 1", "", __FILE__, __LINE__))
+            return {};
+        const QVariantMap uusiLuettu = db_.kysy(QStringLiteral("/tositteet/%1").arg(id)).toMap();
+        if (!QTest::qVerify(uusiLuettu.value(QStringLiteral("vero")).toMap().value(QStringLiteral("tila")).toString()
+                            == QStringLiteral("kasitelty"), "tila paivittyi", "", __FILE__, __LINE__))
+            return {};
+
+        // Tositteen loki (aikaleimat, järjestys samalla sekunnilla) vaihtelee ajosta toiseen,
+        // joten vertailuun otetaan vain Vero-sanoman kannalta olennaiset kentät
+        QVariantMap map;
+        map.insert(QStringLiteral("haku"), loydetyt);
+        map.insert(QStringLiteral("viite"), uusiLuettu.value(QStringLiteral("viite")));
+        map.insert(QStringLiteral("tila"), uusiLuettu.value(QStringLiteral("tila")));
+        map.insert(QStringLiteral("tyyppi"), uusiLuettu.value(QStringLiteral("tyyppi")));
+        map.insert(QStringLiteral("vero"), uusiLuettu.value(QStringLiteral("vero")));
+        QStringList liitteet;
+        for (const QVariant& liite : uusiLuettu.value(QStringLiteral("liitteet")).toList())
+            liitteet << liite.toMap().value(QStringLiteral("nimi")).toString();
+        map.insert(QStringLiteral("liitteet"), liitteet);
+        return map;
+    };
+    suoritaMolemmissa(toiminto);
+}
+
+void DbParityTest::route_veroLahetysvarausEstaaRinnakkaisen()
+{
+    // Saman kauden alv-lähetys varataan Asetus-rivin pääavaimella. Toinen varaus
+    // epäonnistuu niin kauan kuin ensimmäinen on tuore, vanhentuneen saa ottaa,
+    // ja vapautus onnistuu vain varauksen tunnuksella. Käyttäytyminen on sama
+    // molemmilla tietokannoilla, vaikka iän laskeva SQL on eri.
+    const auto toiminto = [this]() -> QVariant {
+        const QString viite = QStringLiteral("FVR20190630");
+        const auto varaa = [this, viite](const QString& tunnus, bool korvaa) {
+            return db_.kysy(QStringLiteral("/asetukset/verovaraus"), KpKysely::POST,
+                            QVariantMap{{QStringLiteral("viite"), viite},
+                                        {QStringLiteral("tunnus"), tunnus},
+                                        {QStringLiteral("korvaa"), korvaa}}).toMap();
+        };
+
+        const QVariantMap eka = varaa(QStringLiteral("aaa"), false);
+        const QVariantMap toka = varaa(QStringLiteral("bbb"), true);
+        const QVariantMap uudistus = varaa(QStringLiteral("aaa"), true);
+        const int ika = toka.value(QStringLiteral("ika")).toInt();
+        const bool tuore = ika >= 0 && ika < 120;
+
+        // GET ei palauta tunnusta; ?tunnus= kertoo vain onko pyytäjä omistaja.
+        // Yleinen asetusten GET ei vuodä VeroLahetys-rivejä.
+        const QVariantMap haku = db_.kysy(QStringLiteral("/asetukset/verovaraus/%1?tunnus=aaa").arg(viite)).toMap();
+        const QVariantMap asetukset = db_.kysy(QStringLiteral("/asetukset")).toMap();
+
+        QSqlQuery vanhenna(db_.sql());
+        const bool postgres = db_.sql().driverName().contains(QLatin1String("PSQL"), Qt::CaseInsensitive);
+        const bool vanheni = postgres
+                ? vanhenna.exec(QStringLiteral("UPDATE Asetus SET muokattu = CURRENT_TIMESTAMP - INTERVAL '1 hour' "
+                                              "WHERE avain='VeroLahetys/FVR20190630'"))
+                : vanhenna.exec(QStringLiteral("UPDATE Asetus SET muokattu = datetime('now', '-1 hour') "
+                                              "WHERE avain='VeroLahetys/FVR20190630'"));
+        if (!QTest::qVerify(vanheni, "vanheni", "", __FILE__, __LINE__))
+            return {};
+
+        // Atominen vanhenemisraja: omistaja uudistaa vanhennetun rivin ennen varastamista
+        // (TOCTOU: erillinen ikäluku olisi nähnyt rivin vanhana, UPDATE näkee tuoreen).
+        if (!QTest::qVerify(varaa(QStringLiteral("aaa"), true).value(QStringLiteral("varattu")).toBool(),
+                            "uudistaVanhennettu", "", __FILE__, __LINE__))
+            return {};
+        const QVariantMap estetty = varaa(QStringLiteral("bbb"), true);
+
+        const bool vanheni2 = postgres
+                ? vanhenna.exec(QStringLiteral("UPDATE Asetus SET muokattu = CURRENT_TIMESTAMP - INTERVAL '1 hour' "
+                                              "WHERE avain='VeroLahetys/FVR20190630'"))
+                : vanhenna.exec(QStringLiteral("UPDATE Asetus SET muokattu = datetime('now', '-1 hour') "
+                                              "WHERE avain='VeroLahetys/FVR20190630'"));
+        if (!QTest::qVerify(vanheni2, "vanheni2", "", __FILE__, __LINE__))
+            return {};
+
+        const QVariantMap vanha = varaa(QStringLiteral("ccc"), true);
+        const QVariantMap vaara = db_.kysy(QStringLiteral("/asetukset/verovaraus/%1/aaa").arg(viite), KpKysely::DELETE).toMap();
+        const QVariantMap oikea = db_.kysy(QStringLiteral("/asetukset/verovaraus/%1/ccc").arg(viite), KpKysely::DELETE).toMap();
+        const QVariantMap jalkeen = varaa(QStringLiteral("ddd"), false);
+
+        QVariantMap tulos;
+        tulos.insert(QStringLiteral("eka"), eka.value(QStringLiteral("varattu")).toBool());
+        tulos.insert(QStringLiteral("toka"), toka.value(QStringLiteral("varattu")).toBool());
+        tulos.insert(QStringLiteral("uudistus"), uudistus.value(QStringLiteral("varattu")).toBool());
+        tulos.insert(QStringLiteral("tuore"), tuore);
+        tulos.insert(QStringLiteral("hakuOma"), haku.value(QStringLiteral("oma")).toBool());
+        tulos.insert(QStringLiteral("hakuTunnus"), haku.contains(QStringLiteral("tunnus")));
+        tulos.insert(QStringLiteral("asetuksissa"), asetukset.contains(QStringLiteral("VeroLahetys/FVR20190630")));
+        tulos.insert(QStringLiteral("estetty"), estetty.value(QStringLiteral("varattu")).toBool());
+        tulos.insert(QStringLiteral("vanha"), vanha.value(QStringLiteral("varattu")).toBool());
+        tulos.insert(QStringLiteral("vaara"), vaara.value(QStringLiteral("vapautettu")).toBool());
+        tulos.insert(QStringLiteral("oikea"), oikea.value(QStringLiteral("vapautettu")).toBool());
+        tulos.insert(QStringLiteral("jalkeen"), jalkeen.value(QStringLiteral("varattu")).toBool());
+        return tulos;
+    };
+    const QVariantMap tulos = suoritaMolemmissa(toiminto).toMap();
+    if (tulos.isEmpty())
+        return; // suoritaMolemmissa QSKIP:n jälkeen (ei Postgresia)
+    QVERIFY(tulos.value(QStringLiteral("eka")).toBool());
+    QVERIFY(!tulos.value(QStringLiteral("toka")).toBool());
+    QVERIFY(tulos.value(QStringLiteral("uudistus")).toBool());
+    QVERIFY(tulos.value(QStringLiteral("tuore")).toBool());
+    QVERIFY(tulos.value(QStringLiteral("hakuOma")).toBool());
+    QVERIFY(!tulos.value(QStringLiteral("hakuTunnus")).toBool());
+    QVERIFY(!tulos.value(QStringLiteral("asetuksissa")).toBool());
+    QVERIFY(!tulos.value(QStringLiteral("estetty")).toBool());
+    QVERIFY(tulos.value(QStringLiteral("vanha")).toBool());
+    QVERIFY(!tulos.value(QStringLiteral("vaara")).toBool());
+    QVERIFY(tulos.value(QStringLiteral("oikea")).toBool());
+    QVERIFY(tulos.value(QStringLiteral("jalkeen")).toBool());
 }
 
 void DbParityTest::tositeViennit_kaannettyOstoKirjaaVeronJaVahennyksenTilinValinnassa()

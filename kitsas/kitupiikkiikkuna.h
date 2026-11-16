@@ -35,6 +35,7 @@ class MaaritysSivu;
 class ArkistoSivu;
 class LaskuSivu;
 class AlvSivu;
+class VeroSivu;
 class OnniWidget;
 class HubToimistoSivu;
 class LisaosaSivu;
@@ -64,7 +65,7 @@ public:
     KitupiikkiIkkuna(QWidget *parent = nullptr);
     ~KitupiikkiIkkuna();
 
-    enum Sivu { ALOITUSSIVU, KIRJAUSSIVU, SELAUSSIVU, KIERTOSIVU, LASKUTUSSIVU, TULOSTESIVU, ARKISTOSIVU, ALVSIVU, MAARITYSSIVU, LISAOSASIVU, HUBTOIMISTOSIVU, MAJAVASIVU, SIVUT_LOPPU    };
+    enum Sivu { ALOITUSSIVU, KIRJAUSSIVU, SELAUSSIVU, KIERTOSIVU, LASKUTUSSIVU, TULOSTESIVU, ARKISTOSIVU, ALVSIVU, VEROSIVU, MAARITYSSIVU, LISAOSASIVU, HUBTOIMISTOSIVU, MAJAVASIVU, SIVUT_LOPPU    };
 
 signals:
 
@@ -142,6 +143,7 @@ protected:
     MaaritysSivu *maarityssivu;
     ArkistoSivu *arkistosivu;
     AlvSivu *alvsivu;
+    VeroSivu *verosivu;
     LisaosaSivu *lisaosaSivu;    
     HubToimistoSivu* hubToimistoSivu;
     HubToimistoSivu* majavaSivu;
