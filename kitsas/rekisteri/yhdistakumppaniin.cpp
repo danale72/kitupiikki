@@ -66,6 +66,6 @@ void YhdistaKumppaniin::suodata(bool onko)
 
 void YhdistaKumppaniin::valmis()
 {
-    emit kp()->kirjanpitoaMuokattu();
+    kp()->muokattu();
     QDialog::accept();
 }

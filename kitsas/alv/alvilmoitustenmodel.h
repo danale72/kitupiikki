@@ -75,6 +75,15 @@ public:
 
 public slots:
     void lataa();
+    /**
+     * @brief Hakee ilmoitukset ja tarkistaa, onko kausien kirjauksia muutettu ilmoittamisen jälkeen
+     *
+     * Tarkistus vaatii kausikohtaisia koosteita kaikista ilmoitetuista kausista, joten sitä ei tehdä
+     * kirjanpitoa avattaessa vaan vasta alv-sivulla. Sen jälkeen myös lataa() tarkistaa.
+     */
+    void lataaTarkistaen();
+    /** Uusi kirjanpito avattu */
+    void nollaa();
     void dataSaapuu(QVariant* data);
     void kaudetPaivitetetty();
 
@@ -129,6 +138,7 @@ protected:
     QQueue<AlvIlmoitusTieto> tarkistettavat_;
     QSet<int> tarkistusYritetty_;
     bool tarkistusTallennettu_ = false;
+    bool tarkistetaan_ = false;
 
 };
 

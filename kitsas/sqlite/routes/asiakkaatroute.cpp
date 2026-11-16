@@ -25,13 +25,17 @@ AsiakkaatRoute::AsiakkaatRoute(SqlModel *model) :
 QVariant AsiakkaatRoute::get(const QString &/*polku*/, const QUrlQuery &/*urlquery*/)
 {
         QSqlQuery kysely(db());
-        kysely.exec("select kumppani.id, kumppani.nimi, sum(summa.debetsnt) as summasnt, sum(avoin.sd) as avd, sum(avoin.sk) as avk, sum(vanha.sd) as vad, sum(vanha.sk) as vak from "
-                "Kumppani JOIN ( select debetsnt, vienti.kumppani, vienti.id as vienti FROM "
+        // Erien saldot lasketaan kerran ja vain laskujen erille; erääntyneisyys tulee
+        // laskun tositteen eräpäivästä. Saldoon lasketaan vain kirjanpidossa olevat viennit.
+        kysely.exec("select kumppani.id, kumppani.nimi, sum(summa.debetsnt) as summasnt, sum(avoin.sd) as avd, sum(avoin.sk) as avk, "
+                "sum(CASE WHEN summa.erapvm < current_date THEN avoin.sd END) as vad, "
+                "sum(CASE WHEN summa.erapvm < current_date THEN avoin.sk END) as vak from "
+                "Kumppani JOIN ( select debetsnt, vienti.kumppani, vienti.id as vienti, tosite.erapvm as erapvm FROM "
                 "Vienti JOIN Tosite ON vienti.tosite=tosite.id WHERE vienti.tyyppi=202 AND tosite.tila > 0) as summa ON summa.kumppani = kumppani.id "
-                "LEFT OUTER JOIN ( select eraid,sum(debetsnt) as sd, SUM(kreditsnt) AS sk FROM Vienti GROUP BY eraid) AS avoin ON avoin.eraid = summa.vienti "
-                "LEFT OUTER JOIN ( SELECT a.eraid as eraid, SUM(a.kreditsnt) AS sk, SUM(a.debetsnt) as sd FROM "
-                "Vienti as a JOIN Vienti as b ON a.eraid=b.id JOIN Tosite AS tb ON b.tosite=tb.id "
-                "WHERE tb.erapvm < current_date GROUP BY a.eraid) AS vanha ON vanha.eraid = summa.vienti group by kumppani.id order by kumppani.nimi ");
+                "LEFT OUTER JOIN ( select e.eraid as eraid, sum(e.debetsnt) as sd, SUM(e.kreditsnt) AS sk FROM Vienti AS e "
+                "JOIN Tosite AS et ON e.tosite=et.id WHERE et.tila >= 100 "
+                "AND e.eraid IN (SELECT lv.id FROM Vienti AS lv WHERE lv.tyyppi=202) GROUP BY e.eraid) AS avoin ON avoin.eraid = summa.vienti "
+                "group by kumppani.id, kumppani.nimi order by kumppani.nimi ");
         QVariantList lista = resultList(kysely);
 
         for(int i=0; i < lista.count(); i++) {

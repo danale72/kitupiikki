@@ -27,6 +27,7 @@ protected:
     void valitseTiedosto();
     void nollaaPohjat();
     void leikepoydalta();
+    void showEvent(QShowEvent* event) override;
 
     Ui::TositeWg *ui;
 

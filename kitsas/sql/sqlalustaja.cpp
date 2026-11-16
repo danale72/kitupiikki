@@ -14,6 +14,7 @@
 
 #include <QApplication>
 #include <QDate>
+#include <QMetaType>
 #include <QFile>
 #include <QJsonDocument>
 #include <QMessageBox>
@@ -77,10 +78,18 @@ bool SqlAlustaja::aseta(QSqlDatabase db, const QString &avain, const QVariant &a
     QSqlQuery asetusKysely(db);
     asetusKysely.prepare("INSERT INTO Asetus(avain,arvo) VALUES(?,?)");
     asetusKysely.addBindValue(avain);
-    if( arvo.toString().isEmpty()) {
+    // QDate/QDateTime sidotaan ISO-merkkijonona. QPSQL lisää QDate-arvoon
+    // literaalin hipsut, jolloin text-sarakkeeseen tallentuu '2026-01-01'
+    // ja AsetusModel::pvm() ei osaa lukea sitä. SQLite tallentaa päivän ilman hipsuja.
+    QVariant sidottava = arvo;
+    if( arvo.typeId() == QMetaType::QDate && arvo.toDate().isValid())
+        sidottava = arvo.toDate().toString(Qt::ISODate);
+    else if( arvo.typeId() == QMetaType::QDateTime && arvo.toDateTime().isValid())
+        sidottava = arvo.toDateTime().toString(Qt::ISODate);
+    if( sidottava.toString().isEmpty()) {
         asetusKysely.addBindValue( json(arvo) );
     } else {
-        asetusKysely.addBindValue(arvo);
+        asetusKysely.addBindValue(sidottava);
     }
     if( !asetusKysely.exec() )
         return virhe(asetusKysely, QStringLiteral("Asetus %1").arg(avain), virheteksti);

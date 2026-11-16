@@ -198,22 +198,31 @@ QVariant AsetuksetRoute::vapautaVaraus(const QString &viite, const QString &tunn
 
 QVariant AsetuksetRoute::patch(const QString &/*polku*/, const QVariant &data)
 {
-    QSqlQuery lisaaja(db());
-    lisaaja.prepare("INSERT INTO Asetus (avain,arvo,muokattu) VALUES (?,?,current_timestamp) "
-                    "ON CONFLICT (avain) DO UPDATE SET arvo = EXCLUDED.arvo, muokattu=current_timestamp ");
-    QSqlQuery poistaja(db());
+    const QVariantMap map = data.toMap();
+    const auto kirjoitukset = [this, &map]() {
+        QSqlQuery lisaaja(db());
+        lisaaja.prepare("INSERT INTO Asetus (avain,arvo,muokattu) VALUES (?,?,current_timestamp) "
+                        "ON CONFLICT (avain) DO UPDATE SET arvo = EXCLUDED.arvo, muokattu=current_timestamp ");
+        QSqlQuery poistaja(db());
+        bool kaikki = true;
 
-    QVariantMap map = data.toMap();
-    QMapIterator<QString,QVariant> iter(map);
-    while(iter.hasNext()) {
-        iter.next();
-        if( iter.value().isNull()) {
-            poistaja.exec(QString("DELETE FROM asetus WHERE avain = '%1'").arg(iter.key()));
-        } else {
-            lisaaja.addBindValue(iter.key());
-            lisaaja.addBindValue(iter.value());
-            lisaaja.exec();
+        QMapIterator<QString,QVariant> iter(map);
+        while(iter.hasNext()) {
+            iter.next();
+            if( iter.value().isNull()) {
+                kaikki &= poistaja.exec(QString("DELETE FROM asetus WHERE avain = '%1'").arg(iter.key()));
+            } else {
+                lisaaja.addBindValue(iter.key());
+                lisaaja.addBindValue(iter.value());
+                kaikki &= lisaaja.exec();
+            }
         }
-    }
+        return kaikki;
+    };
+
+    if( map.count() > 1)
+        kirjoitaTapahtumana(kirjoitukset);
+    else
+        kirjoitukset();
     return QVariant();
 }

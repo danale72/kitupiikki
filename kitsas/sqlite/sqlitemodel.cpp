@@ -119,6 +119,12 @@ bool SQLiteModel::avaaTiedosto(const QString &polku, bool ilmoitavirheestaAvatta
 #endif
     tietokanta_.exec("PRAGMA JOURNAL_MODE = WAL");
     tietokanta_.exec("PRAGMA foreign_keys = ON");
+    // WAL-tilassa NORMAL ei vaaranna tiedoston eheyttä (vain viimeisin tapahtuma voi
+    // hävitä sähkökatkossa, ei ohjelman kaatuessa), mutta säästää levyn synkronoinnin
+    // jokaisesta tapahtumasta. mmap jätetään pois, koska kirjanpito voi olla verkkolevyllä.
+    tietokanta_.exec("PRAGMA synchronous = NORMAL");
+    tietokanta_.exec("PRAGMA temp_store = MEMORY");
+    tietokanta_.exec("PRAGMA cache_size = -16000");   // n. 16 Mt
 
     QSqlQuery query( tietokanta_ );
     query.exec("SELECT arvo FROM Asetus WHERE avain='KpVersio'");
@@ -217,7 +223,11 @@ bool SQLiteModel::avaaTiedosto(const QString &polku, bool ilmoitavirheestaAvatta
         return false;
     }
 
+    // Avoin kysely pitää SQLiten skeeman lukossa, ja DROP INDEX epäonnistuu
+    // "database table is locked" -virheeseen. Postgresilla sama kysely ei haittaa.
+    query.finish();
     varmistaUid();
+    varmistaIndeksit();
     merkitseAvatuksi();
 
     tiedostoPolku_ = polku;
@@ -277,6 +287,9 @@ void SQLiteModel::sulje()
 {
     tiedostoPolku_.clear();
     disconnect( kp(), &Kirjanpito::perusAsetusMuuttui, this, &SQLiteModel::lisaaViimeisiin );
+    // Päivittää suunnittelijan tilastot niiltä osin kuin istunnon kyselyt sitä hyötyisivät
+    if( tietokanta_.isOpen())
+        tietokanta_.exec("PRAGMA optimize");
     SqlModel::sulje();
 }
 

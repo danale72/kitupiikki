@@ -18,6 +18,7 @@
 #include <QSqlQuery>
 #include <QDebug>
 #include <QJsonDocument>
+#include <QSet>
 
 InitRoute::InitRoute(SqlModel *model) :
     SQLiteRoute(model,"/init")
@@ -64,6 +65,13 @@ QVariant InitRoute::get(const QString & /*polku*/, const QUrlQuery& /*urlquery*/
         sarjat.append(kysely.value(0).toString());
     map.insert("tositesarjat", sarjat);
 
+    // Aloitussivun logo ja vakioviitteet samalla kertaa, ettei avaaminen vaadi erillisiä hakuja
+    kysely.exec("SELECT data FROM Liite WHERE (tosite IS NULL OR tosite=0) AND roolinimi='logo' "
+                "ORDER BY id DESC LIMIT 1");
+    map.insert("logo", kysely.next() ? kysely.value(0).toByteArray() : QByteArray());
+
+    kysely.exec("SELECT viite, tili, kohdennus, otsikko FROM Vakioviite ORDER BY viite");
+    map.insert("vakioviitteet", resultList(kysely));
 
     map.insert("kierrot", QVariantList());
 
@@ -72,22 +80,28 @@ QVariant InitRoute::get(const QString & /*polku*/, const QUrlQuery& /*urlquery*/
 
 QVariant InitRoute::patch(const QString & /*polku*/, const QVariant &data)
 {
-    QVariantMap map = data.toMap();
-    paivitaAsetukset( map.value("asetukset").toMap() );
-    paivitaTilit( map.value("tilit").toList());
+    const QVariantMap map = data.toMap();
+    // Tilikartan päivitys on satoja kirjoituksia: yhtenä tapahtumana SQLite ei synkronoi
+    // levyä jokaisen jälkeen eikä Postgres vaadi erillistä vahvistusta jokaiselle
+    kirjoitaTapahtumana([this, &map]() {
+        const bool asetukset = paivitaAsetukset( map.value("asetukset").toMap() );
+        const bool tilit = paivitaTilit( map.value("tilit").toList());
+        return asetukset && tilit;
+    });
 
     return QVariant();
 }
 
-void InitRoute::paivitaAsetukset(const QVariantMap &map)
+bool InitRoute::paivitaAsetukset(const QVariantMap &map)
 {
     QMapIterator<QString,QVariant> iter(map);
-    QStringList muokatut;
+    QSet<QString> muokatut;
+    bool kaikki = true;
 
     QSqlQuery qry(db());
     qry.exec("SELECT avain FROM Asetus WHERE muokattu IS NOT NULL");
     while (qry.next()) {
-        muokatut.append( qry.value(0).toString() );
+        muokatut.insert( qry.value(0).toString() );
     }
 
     qry.prepare("INSERT INTO Asetus (avain,arvo) VALUES (?,?) "
@@ -101,25 +115,27 @@ void InitRoute::paivitaAsetukset(const QVariantMap &map)
                 qry.addBindValue( QString::fromUtf8( QJsonDocument::fromVariant( iter.value() ).toJson(QJsonDocument::Compact) )  );
             else
                 qry.addBindValue( iter.value().toString() );
-            qry.exec();
+            kaikki &= qry.exec();
         }
     }
+    return kaikki;
 }
 
-void InitRoute::paivitaTilit(const QVariantList &list)
+bool InitRoute::paivitaTilit(const QVariantList &list)
 {
-    QList<int> muokatutTilit;
-    QList<QPair<int,int>> muokatutOtsikot;
+    bool kaikki = true;
+    QSet<int> muokatutTilit;
+    QSet<QPair<int,int>> muokatutOtsikot;
 
     QSqlQuery qry(db());
     qry.exec("SELECT numero FROM Tili WHERE muokattu IS NOT NULL");
     while (qry.next()) {
-        muokatutTilit.append( qry.value(0).toInt() );
+        muokatutTilit.insert( qry.value(0).toInt() );
     }
 
     qry.exec("SELECT numero,taso FROM Otsikko WHERE muokattu IS NOT NULL");
     while (qry.next()) {
-        muokatutOtsikot.append( qMakePair( qry.value(0).toInt(), qry.value(1).toInt() ) );
+        muokatutOtsikot.insert( qMakePair( qry.value(0).toInt(), qry.value(1).toInt() ) );
     }
 
     QSqlQuery tiliKysely(db());
@@ -148,7 +164,7 @@ void InitRoute::paivitaTilit(const QVariantList &list)
             otsikkoKysely.addBindValue(numero);
             otsikkoKysely.addBindValue(taso);
             otsikkoKysely.addBindValue(json);
-            otsikkoKysely.exec();
+            kaikki &= otsikkoKysely.exec();
         } else {
             if( muokatutTilit.contains(numero))
                 continue;
@@ -156,7 +172,8 @@ void InitRoute::paivitaTilit(const QVariantList &list)
             tiliKysely.addBindValue(numero);
             tiliKysely.addBindValue(tyyppi);
             tiliKysely.addBindValue(json);
-            tiliKysely.exec();
+            kaikki &= tiliKysely.exec();
         }
     }
+    return kaikki;
 }

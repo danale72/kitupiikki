@@ -103,6 +103,7 @@ void AsiakasToimittajaValinta::clear()
 
 void AsiakasToimittajaValinta::tuonti(const QVariantMap &data)
 {    
+    model_->varmistaLadattu();
     QString alvtunnari = data.contains("alvtunnus") ? data.value("alvtunnus").toString() :
             "FI" + data.value("kumppaniytunnus").toString();
     alvtunnari.remove('-');
@@ -132,6 +133,7 @@ void AsiakasToimittajaValinta::tuonti(const QVariantMap &data)
 
 void AsiakasToimittajaValinta::valitse(const QVariantMap &map)
 {
+    model_->varmistaLadattu();
     map_ = map;
     lataa_ = 0;
     if( id()) {
@@ -242,7 +244,7 @@ void AsiakasToimittajaValinta::modelLadattu()
             combo_->setCurrentIndex(indeksi);
     } else {
         combo_->setCurrentIndex(-1);
-        combo_->setCurrentText(QString());
+        combo_->setCurrentText(nimi());
     }
     modelLataa_ = false;
 }
@@ -282,6 +284,8 @@ void AsiakasToimittajaValinta::setId(int id)
 
 bool AsiakasToimittajaValinta::eventFilter(QObject *watched, QEvent *event)
 {
+    if( watched == combo_ && event->type()==QEvent::FocusIn)
+        model_->varmistaLadattu();
     if( watched == combo_ && event->type()==QEvent::KeyPress)
     {
         QKeyEvent *keyEvent = static_cast<QKeyEvent*>(event);

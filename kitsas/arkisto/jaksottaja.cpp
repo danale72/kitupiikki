@@ -148,6 +148,8 @@ void Jaksottaja::kirjaaTilinpaatokseen(const QDate &pvm, const QVariantList &jak
 
 
     KpKysely *kysely = kpk("/tositteet", KpKysely::POST);
+    // Tilinavauksen kirjaus tarvitsee tallennetun tositteen viennit
+    kysely->lisaaAttribuutti("palauta", "tosite");
     connect( kysely, &KpKysely::vastaus, this,
              [this, pvm] (QVariant* data) { this->kirjaaTilinavaukseen(data, pvm.addDays(1)); });
     kysely->kysy( tosite->tallennettava() );

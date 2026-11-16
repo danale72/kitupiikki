@@ -87,8 +87,10 @@ protected:
     double alvProssa() const;
 
     void vastaSaldoSaapuu(QVariant* data);
+    void haeVastatilinSaldo();
 
     bool eventFilter(QObject *target, QEvent* event) override;
+    void showEvent(QShowEvent* event) override;
 
 private:
     Ui::TuloMenoApuri *ui;
@@ -105,6 +107,8 @@ private:
 
     int vastatili_ = 0;    
     QDateTime vastatiliSaldoPaivitetty_;
+    int saldoTili_ = 0;
+    bool saldoHakematta_ = false;
     QMap<int,EraMap> valitutErat_;
 
 };

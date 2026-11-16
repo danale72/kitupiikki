@@ -34,17 +34,15 @@ QVariant InfoRoute::get(const QString &/*polku*/, const QUrlQuery &/*urlquery*/)
         map.insert("koko", sql->tietokannanKoko());
 
     QSqlQuery kysely(db());
-    kysely.exec("SELECT COUNT(id) FROM Tosite");
-    if(kysely.next())
+    kysely.exec(QString("SELECT COUNT(id), "
+                        "COALESCE(SUM(CASE WHEN tila=%1 THEN 1 ELSE 0 END),0), "
+                        "COALESCE(SUM(CASE WHEN tila=%2 THEN 1 ELSE 0 END),0) FROM Tosite")
+                .arg(Tosite::VALMISLASKU).arg(Tosite::SAAPUNUT));
+    if(kysely.next()) {
         map.insert("tositteita", kysely.value(0).toInt());
-
-    kysely.exec(QString("SELECT COUNT(Tosite.id) AS lkm FROM Tosite WHERE tila=%1").arg(Tosite::VALMISLASKU) );
-    if( kysely.next())
-        map.insert("lahetettavia", kysely.value(0).toInt());
-
-    kysely.exec(QString("SELECT COUNT(Tosite.id) AS lkm FROM Tosite WHERE tila=%1").arg(Tosite::SAAPUNUT));
-    if(kysely.next())
-        map.insert("tyolista", kysely.value(0).toInt());
+        map.insert("lahetettavia", kysely.value(1).toInt());
+        map.insert("tyolista", kysely.value(2).toInt());
+    }
 
     return map;
 

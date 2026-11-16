@@ -230,12 +230,37 @@ void TilikausiModel::lataa(const QVariantList &lista)
 {
     beginResetModel();
     kaudet_.clear();
-
     for(const auto& item : lista )
-    {
-        QVariantMap map = item.toMap();
-        kaudet_.append( Tilikausi(map) );
+        kaudet_.append( Tilikausi(item.toMap()) );
+    paivitaKausitunnukset();
+    endResetModel();
+}
+
+void TilikausiModel::paivitaKaudet(const QVariantList &lista)
+{
+    QList<Tilikausi> uudet;
+    uudet.reserve(lista.count());
+    for(const auto& item : lista )
+        uudet.append( Tilikausi(item.toMap()) );
+
+    // Saman kirjanpidon /tilikaudet-haku yleensä vain täydentää kausien tietoja.
+    // Silloin ei nollata mallia: nollaus saisi kuuntelijat (selaus, aloitussivu)
+    // hakemaan tietonsa uudelleen.
+    bool samatKaudet = !kaudet_.isEmpty() && uudet.count() == kaudet_.count();
+    for(int i=0; samatKaudet && i < uudet.count(); i++) {
+        samatKaudet = uudet.at(i).alkaa() == kaudet_.at(i).alkaa() &&
+                      uudet.at(i).paattyy() == kaudet_.at(i).paattyy();
     }
+
+    if( samatKaudet ) {
+        kaudet_ = uudet;
+        paivitaKausitunnukset();
+        emit dataChanged(index(0,0), index(rowCount()-1, columnCount()-1));
+        return;
+    }
+
+    beginResetModel();
+    kaudet_ = uudet;
     paivitaKausitunnukset();
     endResetModel();
 }
@@ -336,5 +361,5 @@ void TilikausiModel::paivitaKausitunnukset()
 
 void TilikausiModel::lataaData(const QVariant *lista)
 {
-    lataa( lista->toList() );
+    paivitaKaudet( lista->toList() );
 }

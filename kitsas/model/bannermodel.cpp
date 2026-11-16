@@ -46,6 +46,9 @@ QVariant BannerModel::data(const QModelIndex &index, int role) const
         }
     }
 
+    if( role == KuvaRooli )
+        varmistaKuvat();
+
     const Banneri banneri = bannerit_.at(index.row() - 1);
 
     switch (role) {
@@ -134,13 +137,25 @@ void BannerModel::lataa()
         bannerit_.append(Banneri(id, nimi));
         latausLista_.append(id);
     }
+    kuvatLadattu_ = false;
     endResetModel();
 
-    lataaKuva();
+    // Paikallisissa kirjanpidoissa kuvat haetaan vasta, kun niitä tarvitaan
+    if( kp()->onkoPilvessa())
+        varmistaKuvat();
+}
+
+void BannerModel::varmistaKuvat() const
+{
+    if( kuvatLadattu_ )
+        return;
+    kuvatLadattu_ = true;
+    const_cast<BannerModel*>(this)->lataaKuva();
 }
 
 QImage BannerModel::kuva(const QString uuid) const
 {
+    varmistaKuvat();
     for(int i=0; i < bannerit_.count(); i++) {
         if( bannerit_.at(i).id() == uuid) {
             return bannerit_.at(i).kuva();

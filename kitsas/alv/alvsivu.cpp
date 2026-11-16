@@ -76,7 +76,7 @@ void AlvSivu::siirrySivulle()
     // Ilmoitukset haetaan uudelleen, jotta tositteisiin tehdyt muutokset näkyvät
     // ilmoitusten tilassa. Haun valmistuttua sivu päivitetään (paivita)
     paivita();
-    kp()->alvIlmoitukset()->lataa();
+    kp()->alvIlmoitukset()->lataaTarkistaen();
 }
 
 void AlvSivu::paivita()

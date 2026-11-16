@@ -65,6 +65,12 @@ void UusiLiiteWidget::valitseTiedosto()
     }
 }
 
+void UusiLiiteWidget::showEvent(QShowEvent *event)
+{
+    QWidget::showEvent(event);
+    MallipohjaModel::instanssi()->varmistaLadattu();
+}
+
 void UusiLiiteWidget::nollaaPohjat()
 {
     ui->pohjaGroup->setVisible( naytaPohja_ && ui->malliView->model()->rowCount() );

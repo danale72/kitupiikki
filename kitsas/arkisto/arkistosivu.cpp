@@ -75,6 +75,8 @@ ArkistoSivu::ArkistoSivu()
     connect( ui->budjettiNappi, &QPushButton::clicked, this, &ArkistoSivu::budjetti);
     connect( ui->numeroiButton, &QPushButton::clicked, this, &ArkistoSivu::uudellenNumerointi);
     connect( kp()->tilikaudet(), &TilikausiModel::modelReset, this, [this] {  if(this->ui->view->model()) this->ui->view->selectRow( ui->view->model()->rowCount()-1 );});
+    // /tilikaudet-haku täydentää kausien tietoja nollaamatta mallia
+    connect( kp()->tilikaudet(), &TilikausiModel::dataChanged, this, &ArkistoSivu::nykyinenVaihtuuPaivitaNapit);
 
     connect( ui->view->selectionModel(), &QItemSelectionModel::selectionChanged, this, &ArkistoSivu::nykyinenVaihtuuPaivitaNapit );    
 }

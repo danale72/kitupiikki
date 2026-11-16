@@ -91,7 +91,9 @@ QVariant SelausModel::data(const QModelIndex &index, int role) const
 void SelausModel::lataaSqlite(SQLiteModel* sqlite, const QDate &alkaa, const QDate &loppuu, int tili)
 {
 
-    QString tilistr = tili > 0 ? QString(" AND tili=%1").arg(tili) : "";
+    QString tilistr = tili > 0 ? QString(" AND Vienti.tili=%1").arg(tili) : "";
+    const QString ehto = QString("Tosite.tila >= 100 AND Vienti.pvm BETWEEN '%1' AND '%2' %3")
+            .arg(alkaa.toString(Qt::ISODate), loppuu.toString(Qt::ISODate), tilistr);
 
     QString kysymys = QString("SELECT vienti.id AS id, vienti.pvm as pvm, vienti.tili as tili, debetsnt, kreditsnt, alvprosentti, alvkoodi, "
                     "selite, vienti.kohdennus as kohdennus, eraid, vienti.tosite as tosite_id, tosite.pvm as tosite_pvm, tosite.tunniste as tosite_tunniste,"
@@ -100,8 +102,39 @@ void SelausModel::lataaSqlite(SQLiteModel* sqlite, const QDate &alkaa, const QDa
                     "FROM Vienti JOIN Tosite ON Vienti.tosite=Tosite.id "
                     "LEFT OUTER JOIN Kumppani ON Vienti.kumppani=kumppani.id "
                     "LEFT OUTER JOIN (SELECT tosite, COUNT(id) AS liitteita FROM Liite GROUP BY tosite) AS lq ON Tosite.id=lq.tosite "
-                    "WHERE tila >= 100 AND Vienti.pvm BETWEEN '%1' AND '%2' %3 ORDER BY pvm")
-            .arg(alkaa.toString(Qt::ISODate), loppuu.toString(Qt::ISODate), tilistr);    
+                    "WHERE %1 ORDER BY pvm").arg(ehto);
+
+    // Lisätiedot haetaan koko selaukselle kerralla samalla rajauksella
+    SelausApu apu;
+    QSqlQuery apukysely( sqlite->tietokanta() );
+    apukysely.setForwardOnly(true);
+    const QString valitut = QString("SELECT Vienti.id FROM Vienti JOIN Tosite ON Vienti.tosite=Tosite.id WHERE %1").arg(ehto);
+    const QString valitutErat = QString("SELECT DISTINCT Vienti.eraid FROM Vienti JOIN Tosite ON Vienti.tosite=Tosite.id "
+                                        "WHERE %1 AND Vienti.eraid IS NOT NULL").arg(ehto);
+
+    if( kp()->kohdennukset()->merkkauksia()) {
+        apukysely.exec(QString("SELECT vienti, kohdennus FROM Merkkaus WHERE vienti IN (%1)").arg(valitut));
+        while( apukysely.next())
+            apu.merkkaukset[ apukysely.value(0).toInt() ].append(
+                        kp()->kohdennukset()->kohdennus(apukysely.value(1).toInt()).nimi());
+    }
+
+    apukysely.exec(QString("SELECT Vienti.id, Tosite.tyyppi, Tosite.tunniste, Tosite.sarja, Tosite.pvm "
+                           "FROM Vienti JOIN Tosite ON Vienti.tosite=Tosite.id WHERE Vienti.id IN (%1)").arg(valitutErat));
+    while( apukysely.next()) {
+        SelausApu::Era era;
+        era.tyyppi = apukysely.value(1).toInt();
+        era.tunniste = apukysely.value(2).toInt();
+        era.sarja = apukysely.value(3).toString();
+        era.pvm = apukysely.value(4).toDate();
+        apu.erat.insert( apukysely.value(0).toInt(), era);
+    }
+
+    apukysely.exec(QString("SELECT Vienti.eraid FROM Vienti JOIN Tosite ON Vienti.tosite=Tosite.id "
+                           "WHERE Vienti.eraid IN (%1) AND Tosite.tila >= 100 "
+                           "GROUP BY Vienti.eraid HAVING COALESCE(SUM(debetsnt),0) <> COALESCE(SUM(kreditsnt),0)").arg(valitutErat));
+    while( apukysely.next())
+        apu.avoimet.insert( apukysely.value(0).toInt() );
 
     beginResetModel();
 
@@ -109,12 +142,11 @@ void SelausModel::lataaSqlite(SQLiteModel* sqlite, const QDate &alkaa, const QDa
     rivit_.clear();
 
     QSqlQuery kysely( sqlite->tietokanta() );
+    kysely.setForwardOnly(true);
     kysely.exec(kysymys);
 
-    bool merkkauksia = kp()->kohdennukset()->merkkauksia();
-
     while(kysely.next()) {
-        SelausRivi rivi(kysely, samakausi_, sqlite, merkkauksia);
+        SelausRivi rivi(kysely, samakausi_, apu);
         rivit_.append(rivi);
         kaytetytTilit_.insert(rivi.getTili());
     }
@@ -254,9 +286,10 @@ SelausRivi::SelausRivi(const QVariantMap &data, bool samakausi)
              kohdennus.append(" ");
         kohdennus.append(era.huoneistoNimi());
     }    
+    viimeistele();
 }
 
-SelausRivi::SelausRivi(QSqlQuery &data, bool samakausi, SQLiteModel *sqlite, bool merkkauksia)
+SelausRivi::SelausRivi(QSqlQuery &data, bool samakausi, const SelausApu &apu)
 {
     vientiId = data.value("id").toInt();
     tositeId = data.value("tosite_id").toInt();
@@ -289,42 +322,41 @@ SelausRivi::SelausRivi(QSqlQuery &data, bool samakausi, SQLiteModel *sqlite, boo
        kohdennus = kohdennusObj.nimi();
 
 
-    QSqlQuery apukysely( sqlite->tietokanta());
-    if(merkkauksia) {
-
-        apukysely.exec(QString("SELECT kohdennus FROM Merkkaus WHERE vienti=%1").arg(vientiId));
-        QStringList tagit;
-        while( apukysely.next()) {
-            tagit.append( kp()->kohdennukset()->kohdennus(apukysely.value(0).toInt()).nimi() );
-        }
-        if( !tagit.isEmpty()) {
-            if(!kohdennus.isEmpty())
-                kohdennus.append(" ");
-            kohdennus.append(tagit.join(", "));
-        }
+    const QStringList tagit = apu.merkkaukset.value(vientiId);
+    if( !tagit.isEmpty()) {
+        if(!kohdennus.isEmpty())
+            kohdennus.append(" ");
+        kohdennus.append(tagit.join(", "));
     }
 
     int eraid = data.value("eraid").toInt();
     if( eraid) {
 
         if( eraid != vientiId) {
-            apukysely.exec(QString("SELECT Tosite.tyyppi, Tosite.tunniste, Tosite.sarja, Tosite.pvm AS pvm FROM Vienti JOIN Tosite ON Vienti.tosite=Tosite.id WHERE Vienti.id=%1").arg(eraid));
-            if(apukysely.next()) {
+            auto era = apu.erat.constFind(eraid);
+            if( era != apu.erat.constEnd()) {
                 if(!kohdennus.isEmpty())
                     kohdennus.append(" ");
-                kohdennuskuvake = kp()->tositeTyypit()->kuvake(apukysely.value("tyyppi").toInt());
-                kohdennus.append( kp()->tositeTunnus(apukysely.value("tunniste").toInt(),
-                                                     apukysely.value("pvm").toDate(),
-                                                     apukysely.value("sarja").toString(),
-                                                     kp()->tilikaudet()->tilikausiPaivalle(apukysely.value("pvm").toDate()).alkaa() == kp()->tilikaudet()->tilikausiPaivalle(pvm).alkaa() ));
+                kohdennuskuvake = kp()->tositeTyypit()->kuvake(era->tyyppi);
+                kohdennus.append( kp()->tositeTunnus(era->tunniste,
+                                                     era->pvm,
+                                                     era->sarja,
+                                                     kp()->tilikaudet()->tilikausiPaivalle(era->pvm).alkaa() == kp()->tilikaudet()->tilikausiPaivalle(pvm).alkaa() ));
             }
         }
 
-        // Tarkistetaan saldo, onko maksettu
-        apukysely.exec(QString("SELECT SUM(debetsnt), SUM(kreditsnt) FROM Vienti JOIN Tosite ON Vienti.tosite=Tosite.id WHERE eraid=%1 AND Tosite.tila >= 100").arg(eraid));
-        if(apukysely.next() && apukysely.value(0).toLongLong() == apukysely.value(1).toLongLong())
+        // Maksettu, kun erän saldo on nolla
+        if( !apu.avoimet.contains(eraid))
             kohdennuskuvake = QIcon(":/pic/ok.png");
     }
+    viimeistele();
+}
+
+void SelausRivi::viimeistele()
+{
+    pvmJarjestys = QString("%1 %2").arg( pvm.toString(Qt::ISODate), vertailuTunnus );
+    if( tili)
+        tiliTeksti = QString("%1 %2").arg(tili).arg(kp()->tilit()->nimi(tili));
 }
 
 QVariant SelausRivi::data(int sarake, int role, bool alternateColor) const
@@ -339,14 +371,14 @@ QVariant SelausRivi::data(int sarake, int role, bool alternateColor) const
             if( role == Qt::DisplayRole)
                 return pvm;
             else
-                return QString("%1 %2").arg( pvm.toString(Qt::ISODate), vertailuTunnus );
+                return pvmJarjestys;
 
             case SelausModel::TILI:
             {
                 if( role==Qt::EditRole) {
                     return tili;
                 } else if(tili) {
-                    return QString("%1 %2").arg(tili).arg(kp()->tilit()->nimi(tili));
+                    return tiliTeksti;
                 } else {
                     return QVariant();
                 }

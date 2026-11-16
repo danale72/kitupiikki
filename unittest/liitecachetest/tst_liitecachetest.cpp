@@ -8,6 +8,10 @@
 */
 
 #include <QtTest>
+#include <QBuffer>
+#include <QImage>
+#include <QJsonDocument>
+#include <QPixmap>
 
 #include "db/kitsasinterface.h"
 #include "liite/cacheliite.h"
@@ -33,6 +37,7 @@ class TestattavaLiiteCache : public LiiteCache
 public:
     using LiiteCache::LiiteCache;
     using LiiteCache::liiteSaapuu;
+    using LiiteCache::tositeSaapuu;
 
     void asetaRajaKoko(qsizetype raja) { rajaKoko_ = raja; }
     qsizetype koko() const { return koko_; }
@@ -52,6 +57,12 @@ private slots:
     void kokoRaja_hylkaaVanhimmanJaPalauttaaSen();
     void tyhjenna_lukittuEiJataSeuraajaa();
     void tallennettuNollaTunnisteella_eiJaaValimuistiin();
+    void liiteHakematta_samaOlioIlmanHakua();
+    void binaariLiite_tallentuuSellaisenaan();
+    void tositeValimuisti_otetaanKerran();
+    void tositeValimuisti_tallennusUnohtaaSamanEranTositteet();
+    void tositeValimuisti_kokoRajoitettu();
+    void thumb_lasketaanKerranEikaPdfsta();
 
 private:
     static CacheLiite* tallennettuLiite(const QByteArray& data);
@@ -259,6 +270,130 @@ void LiiteCacheTest::tallennettuNollaTunnisteella_eiJaaValimuistiin()
     CacheLiite* nolla = cache.liite(0);
     QCOMPARE(nolla->tila(), CacheLiite::ALUSTAMATON);
     QVERIFY(nolla->data().isEmpty());
+}
+
+void LiiteCacheTest::liiteHakematta_samaOlioIlmanHakua()
+{
+    TyhjaKitsas kitsas;
+    TestattavaLiiteCache cache(nullptr, &kitsas);
+
+    // Kirjausnäkymän liite luodaan hakematta; myöhempi liite() palauttaa saman olion,
+    // jolloin Liitteen lukitus koskee haettavaa sisältöä.
+    CacheLiite* hakematta = cache.liiteHakematta(7);
+    QCOMPARE(hakematta->tila(), CacheLiite::ALUSTAMATON);
+    QCOMPARE(cache.liite(7), hakematta);
+
+    QVariant vastaus(QByteArray("%PDF-1.4 sisalto"));
+    cache.liiteSaapuu(7, &vastaus);
+    QCOMPARE(hakematta->tila(), CacheLiite::HAETTU);
+    QCOMPARE(cache.liiteHakematta(7), hakematta);
+}
+
+void LiiteCacheTest::binaariLiite_tallentuuSellaisenaan()
+{
+    TyhjaKitsas kitsas;
+    TestattavaLiiteCache cache(nullptr, &kitsas);
+
+    // JSONilta näyttävä tavutaulukko ei saa muuttua (ei JSON-muunnosta)
+    const QByteArray raaka("{ \"a\" : 1 }");
+    CacheLiite* liite = lataa(cache, 1, raaka);
+    QCOMPARE(liite->data(), raaka);
+
+    // Rakenteinen vastaus tallennetaan JSONina
+    CacheLiite* rakenne = cache.liite(2);
+    QVariant map(QVariantMap{{QStringLiteral("a"), 1}});
+    cache.liiteSaapuu(2, &map);
+    QCOMPARE(QJsonDocument::fromJson(rakenne->data()).toVariant().toMap().value(QStringLiteral("a")).toInt(), 1);
+}
+
+void LiiteCacheTest::tositeValimuisti_otetaanKerran()
+{
+    TyhjaKitsas kitsas;
+    TestattavaLiiteCache cache(nullptr, &kitsas);
+
+    cache.tositeSaapuu(10, QVariantMap{{QStringLiteral("id"), 10}, {QStringLiteral("otsikko"), QStringLiteral("A")}});
+    QVariantMap tosite;
+    QVERIFY(!cache.otaTosite(11, &tosite));
+    QVERIFY(cache.otaTosite(10, &tosite));
+    QCOMPARE(tosite.value(QStringLiteral("otsikko")).toString(), QStringLiteral("A"));
+    QVERIFY(!cache.otaTosite(10, &tosite));
+
+    cache.tositeSaapuu(12, QVariantMap{{QStringLiteral("id"), 12}});
+    cache.tyhjennaTositteet();
+    QCOMPARE(cache.tositteitaValimuistissa(), 0);
+
+    cache.tositeSaapuu(13, QVariantMap{{QStringLiteral("id"), 13}});
+    cache.tyhjenna();
+    QCOMPARE(cache.tositteitaValimuistissa(), 0);
+}
+
+void LiiteCacheTest::tositeValimuisti_tallennusUnohtaaSamanEranTositteet()
+{
+    TyhjaKitsas kitsas;
+    TestattavaLiiteCache cache(nullptr, &kitsas);
+
+    auto vienti = [](int id, int era) {
+        return QVariantMap{{QStringLiteral("id"), id},
+                           {QStringLiteral("era"), QVariantMap{{QStringLiteral("id"), era}}}};
+    };
+    // Tosite 20 on lasku (erä = sen oma vienti 200), tosite 21 sen maksu, tosite 22 ei liity
+    cache.tositeSaapuu(20, QVariantMap{{QStringLiteral("id"), 20},
+                                       {QStringLiteral("viennit"), QVariantList{vienti(200, 200)}}});
+    cache.tositeSaapuu(21, QVariantMap{{QStringLiteral("id"), 21},
+                                       {QStringLiteral("viennit"), QVariantList{vienti(210, 200)}}});
+    cache.tositeSaapuu(22, QVariantMap{{QStringLiteral("id"), 22},
+                                       {QStringLiteral("viennit"), QVariantList{vienti(220, 0)}}});
+    cache.tositeSaapuu(23, QVariantMap{{QStringLiteral("id"), 23}});
+
+    // Tallennetaan toinen maksu samaan erään sekä itse tosite 23
+    cache.tositeTallennettu(QVariantMap{{QStringLiteral("id"), 23},
+                                        {QStringLiteral("viennit"), QVariantList{vienti(230, 200)}}});
+
+    QVariantMap tosite;
+    QVERIFY(!cache.otaTosite(20, &tosite));
+    QVERIFY(!cache.otaTosite(21, &tosite));
+    QVERIFY(!cache.otaTosite(23, &tosite));
+    QVERIFY(cache.otaTosite(22, &tosite));
+
+    // Uusi tosite (ei vielä tunnistetta) unohtaa kaiken
+    cache.tositeSaapuu(24, QVariantMap{{QStringLiteral("id"), 24}});
+    cache.tositeTallennettu(QVariantMap{});
+    QCOMPARE(cache.tositteitaValimuistissa(), 0);
+}
+
+void LiiteCacheTest::tositeValimuisti_kokoRajoitettu()
+{
+    TyhjaKitsas kitsas;
+    TestattavaLiiteCache cache(nullptr, &kitsas);
+    for (int i = 1; i <= 50; ++i)
+        cache.tositeSaapuu(i, QVariantMap{{QStringLiteral("id"), i}});
+    QVERIFY(cache.tositteitaValimuistissa() <= 6);
+    QVariantMap tosite;
+    QVERIFY(cache.otaTosite(50, &tosite));
+}
+
+void LiiteCacheTest::thumb_lasketaanKerranEikaPdfsta()
+{
+    CacheLiite pdf;
+    pdf.setData(QByteArray("%PDF-1.4 ei kuva"));
+    QVERIFY(pdf.thumb().isNull());
+
+    QImage kuva(200, 100, QImage::Format_RGB32);
+    kuva.fill(Qt::red);
+    QByteArray png;
+    QBuffer puskuri(&png);
+    puskuri.open(QIODevice::WriteOnly);
+    kuva.save(&puskuri, "PNG");
+
+    CacheLiite liite;
+    liite.setData(png);
+    const QPixmap eka = liite.thumb();
+    QVERIFY(!eka.isNull());
+    QVERIFY(eka.width() <= 64 && eka.height() <= 64);
+    QCOMPARE(liite.thumb().cacheKey(), eka.cacheKey());
+
+    liite.tyhjenna();
+    QVERIFY(liite.thumb().isNull());
 }
 
 QTEST_MAIN(LiiteCacheTest)

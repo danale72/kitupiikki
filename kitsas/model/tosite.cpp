@@ -28,6 +28,7 @@
 #include "laskutus/tulostus/laskuntulostaja.h"
 
 #include "liite/liitteetmodel.h"
+#include "liite/liitecache.h"
 
 #include <QJsonDocument>
 #include <QDebug>
@@ -268,6 +269,18 @@ QString Tosite::laskuNumero() const
 
 void Tosite::lataa(int tositeid)
 {
+    // Selauksessa naapuritosite on yleensä haettu jo ennakkoon
+    QVariantMap ennakkoon;
+    if( kp()->liiteCache()->otaTosite(tositeid, &ennakkoon)) {
+        if( kp()->onkoPilvessa()) {
+            // Pilvessä vastaus on aina tullut myöhemmin; säilytetään sama järjestys kuuntelijoille
+            QTimer::singleShot(0, this, [this, ennakkoon] { this->lataa(ennakkoon); });
+        } else {
+            lataa(ennakkoon);
+        }
+        return;
+    }
+
     KpKysely *kysely = kpk(QString("/tositteet/%1").arg(tositeid));
     connect(kysely, &KpKysely::vastaus, this, &Tosite::lataaData);
     connect(kysely, &KpKysely::virhe, this, &Tosite::latausvirhe);
@@ -360,6 +373,8 @@ void Tosite::tallennaLasku(int tilaan)
         kysely = kpk( "/tositteet/", KpKysely::POST);
     else
         kysely = kpk( QString("/tositteet/%1").arg( id() ), KpKysely::PUT);
+    // Laskuliitteen tallennus tarvitsee koko tallennetun tositteen
+    kysely->lisaaAttribuutti("palauta", "tosite");
 
     connect(kysely, &KpKysely::vastaus, this, &Tosite::tallennaLaskuliite  );
     connect(kysely, &KpKysely::virhe, this, &Tosite::tallennusvirhe);
@@ -438,7 +453,16 @@ void Tosite::tallenna(int tilaan)
     connect(kysely, &KpKysely::vastaus, this, &Tosite::tallennusValmis  );
     connect(kysely, &KpKysely::virhe, this, &Tosite::tallennuksessaVirhe);
 
-    kysely->kysy( tallennettava() );
+    const QVariantMap tallennettavat = tallennettava();
+
+    // Ennakkoon haetuista tositteista unohdetaan ne, joiden eriin tallennus vaikuttaa
+    // (sekä uudet että tositteelta poistuvat erät)
+    QVariantMap vaikutus;
+    vaikutus.insert("id", data(ID));
+    vaikutus.insert("viennit", tallennettavat.value("viennit").toList() + tallennettu_.value("viennit").toList());
+    kp()->liiteCache()->tositeTallennettu(vaikutus);
+
+    kysely->kysy( tallennettavat );
 
 }
 
@@ -450,14 +474,17 @@ void Tosite::tarkasta()
 
     const QVariantMap& talteen = tallennettava();
 
-    QByteArray tallennettavaArray = QJsonDocument::fromVariant(talteen).toJson(QJsonDocument::Compact);
-    QByteArray tallennettuArray = QJsonDocument::fromVariant(tallennettu_).toJson(QJsonDocument::Compact);
+    // Tallennetun tilan JSON lasketaan uudelleen vain, kun tallennettu tila vaihtuu
+    // (QMap-vertailu on halpa, kun kopio jakaa saman datan)
+    if( !(tallennettuVertailu_ == tallennettu_) || tallennettuArray_.isNull()) {
+        tallennettuVertailu_ = tallennettu_;
+        tallennettuArray_ = QJsonDocument::fromVariant(tallennettu_).toJson(QJsonDocument::Compact);
+    }
+    const QByteArray tallennettavaArray = QJsonDocument::fromVariant(talteen).toJson(QJsonDocument::Compact);
 
-    const bool muokattu = tallennettavaArray != tallennettuArray;
+    const bool muokattu = tallennettavaArray != tallennettuArray_;
     const bool liitteita = liitteet_->tallennettaviaLiitteita() || !liitteet_->liitettavat().isEmpty();
 
-    qDebug() << "U " << tallennettavaArray;
-    qDebug() << "V " << tallennettuArray;
     muutettu_ = !tallennettu_.isEmpty() && (muokattu || liitteita);
 
 
@@ -565,7 +592,9 @@ void Tosite::tallennusValmis(QVariant *variant)
         muutettu_ = false;
         emit talletettu( id(), tunniste(), pvm(),
                          sarja(), tositetila());
-        emit kp()->kirjanpitoaMuokattu();
+        if( tositetila() == MALLIPOHJA || tallennettu_.value(avaimet__.at(TILA)).toInt() == MALLIPOHJA )
+            emit kp()->mallipohjatMuuttuivat();
+        kp()->muokattu();
     }
     tallennusKaynnissa_ = false;
 }
@@ -579,6 +608,8 @@ void Tosite::tallennuksessaVirhe(int virhe)
 void Tosite::liitteetTallennettu()
 {
     emit talletettu( id(), tunniste(), pvm(), sarja(), tositetila());
+    if( tositetila() == MALLIPOHJA || tallennettu_.value(avaimet__.at(TILA)).toInt() == MALLIPOHJA )
+        emit kp()->mallipohjatMuuttuivat();
 }
 
 void Tosite::laitaTalteen()

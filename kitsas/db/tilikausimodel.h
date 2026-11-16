@@ -72,7 +72,10 @@ public:
     QDate kirjanpitoAlkaa() const;
     QDate kirjanpitoLoppuu() const;
 
+    /** Lataa kaudet kirjanpitoa avattaessa (nollaa mallin) */
     void lataa(const QVariantList& lista);
+    /** Päivittää saman kirjanpidon kaudet; nollaa mallin vain, jos kausijako muuttui */
+    void paivitaKaudet(const QVariantList& lista);
     void tallenna(const Tilikausi& kausi, const QDate& vanhaAlku = QDate());
     void poista(const QDate& alkupvm);
 

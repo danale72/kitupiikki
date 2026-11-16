@@ -36,6 +36,10 @@ public:
 
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
 
+    /** Tyhjentää mallin; ryhmät haetaan uudelleen ensimmäisellä käyttökerralla */
+    void nollaa();
+    void varmistaLadattu();
+
 public slots:
     void paivita();
 
@@ -44,6 +48,7 @@ protected slots:
 
 private:
     QVariantList ryhmat_;
+    bool ladattu_ = false;
 };
 
 #endif // RYHMATMODEL_H

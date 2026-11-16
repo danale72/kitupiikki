@@ -91,7 +91,7 @@ void LaskunToimittaja::laskuKasitelty()
         // Kaikki toimitettu, näytetään tulos
 
         hide();
-        emit kp()->kirjanpitoaMuokattu();
+        kp()->muokattu();
 
         if( onnistuneet_ && !epaonnistuneet_) {
             if( onnistuneet_ == 1) {

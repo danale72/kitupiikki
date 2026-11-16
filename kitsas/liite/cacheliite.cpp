@@ -18,6 +18,8 @@ void CacheLiite::setData(const QByteArray &data)
 {
     data_ = data;        
     tila_ = HAETTU;    
+    thumb_ = QPixmap();
+    thumbLaskettu_ = false;
 
 }
 
@@ -54,6 +56,8 @@ void CacheLiite::tyhjenna()
 {
     data_.clear();    
     tila_ = TYHJENNETTY;
+    thumb_ = QPixmap();
+    thumbLaskettu_ = false;
 }
 
 QByteArray *CacheLiite::dataPtr()
@@ -66,11 +70,25 @@ QByteArray *CacheLiite::dataPtr()
 
 QPixmap CacheLiite::thumb() const
 {    
-    QImage image = QImage::fromData(data_).scaled(64,64,Qt::KeepAspectRatio);
+    if( tila_ != HAETTU)
+        return QPixmap();
+    if( thumbLaskettu_ )
+        return thumb_;
+
+    thumbLaskettu_ = true;
+    // PDF:stä ei saa kuvaa QImagella; näytetään oletuskuvake
+    if( data_.startsWith("%PDF"))
+        return thumb_;
+
+    QImage image = QImage::fromData(data_);
+    if( image.isNull())
+        return thumb_;
+    image = image.scaled(64,64,Qt::KeepAspectRatio);
     QImage filled(image.size(), QImage::Format_RGB32);
     filled.fill(Qt::white);
     QPainter p(&filled);
     p.drawImage(image.rect(), image);
-    return QPixmap::fromImage(filled);
-
+    p.end();
+    thumb_ = QPixmap::fromImage(filled);
+    return thumb_;
 }

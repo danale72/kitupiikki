@@ -432,6 +432,13 @@ bool SqliteTuoja::tuo(QSqlDatabase postgres, const QString &sqlitePolku, bool il
         return lopeta(false);
     }
 
+    // Suunnittelija tarvitsee tilastot heti: autovacuum ehtii analysoida tuodut taulut
+    // vasta myöhemmin, ja siihen asti kyselyt voivat käyttää huonoa suunnitelmaa.
+    // Epäonnistuminen ei kumoa onnistunutta tuontia.
+    QSqlQuery analysoi(postgres);
+    if( !analysoi.exec(QStringLiteral("ANALYZE")))
+        qWarning() << "SqliteTuoja: ANALYZE epäonnistui:" << analysoi.lastError().text();
+
     edistyminen.setValue(TAULUT.count() + 1);
 
     if( !huomiot.isEmpty() ) {

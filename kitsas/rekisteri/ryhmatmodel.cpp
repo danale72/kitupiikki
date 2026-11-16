@@ -58,10 +58,25 @@ QVariant RyhmatModel::data(const QModelIndex &index, int role) const
     return QVariant();
 }
 
+void RyhmatModel::nollaa()
+{
+    beginResetModel();
+    ryhmat_.clear();
+    ladattu_ = false;
+    endResetModel();
+}
+
+void RyhmatModel::varmistaLadattu()
+{
+    if( !ladattu_ )
+        paivita();
+}
+
 void RyhmatModel::paivita()
 {
     KpKysely *kysely = kpk("/ryhmat");
     if( kysely ) {
+        ladattu_ = true;
         connect(kysely, &KpKysely::vastaus, this, &RyhmatModel::tietoSaapuu);
         kysely->kysy();
     }

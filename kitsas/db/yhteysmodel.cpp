@@ -60,6 +60,8 @@ void YhteysModel::lataaInit(QVariant *reply)
             kp()->tilikaudet()->lataa( iter.value().toList() );
         else if( avain == "kierrot")
             kp()->kierrot()->lataa( iter.value().toList() );
+        else if( avain == "logo" || avain == "vakioviitteet")
+            kp()->asetaInitLisa( avain, iter.value() );
         else if( avain == "tositesarjat") {
             QStringList lista;
             for(auto& item : iter.value().toList())

@@ -54,21 +54,35 @@ void ToiminimiModel::lataa()
     QVariantList lista = QJsonDocument::fromJson(data.toUtf8()).toVariant().toList();
     lista_.clear();
     logo_.clear();
+    logoHaettu_.clear();
 
     lista_.reserve(lista.count());
     logo_.resize(lista.count());
+    logoHaettu_.fill(false, lista.count());
     for(auto& item : lista) {
         lista_.append( item.toMap() );
     }
 
-    if( kp()->yhteysModel()) {
-        for(int i=0; i < lista_.count(); i++) {
-                KpKysely *logokysely = kpk(QString("/liitteet/0/logo-%1").arg(i+1));
-                connect( logokysely, &KpKysely::vastaus, this, [this,i] (QVariant* vastaus)  { this->logoSaapui(i, vastaus); });
-                logokysely->kysy();
-        }
+    // Pilven vastaukset tulevat asynkronisesti, joten siellä logot haetaan heti.
+    // Paikallisissa kirjanpidoissa logo haetaan vasta, kun sitä tarvitaan.
+    if( kp()->onkoPilvessa()) {
+        for(int i=0; i < lista_.count(); i++)
+            haeLogo(i);
     }
     endResetModel();
+}
+
+void ToiminimiModel::haeLogo(int i) const
+{
+    if( i < 0 || i >= logoHaettu_.count() || logoHaettu_.at(i))
+        return;
+    logoHaettu_[i] = true;
+    KpKysely *logokysely = kpk(QString("/liitteet/0/logo-%1").arg(i+1));
+    if( !logokysely )
+        return;
+    ToiminimiModel* model = const_cast<ToiminimiModel*>(this);
+    connect( logokysely, &KpKysely::vastaus, model, [model,i] (QVariant* vastaus)  { model->logoSaapui(i, vastaus); });
+    logokysely->kysy();
 }
 
 void ToiminimiModel::tallenna()
@@ -94,6 +108,7 @@ int ToiminimiModel::lisaaToiminimi(const QString &toiminimi)
     lista_.append(uusi);
     const int uusiIndeksi = lista_.size();
     logo_.resize( uusiIndeksi );
+    logoHaettu_.resize( uusiIndeksi );
     asetaLogo(uusiIndeksi, logo());
     endInsertRows();
     return uusiIndeksi;
@@ -146,8 +161,8 @@ QImage ToiminimiModel::logo(int indeksi) const
 {
     if( indeksi == 0)
         return kp()->logo();
-    else
-        return logo_.value(indeksi-1);
+    haeLogo(indeksi - 1);
+    return logo_.value(indeksi-1);
 }
 
 void ToiminimiModel::asetaLogo(int indeksi, const QImage &logo)
@@ -156,6 +171,8 @@ void ToiminimiModel::asetaLogo(int indeksi, const QImage &logo)
         kp()->asetaLogo(logo);
     } else {
         logo_[indeksi-1] = logo;
+        if( indeksi - 1 < logoHaettu_.count())
+            logoHaettu_[indeksi-1] = true;
 
         QByteArray ba;
 
@@ -176,7 +193,8 @@ void ToiminimiModel::logoSaapui(int indeksi, QVariant *reply)
     QByteArray ba = reply->toByteArray();
 
     QImage logo = QImage::fromData( ba );
-    logo_[indeksi] = logo;
+    if( indeksi < logo_.count())
+        logo_[indeksi] = logo;
 }
 
 

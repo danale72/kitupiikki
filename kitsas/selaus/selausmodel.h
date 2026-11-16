@@ -23,6 +23,8 @@
 #include <QList>
 #include <QDate>
 #include <QSqlQuery>
+#include <QHash>
+#include <QStringList>
 
 #include "db/tili.h"
 #include "db/kohdennus.h"
@@ -30,17 +32,36 @@
 
 class SQLiteModel;
 
+/**
+ * @brief Koko selaukselle kerralla haetut lisätiedot (merkkaukset ja erät),
+ * jottei jokaiselle riville tarvita omia kyselyitä
+ */
+struct SelausApu
+{
+    struct Era {
+        int tyyppi = 0;
+        int tunniste = 0;
+        QString sarja;
+        QDate pvm;
+    };
+    QHash<int, QStringList> merkkaukset;   // vienti -> merkkausten nimet
+    QHash<int, Era> erat;                  // erän id -> erän tosite
+    QSet<int> avoimet;                     // erät, joiden saldo ei ole nolla
+};
+
 class SelausRivi
 {
 public:
      SelausRivi(const QVariantMap& data, bool samakausi = false);
-     SelausRivi(QSqlQuery& data, bool samakausi, SQLiteModel *sqlite, bool merkkauksia);
+     SelausRivi(QSqlQuery& data, bool samakausi, const SelausApu& apu);
 
      QVariant data(int sarake, int role, bool alternateColor) const;
      int getTili() const { return tili;}
      QString getEtsi() const { return etsi;}
 
 protected:
+    void viimeistele();
+
     int tositeId;
     int vientiId;
     QString tositeTunnus;
@@ -60,6 +81,10 @@ protected:
     bool liitteita;
     int alvKoodi;
     double alvProsentti;
+
+    // Lasketaan latauksessa, ettei lajittelu muodosta merkkijonoja joka vertailulla
+    QString pvmJarjestys;
+    QString tiliTeksti;
 };
 
 /**

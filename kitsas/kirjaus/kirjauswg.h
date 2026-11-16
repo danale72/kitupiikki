@@ -189,6 +189,7 @@ protected:
 
     Tosite* tosite_;
     ApuriWidget* apuri_;
+    int apuriTyyppi_ = -1;
 
     QWidget* viennitTab_;
     QWidget* memoTab_;

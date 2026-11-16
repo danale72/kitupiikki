@@ -32,11 +32,23 @@ public:
 
     static QString kysymys(const QUrlQuery &urlquery);
 
+    void tyhjennaValimuisti() override { kumppaniCache_.clear(); }
+
 protected:
     int lisaaTaiPaivita(const QVariant pyynto, const int paivitettavanTositeId = 0);
     QVariantList lokinpurku(QSqlQuery &kysely) const;
 
-    QVariant hae(int tositeId);
+    /**
+     * @param vainViennit Palautetaan vain tositteen perustiedot ja viennit
+     *        (ei liitteitä, rivejä eikä lokia)
+     */
+    QVariant hae(int tositeId, bool vainViennit = false);
+    /**
+     * @brief POST/PUT-vastaus
+     *
+     * Oletuksena vain {id, tunniste, sarja}; koko tosite parametrilla ?palauta=tosite
+     */
+    QVariant tallennusVastaus(int tositeId, bool kokoTosite);
 
     /**
      * @brief Käsittelee Kumppanin map:in

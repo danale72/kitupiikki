@@ -199,9 +199,25 @@ QList<PostgresAsiakas> PostgresModel::listaaTietokannat(const PostgresYhteys &pa
     QStringList eiKitsas = eiKitsasKartta.value(palvelinAvain).toStringList();
     bool eiKitsasMuuttui = false;
 
+    // Myös tunnetut Kitsas-kannat nimineen muistetaan, ettei jokaiseen kantaan
+    // tarvitse avata omaa yhteyttä joka kirjautumisella. Nimi päivittyy, kun
+    // kirjanpito avataan (lisaaViimeisiin). Palvelimelta poistetut kannat
+    // putoavat listalta, koska ehdokkaat haetaan aina pg_database-taulusta.
+    QVariantMap kitsasKartta = kp()->settings()->value(QStringLiteral("PostgresKitsasKannat")).toMap();
+    QVariantMap kitsasKannat = kitsasKartta.value(palvelinAvain).toMap();
+    bool kitsasMuuttui = false;
+
     for( const QString& dbNimi : ehdokkaat ) {
         if( eiKitsas.contains(dbNimi) )
             continue;
+        if( kitsasKannat.contains(dbNimi)) {
+            const QString nimi = kitsasKannat.value(dbNimi).toString();
+            PostgresAsiakas asiakas;
+            asiakas.tietokanta = dbNimi;
+            asiakas.nimi = nimi.isEmpty() ? dbNimi : nimi;
+            asiakkaat.append(asiakas);
+            continue;
+        }
         QString nimi;
         const Tietokantaprobe tila = probaaTietokanta(palvelin.asiakasYhteys(dbNimi), &nimi);
         if( tila == Tietokantaprobe::OnKitsasTietokanta ) {
@@ -209,6 +225,8 @@ QList<PostgresAsiakas> PostgresModel::listaaTietokannat(const PostgresYhteys &pa
             asiakas.tietokanta = dbNimi;
             asiakas.nimi = nimi.isEmpty() ? dbNimi : nimi;
             asiakkaat.append(asiakas);
+            kitsasKannat.insert(dbNimi, nimi);
+            kitsasMuuttui = true;
         } else if( tila == Tietokantaprobe::EiKitsasTietokanta ) {
             // Vain yksiselitteisesti ei-Kitsas-tulos muistetaan pysyvästi -
             // yhteyden/kyselyn epäonnistuminen (esim. tilapäinen katko tai
@@ -222,6 +240,10 @@ QList<PostgresAsiakas> PostgresModel::listaaTietokannat(const PostgresYhteys &pa
     if( eiKitsasMuuttui ) {
         eiKitsasKartta.insert(palvelinAvain, eiKitsas);
         kp()->settings()->setValue(QStringLiteral("PostgresEiKitsasKannat"), eiKitsasKartta);
+    }
+    if( kitsasMuuttui ) {
+        kitsasKartta.insert(palvelinAvain, kitsasKannat);
+        kp()->settings()->setValue(QStringLiteral("PostgresKitsasKannat"), kitsasKartta);
     }
 
     return asiakkaat;
@@ -250,17 +272,15 @@ PostgresModel::Tietokantaprobe PostgresModel::probaaTietokanta(const PostgresYht
 
     if( probe.open() ) {
         QSqlQuery query(probe);
-        if( query.exec(QStringLiteral("SELECT arvo FROM Asetus WHERE avain='KpVersio'")) ) {
-            if( query.next() ) {
-                tulos = Tietokantaprobe::OnKitsasTietokanta;
-                if( nimi ) {
-                    QSqlQuery nimiKysely(probe);
-                    nimiKysely.exec(QStringLiteral("SELECT arvo FROM Asetus WHERE avain='Nimi'"));
-                    if( nimiKysely.next())
-                        *nimi = nimiKysely.value(0).toString();
-                }
-            } else {
-                tulos = Tietokantaprobe::EiKitsasTietokanta;
+        query.setForwardOnly(true);
+        if( query.exec(QStringLiteral("SELECT avain, arvo FROM Asetus WHERE avain IN ('KpVersio','Nimi')")) ) {
+            tulos = Tietokantaprobe::EiKitsasTietokanta;
+            while( query.next() ) {
+                const QString avain = query.value(0).toString();
+                if( avain == QLatin1String("KpVersio"))
+                    tulos = Tietokantaprobe::OnKitsasTietokanta;
+                else if( nimi && avain == QLatin1String("Nimi"))
+                    *nimi = query.value(1).toString();
             }
         } else if( query.lastError().nativeErrorCode() == QStringLiteral("42P01") ) {
             // undefined_table: kannassa ei ole Asetus-taulua lainkaan, eli
@@ -440,7 +460,10 @@ bool PostgresModel::avaa(const PostgresYhteys &yhteys, bool ilmoitaVirheesta)
         return false;
     }
 
-    if( !onkoKaavioOlemassa() ) {
+    // Sama kysely kertoo, onko kaaviota (virhe) ja onko kyseessä Kitsaan kirjanpito (rivi)
+    QSqlQuery query(tietokanta_);
+    query.exec("SELECT arvo FROM Asetus WHERE avain='KpVersio'");
+    if( query.lastError().type() != QSqlError::NoError ) {
         kp()->odotusKursori(false);
         if( ilmoitaVirheesta )
             QMessageBox::critical(nullptr, tr("Kirjanpitoa ei voi avata"),
@@ -449,9 +472,6 @@ bool PostgresModel::avaa(const PostgresYhteys &yhteys, bool ilmoitaVirheesta)
         tietokanta_.close();
         return false;
     }
-
-    QSqlQuery query(tietokanta_);
-    query.exec("SELECT arvo FROM Asetus WHERE avain='KpVersio'");
     if( !query.next()) {
         kp()->odotusKursori(false);
         if( ilmoitaVirheesta )
@@ -482,6 +502,7 @@ bool PostgresModel::avaa(const PostgresYhteys &yhteys, bool ilmoitaVirheesta)
     }
 
     varmistaUid();
+    varmistaIndeksit();
     merkitseAvatuksi();
     nykyinen_ = yhteys;
 
@@ -644,6 +665,19 @@ void PostgresModel::lisaaViimeisiin()
     QVariantMap map = nykyinen_.toMap();
     map.insert("avain", nykyinen_.avain());
     map.insert("nimi", kp()->asetukset()->asetus(AsetusModel::OrganisaatioNimi) );
+
+    // Avattu kanta on varmasti Kitsaan kirjanpito: päivitetään palvelinkohtainen muisti
+    {
+        const QString palvelinAvain = nykyinen_.palvelinAvain();
+        QVariantMap kitsasKartta = kp()->settings()->value(QStringLiteral("PostgresKitsasKannat")).toMap();
+        QVariantMap kitsasKannat = kitsasKartta.value(palvelinAvain).toMap();
+        const QString nimi = map.value("nimi").toString();
+        if( !kitsasKannat.contains(nykyinen_.database) || kitsasKannat.value(nykyinen_.database).toString() != nimi) {
+            kitsasKannat.insert(nykyinen_.database, nimi);
+            kitsasKartta.insert(palvelinAvain, kitsasKannat);
+            kp()->settings()->setValue(QStringLiteral("PostgresKitsasKannat"), kitsasKartta);
+        }
+    }
 
     beginResetModel();
     for( int i=0; i < viimeiset_.count(); i++ ) {

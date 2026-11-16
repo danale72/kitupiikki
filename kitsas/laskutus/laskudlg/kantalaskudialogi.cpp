@@ -705,11 +705,11 @@ void KantaLaskuDialogi::laskeMaksuaika()
 
 void KantaLaskuDialogi::naytaLoki()
 {
-    NaytinIkkuna *naytin = new NaytinIkkuna();
-    QVariant var = ui->lokiView->currentIndex().data(Qt::UserRole);
-
-    QString data = QString::fromUtf8( QJsonDocument::fromVariant(var).toJson(QJsonDocument::Indented) );
-    naytin->nayta(data);
+    TositeLoki::haeData( ui->lokiView->currentIndex(), this, [] (const QVariant& var) {
+        NaytinIkkuna *naytin = new NaytinIkkuna();
+        QString data = QString::fromUtf8( QJsonDocument::fromVariant(var).toJson(QJsonDocument::Indented) );
+        naytin->nayta(data);
+    });
 }
 
 void KantaLaskuDialogi::naytaEsikatselu()

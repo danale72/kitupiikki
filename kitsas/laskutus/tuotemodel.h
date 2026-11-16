@@ -48,6 +48,10 @@ public:
     QByteArray csv() const;
     Tuote tuote(int id) const;
 
+    /** Tyhjentää mallin; tuotteet haetaan uudelleen ensimmäisellä käyttökerralla */
+    void nollaa();
+    void varmistaLadattu();
+
 public slots:
     void lataa();
     void paivitaTuote(Tuote tuote);
@@ -60,6 +64,7 @@ private slots:
 private:
     QList<Tuote> tuotteet_;
     int desimaalit_ = 2;
+    bool ladattu_ = false;
     
 };
 

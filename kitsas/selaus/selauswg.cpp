@@ -85,7 +85,7 @@ SelausWg::SelausWg(QWidget *parent) :
     ui->valintaTab->setCurrentIndex(0);     // Oletuksena tositteiden selaus
     connect( ui->valintaTab, SIGNAL(currentChanged(int)), this, SLOT(selaa(int)));
 
-    connect( Kirjanpito::db(), SIGNAL(kirjanpitoaMuokattu()), this, SLOT(paivita()));
+    connect( Kirjanpito::db(), &Kirjanpito::kirjanpitoaMuokattu, this, &SelausWg::kirjanpitoMuuttui);
     connect( kp()->tilikaudet(), &TilikausiModel::modelReset, this, &SelausWg::alusta);
 
     connect( ui->alkuEdit, SIGNAL(dateChanged(QDate)), this, SLOT(alkuPvmMuuttui()));
@@ -152,9 +152,29 @@ void SelausWg::alusta()
     ui->alkuEdit->setDateRange(alku, loppu);
     ui->loppuEdit->setDateRange(alku, loppu);
 
+    // Piilossa oleva sivu ladataan vasta, kun se näytetään (siirrySivulle)
+    if( isVisible())
+        paivita();
+    else
+        vanhentunut_ = true;
 
-    paivita();
+}
 
+void SelausWg::kirjanpitoMuuttui()
+{
+    if( isVisible())
+        paivita();
+    else
+        vanhentunut_ = true;
+}
+
+QString SelausWg::lataustunniste() const
+{
+    return QString("%1 %2 %3 %4")
+            .arg(ui->valintaTab->currentIndex())
+            .arg(ui->alkuEdit->date().toString(Qt::ISODate))
+            .arg(ui->loppuEdit->date().toString(Qt::ISODate))
+            .arg(selaustili_);
 }
 
 void SelausWg::paivita()
@@ -166,6 +186,9 @@ void SelausWg::paivita()
         alkupvm = kp()->tilikaudet()->kirjanpitoAlkaa();
     if( !loppupvm.isValid())
         loppupvm = kp()->tilikaudet()->kirjanpitoLoppuu();
+
+    vanhentunut_ = false;
+    ladattuTunniste_ = lataustunniste();
 
     qApp->processEvents();
 
@@ -482,6 +505,10 @@ void SelausWg::siirrySivulle()
                                  ( kp()->yhteysModel()->onkoOikeutta(YhteysModel::TOSITE_MUOKKAUS) ||
                                    kp()->yhteysModel()->onkoOikeutta(YhteysModel::TOSITE_LUONNOS)));
 
+    // Pelkkä sivulle palaaminen ei hae listaa uudelleen, jos mikään ei ole muuttunut
+    if( !vanhentunut_ && ladattuTunniste_ == lataustunniste() && ui->selausView->model())
+        return;
+
     selaa( ui->valintaTab->currentIndex() );
 }
 
@@ -677,7 +704,7 @@ void SelausWg::poistoValmis()
 {
     poistoLaskuri_--;
     if( poistoLaskuri_ < 1)
-        emit kp()->kirjanpitoaMuokattu();
+        kp()->muokattu();
 }
 
 bool SelausWg::eventFilter(QObject *watched, QEvent *event)

@@ -97,9 +97,6 @@ KitupiikkiIkkuna::KitupiikkiIkkuna(QWidget *parent) : QMainWindow(parent),
 {
 
     connect( kp(), &Kirjanpito::tietokantaVaihtui, this, &KitupiikkiIkkuna::suljeIkkunat);
-    connect( kp(), &Kirjanpito::tietokantaVaihtui, this, &KitupiikkiIkkuna::paivitaAktiivisuudet);
-    connect(kp(), &Kirjanpito::perusAsetusMuuttui, this, &KitupiikkiIkkuna::paivitaAktiivisuudet);
-    connect(kp()->pilvi(), &PilviModel::kirjauduttu, this, &KitupiikkiIkkuna::paivitaAktiivisuudet);
 
     setWindowIcon(QIcon(":/pic/Possu64.png"));
     setWindowTitle( QString("%1 %2").arg(qApp->applicationName(), qApp->applicationVersion()));
@@ -600,7 +597,8 @@ void KitupiikkiIkkuna::luoHarjoitusDock()
 
     addDockWidget(Qt::TopDockWidgetArea, harjoitusDock);
     connect( pvmedit, SIGNAL(dateChanged(QDate)), Kirjanpito::db(), SLOT(asetaHarjoitteluPvm(QDate)));
-    connect( pvmedit, &QDateEdit::dateChanged, Kirjanpito::db(), &Kirjanpito::kirjanpitoaMuokattu );  // Jotta päivittyy ;)
+    // Näkymät päivitetään vasta muokkauksen päätyttyä, ei jokaisella näppäilyllä
+    connect( pvmedit, &QDateEdit::editingFinished, Kirjanpito::db(), &Kirjanpito::muokattu );
     harjoitusDock->setVisible(false);
 }
 

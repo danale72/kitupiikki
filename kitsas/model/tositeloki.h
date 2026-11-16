@@ -18,6 +18,7 @@
 #define TOSITELOKI_H
 
 #include <QAbstractTableModel>
+#include <functional>
 
 class TositeLoki : public QAbstractTableModel
 {
@@ -31,7 +32,8 @@ public:
     enum {
         DataRooli = Qt::UserRole,
         TilaRooli = Qt::UserRole + 1,
-        AikaRooli = Qt::UserRole + 2
+        AikaRooli = Qt::UserRole + 2,
+        IdRooli = Qt::UserRole + 3
     };
 
     explicit TositeLoki(QObject *parent = nullptr);
@@ -49,6 +51,14 @@ public:
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
 
     QString virheViesti() const;    // Uusimman lokimerkinnän virheviesti (verkkolaskut)
+
+    /**
+     * @brief Lokirivin tilannekuva
+     *
+     * Paikallinen kirjanpito palauttaa tositteen mukana vain uusimman rivin
+     * tilannekuvan; muiden rivien tilannekuva haetaan tässä erikseen.
+     */
+    static void haeData(const QModelIndex& index, QObject* konteksti, std::function<void(const QVariant&)> valmis);
 
 private:
     QVariantList data_;

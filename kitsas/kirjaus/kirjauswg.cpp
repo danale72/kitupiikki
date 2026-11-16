@@ -326,7 +326,13 @@ void KirjausWg::poistaTosite()
         KpKysely* kysely = kpk(QString("/tositteet/%1").arg( tosite()->data(Tosite::ID).toInt() ), KpKysely::DELETE );
         connect(kysely, &KpKysely::virhe, this, [this] (int /* virhe */, QString selitys) {QMessageBox::critical(this, tr("Tietokantavirhe"),
                                                                         tr("Tietokantavirhe tositetta poistettaessa\n\n%1").arg( selitys ));});
-        connect(kysely, &KpKysely::vastaus, this, [this] {this->tyhjenna(); kirjausSivu_->tositeKasitelty(false); emit kp()->kirjanpitoaMuokattu();});
+        const bool mallipohja = tosite()->tositetila() == Tosite::MALLIPOHJA;
+        kp()->liiteCache()->tyhjennaTositteet();
+        connect(kysely, &KpKysely::vastaus, this, [this, mallipohja] {
+            this->tyhjenna(); kirjausSivu_->tositeKasitelty(false);
+            if( mallipohja )
+                emit kp()->mallipohjatMuuttuivat();
+            kp()->muokattu();});
 
         kysely->kysy();
     }
@@ -398,11 +404,11 @@ void KirjausWg::tulostaTosite()
 
 void KirjausWg::naytaLoki()
 {
-    NaytinIkkuna *naytin = new NaytinIkkuna();    
-    QVariant var = ui->lokiView->currentIndex().data(Qt::UserRole);
-
-    QString data = QString::fromUtf8( QJsonDocument::fromVariant(var).toJson(QJsonDocument::Indented) );
-    naytin->nayta(data);
+    TositeLoki::haeData( ui->lokiView->currentIndex(), this, [] (const QVariant& var) {
+        NaytinIkkuna *naytin = new NaytinIkkuna();
+        QString data = QString::fromUtf8( QJsonDocument::fromVariant(var).toJson(QJsonDocument::Indented) );
+        naytin->nayta(data);
+    });
 }
 
 void KirjausWg::pohjaksi()
@@ -925,8 +931,15 @@ void KirjausWg::vaihdaTositeTyyppi()
 
 void KirjausWg::tositeTyyppiVaihtui(int tyyppiKoodi)
 {
-    // Tässä voisi laittaa muutenkin apurit paikalleen
-    if( apuri_ )
+    // Saman tyyppisen tositteen apuri käytetään uudelleen: sen luonti hakee
+    // tietoja (saldot, merkkaukset) ja rakentaa koko käyttöliittymän.
+    // Tiliotteen apurilla on omaa tilaa, joten se luodaan aina uudelleen.
+    const bool kaytaUudelleen = apuri_ && apuriTyyppi_ == tyyppiKoodi &&
+            ( tyyppiKoodi == TositeTyyppi::TULO || tyyppiKoodi == TositeTyyppi::MENO
+              || tyyppiKoodi == TositeTyyppi::KULULASKU || tyyppiKoodi == TositeTyyppi::SAAPUNUTVERKKOLASKU
+              || tyyppiKoodi == TositeTyyppi::SIIRTO || tyyppiKoodi == TositeTyyppi::PALKKA );
+
+    if( apuri_ && !kaytaUudelleen )
     {
         ui->tabWidget->removeTab( ui->tabWidget->indexOf( apuri_) );
         // Tyyppi voi vaihtua kesken apurin signaaliketjun (esim. tiliotteen
@@ -936,8 +949,8 @@ void KirjausWg::tositeTyyppiVaihtui(int tyyppiKoodi)
         tosite_->disconnect(apuri_);
         apuri_->hide();
         apuri_->deleteLater();
+        apuri_ = nullptr;
     }
-    apuri_ = nullptr;
 
     // Liitetiedoilla ei ole vientejä
     ui->tabWidget->setTabEnabled( ui->tabWidget->indexOf(viennitTab_) , tyyppiKoodi != TositeTyyppi::LIITETIETO);
@@ -945,7 +958,10 @@ void KirjausWg::tositeTyyppiVaihtui(int tyyppiKoodi)
     // Varasto ei toistaiseksi käytössä
     // ui->tabWidget->setTabEnabled( ui->tabWidget->indexOf(varastoTab_), false);
 
-    if( tyyppiKoodi == TositeTyyppi::TULO || tyyppiKoodi == TositeTyyppi::MENO
+    const bool uusiApuri = !kaytaUudelleen;
+    if( kaytaUudelleen ) {
+        // apuri_ säilyy
+    } else if( tyyppiKoodi == TositeTyyppi::TULO || tyyppiKoodi == TositeTyyppi::MENO
             || tyyppiKoodi == TositeTyyppi::KULULASKU || tyyppiKoodi == TositeTyyppi::SAAPUNUTVERKKOLASKU)
     {
         apuri_ = new TuloMenoApuri(this, tosite_);
@@ -956,6 +972,7 @@ void KirjausWg::tositeTyyppiVaihtui(int tyyppiKoodi)
     } else if( tyyppiKoodi == TositeTyyppi::PALKKA) {
         apuri_ = new PalkkaApuri(this, tosite_);
     }
+    apuriTyyppi_ = apuri_ ? tyyppiKoodi : -1;
 
     bool lisattavatyyppi = kp()->tositeTyypit()->onkolisattavissa(tyyppiKoodi);
     if( lisattavatyyppi )
@@ -969,9 +986,10 @@ void KirjausWg::tositeTyyppiVaihtui(int tyyppiKoodi)
 
     if( apuri_)
     {
-        ui->tabWidget->insertTab(0, apuri_, QIcon(":/pic/apuri64.png"), tr("Kirjaa"));
+        if( uusiApuri )
+            ui->tabWidget->insertTab(0, apuri_, QIcon(":/pic/apuri64.png"), tr("Kirjaa"));
         ui->tabWidget->setCurrentIndex(0);
-        apuri_->reset();                
+        apuri_->reset();
     }
 
     if( tyyppiKoodi == TositeTyyppi::LIITETIETO)
@@ -1003,19 +1021,22 @@ void KirjausWg::tunnisteVaihtui(int tunniste)
     ui->edellinenButton->setVisible( omaIndeksi > -1 );
     ui->seuraavaButton->setVisible( omaIndeksi > -1);
 
+    QList<int> ennakkoon;
     if( omaIndeksi > 0) {
         ui->edellinenButton->setEnabled(true);
-        kp()->liiteCache()->tositteenLiitteidenEnnakkoHaku( selausLista_.at(omaIndeksi - 1) );
+        ennakkoon.append( selausLista_.at(omaIndeksi - 1) );
     } else {
         ui->edellinenButton->setEnabled(false);
     }
 
     if( omaIndeksi > -1 && omaIndeksi < selausLista_.count() - 1) {
         ui->seuraavaButton->setEnabled( true );
-        kp()->liiteCache()->tositteenLiitteidenEnnakkoHaku( selausLista_.at(omaIndeksi + 1) );
+        // Seuraava ensin: tallenna ja seuraava -toiminto käyttää sitä
+        ennakkoon.prepend( selausLista_.at(omaIndeksi + 1) );
     } else {
         ui->seuraavaButton->setEnabled( false );
     }
+    kp()->liiteCache()->tositteidenEnnakkoHaku( ennakkoon );
 
     if( tunniste ) {
         ui->vuosiLabel->setVisible(true);

@@ -42,6 +42,10 @@ private:
 
     QByteArray data_;    
 
+    // Pienoiskuva lasketaan kerran: koko kuvan purku jokaisella piirrolla on raskas
+    mutable QPixmap thumb_;
+    mutable bool thumbLaskettu_ = false;
+
     CacheLiite* seuraava_ = nullptr;
     CacheLiite* edellinen_ = nullptr;
 

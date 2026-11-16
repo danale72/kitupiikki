@@ -84,7 +84,7 @@ void LaskunUusinta::uusiSeuraava()
 
     if( jono_.isEmpty()) {
         emit kp()->onni(tr("Toistuvat laskut luotu Lähtevät-välilehdelle."));
-        emit kp()->kirjanpitoaMuokattu();
+        kp()->muokattu();
         busy_ = false;
     } else {
         int id = jono_.dequeue();

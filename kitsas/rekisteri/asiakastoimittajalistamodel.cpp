@@ -50,6 +50,7 @@ QVariant AsiakasToimittajaListaModel::data(const QModelIndex &index, int role) c
 
 int AsiakasToimittajaListaModel::idAlvTunnuksella(const QString tunnus) const
 {
+    const_cast<AsiakasToimittajaListaModel*>(this)->varmistaLadattu();
     for(const auto& item : qAsConst( lista_ )) {
         if( item.alvtunnus == tunnus)
             return item.id;
@@ -59,6 +60,7 @@ int AsiakasToimittajaListaModel::idAlvTunnuksella(const QString tunnus) const
 
 int AsiakasToimittajaListaModel::idNimella(const QString &nimi) const
 {
+    const_cast<AsiakasToimittajaListaModel*>(this)->varmistaLadattu();
     for(const auto& item : qAsConst( lista_ )) {
         if( item.nimi == nimi)
             return item.id;
@@ -68,6 +70,7 @@ int AsiakasToimittajaListaModel::idNimella(const QString &nimi) const
 
 QString AsiakasToimittajaListaModel::nimi(int id) const
 {
+    const_cast<AsiakasToimittajaListaModel*>(this)->varmistaLadattu();
     for( const auto& item : lista_) {
         if( item.id == id)
             return item.nimi;
@@ -79,18 +82,38 @@ AsiakasToimittajaListaModel *AsiakasToimittajaListaModel::instanssi()
 {
     if( !instanssi__) {
         instanssi__ = new AsiakasToimittajaListaModel;
-        instanssi__->lataa();
 
-        connect(kp(), &Kirjanpito::kirjanpitoaMuokattu, instanssi__, &AsiakasToimittajaListaModel::lataa);
-        connect(kp(), &Kirjanpito::tietokantaVaihtui, instanssi__, &AsiakasToimittajaListaModel::lataa);
+        connect(kp(), &Kirjanpito::kirjanpitoaMuokattu, instanssi__, &AsiakasToimittajaListaModel::vanhenna);
+        connect(kp(), &Kirjanpito::tietokantaVaihtui, instanssi__, &AsiakasToimittajaListaModel::tyhjenna);
     }
+    instanssi__->varmistaLadattu();
     return instanssi__;
+}
+
+void AsiakasToimittajaListaModel::varmistaLadattu()
+{
+    if( vanhentunut_ )
+        lataa();
+}
+
+void AsiakasToimittajaListaModel::vanhenna()
+{
+    vanhentunut_ = true;
+}
+
+void AsiakasToimittajaListaModel::tyhjenna()
+{
+    beginResetModel();
+    lista_.clear();
+    vanhentunut_ = true;
+    endResetModel();
 }
 
 void AsiakasToimittajaListaModel::lataa()
 {
     KpKysely* kysely = kpk("/kumppanit");
     if( kysely ) {
+        vanhentunut_ = false;
         connect( kysely, &KpKysely::vastaus, this, &AsiakasToimittajaListaModel::saapuu);
         kysely->kysy();
     }

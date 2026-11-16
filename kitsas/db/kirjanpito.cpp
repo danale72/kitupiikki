@@ -34,6 +34,7 @@
 #include <QRegularExpression>
 #include <QStandardPaths>
 #include <QDir>
+#include <QTimer>
 
 #include <QDebug>
 
@@ -127,8 +128,15 @@ Kirjanpito::Kirjanpito(const QString& portableDir) :
     connect( this, &Kirjanpito::tietokantaVaihtui, verkkolaskuhaku, &FinvoiceHaku::haeUudet);
     connect( pilvi(), &PilviModel::kirjauduttu, verkkolaskuhaku, &FinvoiceHaku::haeUudet);
 
-    connect( this, &Kirjanpito::tietokantaVaihtui, vakioviitteet_, &VakioViiteModel::lataa);
     connect( this, &Kirjanpito::tietokantaVaihtui, liiteCache_, &LiiteCache::tyhjenna);
+    connect( this, &Kirjanpito::kirjanpitoaMuokattu, liiteCache_, &LiiteCache::tyhjennaTositteet);
+
+    muokkausAjastin_ = new QTimer(this);
+    muokkausAjastin_->setSingleShot(true);
+    muokkausAjastin_->setInterval(150);
+    connect( muokkausAjastin_, &QTimer::timeout, this, &Kirjanpito::kirjanpitoaMuokattu);
+    // Vanhan kirjanpidon muutosilmoitusta ei lähetetä uuteen kirjanpitoon
+    connect( this, &Kirjanpito::tietokantaVaihtui, muokkausAjastin_, &QTimer::stop);
 
     LaskuDialogiTehdas::kaynnista(this, this);
 
@@ -253,6 +261,22 @@ void Kirjanpito::asetaLogo(const QImage &logo)
     emit logoMuuttui();
 }
 
+void Kirjanpito::asetaInitLisa(const QString &avain, const QVariant &arvo)
+{
+    initLisat_.insert(avain, arvo);
+}
+
+void Kirjanpito::muokattu()
+{
+    muokkausAjastin_->start();
+}
+
+RyhmatModel *Kirjanpito::ryhmat() const
+{
+    ryhmat_->varmistaLadattu();
+    return ryhmat_;
+}
+
 bool Kirjanpito::onkoPilvessa() const
 {
     return qobject_cast<PilviModel*>(yhteysModel_);
@@ -304,19 +328,36 @@ void Kirjanpito::yhteysAvattu(YhteysModel *model)
     logo_ = QImage();
 
     if( yhteysModel() ) {
-        KpKysely *logokysely = kpk("/liitteet/0/logo");
-        connect( logokysely, &KpKysely::vastaus, this, &Kirjanpito::logoSaapui);
-        logokysely->kysy();
+        if( initLisat_.contains("logo")) {
+            logo_ = QImage::fromData( initLisat_.value("logo").toByteArray() );
+            emit logoMuuttui();
+        } else {
+            KpKysely *logokysely = kpk("/liitteet/0/logo");
+            connect( logokysely, &KpKysely::vastaus, this, &Kirjanpito::logoSaapui);
+            logokysely->kysy();
+        }
 
-        tuotteet()->lataa();
-        ryhmat()->paivita();
+        if( initLisat_.contains("vakioviitteet"))
+            vakioviitteet_->asetaLista( initLisat_.value("vakioviitteet").toList() );
+        else
+            vakioviitteet_->lataa();
+
+        // Tuotteet ja ryhmät haetaan vasta ensimmäisellä käyttökerralla
+        tuotteet_->nollaa();
+        ryhmat_->nollaa();
+        if( onkoPilvessa() ) {
+            tuotteet_->varmistaLadattu();
+            ryhmat_->varmistaLadattu();
+        }
         huoneistot()->paivita();
+        alvIlmoitukset()->nollaa();
         alvIlmoitukset()->lataa();
         raporttiValinnat()->nollaa();
         kp()->toiminimet()->lataa();
         kp()->bannerit()->lataa();
         tuontiInfo_.paivita();
     }
+    initLisat_.clear();
 
     emit tietokantaVaihtui();
 }

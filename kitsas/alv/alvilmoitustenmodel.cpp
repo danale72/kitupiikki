@@ -194,11 +194,27 @@ QDate AlvIlmoitustenModel::erapaiva(const QDate &loppupaiva) const
     return erapvm;
 }
 
+void AlvIlmoitustenModel::lataaTarkistaen()
+{
+    tarkistetaan_ = true;
+    lataa();
+}
+
+void AlvIlmoitustenModel::nollaa()
+{
+    tarkistetaan_ = false;
+    tarkistusYritetty_.clear();
+    tarkistettavat_.clear();
+    tarkistusTallennettu_ = false;
+}
+
 void AlvIlmoitustenModel::lataa()
 {
     KpKysely *kysely = kpk("/alv");
     if( !kysely)
         return;
+    if( tarkistetaan_ )
+        kysely->lisaaAttribuutti("tarkista");
 
     kaudet_->tyhjenna();
     connect( kysely, &KpKysely::vastaus, this, &AlvIlmoitustenModel::dataSaapuu);
@@ -225,7 +241,8 @@ void AlvIlmoitustenModel::dataSaapuu(QVariant *data)
 
     endResetModel();
 
-    tarkistaVanhat();
+    if( tarkistetaan_ )
+        tarkistaVanhat();
 }
 
 void AlvIlmoitustenModel::tarkistaVanhat()

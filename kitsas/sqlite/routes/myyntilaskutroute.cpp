@@ -134,7 +134,11 @@ QString MyyntilaskutRoute::sqlKysymys(const QUrlQuery &urlquery, const QString &
     if( !urlquery.hasQueryItem("avoin") && !urlquery.hasQueryItem("eraantynyt"))
         kysymys.append("LEFT OUTER ");
 
-    kysymys.append("JOIN (select eraid,  COALESCE(SUM(debetsnt),0) - COALESCE(SUM(kreditsnt),0) AS avoinsnt FROM Vienti JOIN Tosite ON Vienti.tosite=Tosite.id WHERE Tosite.tila >= 100 ");
+    const int vientityyppi = hyvitys ? TositeVienti::OSTO + TositeVienti::VASTAKIRJAUS : TositeVienti::MYYNTI + TositeVienti::VASTAKIRJAUS;
+
+    // Saldot lasketaan vain laskuvientien erille eikä kaikille kirjanpidon erille
+    kysymys.append(QString("JOIN (select eraid,  COALESCE(SUM(debetsnt),0) - COALESCE(SUM(kreditsnt),0) AS avoinsnt FROM Vienti JOIN Tosite ON Vienti.tosite=Tosite.id WHERE Tosite.tila >= 100 "
+                           "AND Vienti.eraid IN (SELECT lv.eraid FROM Vienti AS lv WHERE lv.tyyppi = %1) ").arg(vientityyppi));
 
     if( urlquery.hasQueryItem("saldopvm"))
         kysymys.append(QString(" AND Vienti.pvm <= '%1' ").arg(urlquery.queryItemValue("saldopvm")));
@@ -146,7 +150,7 @@ QString MyyntilaskutRoute::sqlKysymys(const QUrlQuery &urlquery, const QString &
 
     kysymys.append(QString(") as q ON vienti.eraid=q.eraid LEFT OUTER JOIN "
             "Kumppani ON vienti.kumppani=kumppani.id WHERE vienti.tyyppi = %1")
-            .arg( hyvitys ? TositeVienti::OSTO + TositeVienti::VASTAKIRJAUS : TositeVienti::MYYNTI + TositeVienti::VASTAKIRJAUS) );
+            .arg( vientityyppi ) );
 
 
     kysymys.append(ehdot);

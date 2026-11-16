@@ -446,17 +446,89 @@ schema change: it all lives in the existing `Tosite.json` text column. Covered
 by `dbparity`'s `route_alvIlmoituksenMuokkausTunnistetaan`.
 
 
-### 8. New-book `AlvAlkaa` setting stored with literal quotes on Postgres (OPEN)
+### 10. `/saldot?kustannuspaikat` empty on Postgres; route SQL that never ran on either backend (FIXED 2026-11)
+
+Found while rewriting per-row queries for performance:
+- `SaldotRoute::kustannuspaikat` selected `Kohdennus.kuuluu` while grouping
+  only by `Vienti.kohdennus, tili`. SQLite lets the bare column through, but
+  Postgres rejects it: grouping by `Vienti.kohdennus` is not grouping by the
+  `Kohdennus` primary key, so no functional dependency applies. The route
+  threw, and cost-centre reports were empty on Postgres. Fixed by adding
+  `kuuluu` to the `GROUP BY` (rule from #6).
+- The single-account `/saldot?tili=<income statement account>` query was
+  malformed on both backends: the closing quote after the end date was missing,
+  and `.arg()` was applied to the date string instead of the SQL.
+- `TuontiTulkki`'s "open erä of the right amount, without a reference" lookups
+  used unqualified `pvm`, `kumppani` and `id` across `Vienti JOIN Tosite`. Both
+  tables have those columns, so the queries were ambiguous and failed on both
+  backends; bank statement import never matched those erät. Now qualified,
+  with the erä sums folded into the same query.
+- `/asiakkaat` and `/toimittajat` summed the open balance over every `Vienti`
+  row of the erä regardless of `Tosite.tila`, so drafts and deleted vouchers
+  (`tila 0`) counted towards it. Now `tila >= 100`, as in
+  `/myyntilaskut`.
+
+Covered by `route_saldotYhdellaKyselyllaTulostiliJaKustannuspaikat`,
+`route_tuontitulkkiLoytaaViitteettomanEran` and the existing
+`route_asiakkaatToimittajatLaskutAlv`.
+
+### Note: indexes added without a schema-version bump (2026-11)
+
+Both `luo.sql` files gained `Vienti(eraid)`, `Vienti(kumppani, tyyppi, tili)`,
+`Vienti(tyyppi)`, `Tosite(viite)`, `Tosite(kumppani)`, `Tosite(sarja, pvm)`,
+`Tosite(tila, sarja)`, `KumppaniIban(kumppani)` and `Merkkaus(kohdennus)`, and
+lost `liite_tosite` / `rivi_tosite` (already covered by `UNIQUE(tosite, roolinimi)`
+and `PRIMARY KEY(tosite, rivi)`). Existing books get the same set on open from
+`SqlModel::varmistaIndeksit()` (one catalog read — `sqlite_master` /
+`pg_indexes` — then `CREATE INDEX IF NOT EXISTS` only for missing ones), so
+`TIETOKANTAVERSIO` stays 24 and older builds still open the file.
+
+Differences to keep in mind:
+- Postgres folds unquoted index names to lower case; `pg_indexes.indexname`
+  is compared lower-cased, and the names in `SqlModel::lisaIndeksit()` are
+  already lower case.
+- On Postgres, `CREATE INDEX` needs table ownership and briefly blocks writes
+  on that table. A non-owner role just logs a warning and the book opens
+  without the index. The first open of a large shared book after the
+  upgrade pays the build cost once.
+- `SqliteTuoja` and `migrate_sqlite_to_pg.py` now run `ANALYZE` after the
+  import, because autovacuum would only collect statistics for the bulk-loaded
+  tables later. SQLite runs `PRAGMA optimize` on close.
+
+`indeksit_luodaanJaPoistetaanAvattaessa` in `dbparity` covers new books, and
+old books after reopening, on both backends.
+
+### 8. New-book `AlvAlkaa` setting stored with literal quotes on Postgres (FIXED 2026-11)
 
 Found 2026-11-09 by `dbparity`'s
 `uusiKirjanpito_velhonMuotoisillaTiedoillaTilikaudetOvatEhjat` (Linux,
 Qt 6.11.1, Postgres 16). With wizard-shaped init data (`AlvAlkaa` and
-`TilinavausPvm` both `QDate`), SQLite stores `Asetus.arvo = 2026-01-01` for
-`AlvAlkaa` while Postgres stores `'2026-01-01'`, including the single quotes.
-`TilinavausPvm` comes out unquoted on both backends, so it is not simply
-QPSQL's `QDate` binding in `SqlAlustaja::aseta`; the write path for `AlvAlkaa`
-still needs to be traced. `AsetusModel::pvm("AlvAlkaa")` cannot parse the
-quoted value, so a new Postgres book would lose its VAT start date.
+`TilinavausPvm` both `QDate`), SQLite stores `Asetus.arvo = 2026-01-01`
+while Postgres stores `'2026-01-01'`, including the single quotes.
+`AsetusModel::pvm()` cannot parse the quoted value, so a new Postgres book
+would lose its VAT start date and opening-balance date.
+
+`SqlAlustaja::aseta` bound the `QDate` as a `QVariant`. QPSQL turns that into
+a quoted date literal and, on a `text` column, the quotes become part of the
+stored value. SQLite stores the ISO date without them. Dates and datetimes
+are now bound as ISO strings, the same form `AsetusModel::aseta(avain, QDate)`
+already writes.
+
+### 11. Voucher outside any fiscal period aborts the Postgres transaction (FIXED 2026-11)
+
+`TositeRoute::lisaaTaiPaivita` (and the same lookup in `patch`) numbers a
+voucher with `pvm BETWEEN '<period start>' AND '<period end>'`. When the
+date falls in no `Tilikausi`, both ends are empty. SQLite compares dates as
+text, matches nothing, and `MAX(tunniste)` is NULL, so the voucher is stored
+with tunniste 1. Postgres rejects `''` as a `date` (`invalid input syntax for
+type date`), aborts the transaction, and the following `INSERT` fails with
+`unnamed prepared statement does not exist`. The voucher is not saved, so
+cumulative balance-sheet totals miss it.
+
+When the period is missing, the route now skips the query and uses tunniste 1,
+matching the empty SQLite lookup. Covered by
+`route_tilikaudetLuvutJaNumerointi` (the 2018-12-31 posting before the 2019
+period).
 
 ## Schema differences to account for in a migration tool
 

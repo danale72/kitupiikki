@@ -65,8 +65,12 @@ private slots:
 
     void raportti();
 
+protected:
+    void showEvent(QShowEvent* event) override;
+
 private:
     Ui::LaskulistaWidget *ui;
+    bool vanhentunut_ = false;
 
     LaskuTauluModel *laskut_;
     LaskuProxyModel *proxy_;

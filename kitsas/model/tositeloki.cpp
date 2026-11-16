@@ -16,6 +16,8 @@
 */
 #include "tositeloki.h"
 #include "model/tosite.h"
+#include "db/kirjanpito.h"
+#include "db/yhteysmodel.h"
 #include <QDateTime>
 #include <QIcon>
 
@@ -106,6 +108,8 @@ QVariant TositeLoki::data(const QModelIndex &index, int role) const
         return map.value("tila");
     else if( role == AikaRooli)
         return map.value("aika");
+    else if( role == IdRooli)
+        return map.value("id");
     else if( role == Qt::DecorationRole && index.column() == TILA)
         return Tosite::tilakuva( map.value("tila").toInt());
 
@@ -119,4 +123,17 @@ QString TositeLoki::virheViesti() const
 
     const QVariantMap data = data_.at(0).toMap().value("data").toMap();
     return data.value("virhe").toString();
+}
+
+void TositeLoki::haeData(const QModelIndex &index, QObject *konteksti, std::function<void (const QVariant &)> valmis)
+{
+    const QVariant data = index.data(DataRooli);
+    const int lokiId = index.data(IdRooli).toInt();
+    if( data.isValid() || !lokiId || !kp()->yhteysModel() || kp()->onkoPilvessa() ) {
+        valmis(data);
+        return;
+    }
+    KpKysely* kysely = kpk(QString("/tositteet/loki/%1").arg(lokiId));
+    QObject::connect( kysely, &KpKysely::vastaus, konteksti, [valmis] (QVariant* vastaus) { valmis(*vastaus); });
+    kysely->kysy();
 }
