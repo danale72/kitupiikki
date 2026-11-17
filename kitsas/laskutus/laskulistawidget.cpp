@@ -68,6 +68,15 @@ LaskulistaWidget::LaskulistaWidget(QWidget *parent) :
 
     connect( kp(), &Kirjanpito::tietokantaVaihtui, this, &LaskulistaWidget::alusta );
 
+    // Piilossa oleva lista haetaan muutoksen jälkeen vasta, kun se tulee näkyviin
+    disconnect( kp(), &Kirjanpito::kirjanpitoaMuokattu, laskut_, nullptr);
+    connect( kp(), &Kirjanpito::kirjanpitoaMuokattu, this, [this] {
+        if( isVisible() )
+            laskut_->paivitaNakyma();
+        else
+            vanhentunut_ = true;
+    });
+
     connect( ui->naytaNappi, &QPushButton::clicked, this, &LaskulistaWidget::naytaLasku);
     connect( ui->kopioiNappi, &QPushButton::clicked, this, &LaskulistaWidget::kopioi);
     connect( ui->lahetaNappi, &QPushButton::clicked, this, &LaskulistaWidget::laheta);
@@ -142,6 +151,13 @@ void LaskulistaWidget::alalehti(int alalehti)
 
 void LaskulistaWidget::paivita()
 {
+    // Piilossa olevaa listaa ei haeta; se haetaan, kun lista tulee näkyviin
+    if( !isVisible() ) {
+        vanhentunut_ = true;
+        return;
+    }
+    vanhentunut_ = false;
+
     int laji = ui->tabs->count() == 5 ? ui->tabs->currentIndex() : ui->tabs->currentIndex() + 2;
 
 //    ui->view->setColumnHidden( LaskuTauluModel::NUMERO,  laji < KAIKKI);
@@ -240,8 +256,20 @@ void LaskulistaWidget::laheta()
 
 void LaskulistaWidget::alusta()
 {
-    ui->alkupvm->setDate(kp()->tilikaudet()->kirjanpitoAlkaa());
-    ui->loppupvm->setDate(kp()->tilikaudet()->kirjanpitoLoppuu());
+    {
+        const QSignalBlocker alkuEstin(ui->alkupvm);
+        const QSignalBlocker loppuEstin(ui->loppupvm);
+        ui->alkupvm->setDate(kp()->tilikaudet()->kirjanpitoAlkaa());
+        ui->loppupvm->setDate(kp()->tilikaudet()->kirjanpitoLoppuu());
+    }
+    paivita();
+}
+
+void LaskulistaWidget::showEvent(QShowEvent *event)
+{
+    QWidget::showEvent(event);
+    if( vanhentunut_ )
+        paivita();
 }
 
 void LaskulistaWidget::uusilasku(bool ryhmalasku)

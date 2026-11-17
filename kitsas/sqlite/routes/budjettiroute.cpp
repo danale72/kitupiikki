@@ -65,7 +65,8 @@ QVariant BudjettiRoute::put(const QString &polku, const QVariant &data)
     kysely.exec(QString("DELETE FROM Budjetti WHERE tilikausi='%1'")
                 .arg(polku));
 
-    kysely.prepare("INSERT INTO Budjetti(tilikausi,kohdennus,tili, sentti) VALUES(?,?,?,?)");
+    struct Rivi { int kohdennus; int tili; qlonglong sentti; };
+    QList<Rivi> rivit;
 
     QVariantMap map = data.toMap();
     QMapIterator<QString,QVariant> paaIter(map);
@@ -76,14 +77,27 @@ QVariant BudjettiRoute::put(const QString &polku, const QVariant &data)
         QMapIterator<QString,QVariant> aliIter( alimap );
         while( aliIter.hasNext()) {
             aliIter.next();
+            rivit.append(Rivi{ paaIter.key().toInt(), aliIter.key().toInt(), qRound64(aliIter.value().toDouble()*100) });
+        }
+    }
+
+    // Monirivisinä INSERTeinä; 200 riviä * 4 parametria pysyy SQLiten 999 parametrin rajan alla
+    const int erakoko = 200;
+    for(int alku = 0; alku < rivit.count(); alku += erakoko) {
+        const int maara = qMin(erakoko, rivit.count() - alku);
+        QStringList paikat;
+        for(int i = 0; i < maara; i++)
+            paikat << QStringLiteral("(?,?,?,?)");
+        kysely.prepare("INSERT INTO Budjetti(tilikausi,kohdennus,tili, sentti) VALUES " + paikat.join(','));
+        for(int i = alku; i < alku + maara; i++) {
             kysely.addBindValue(polku);
-            kysely.addBindValue(paaIter.key().toInt());
-            kysely.addBindValue(aliIter.key().toInt());
-            kysely.addBindValue(qRound64(aliIter.value().toDouble()*100));
-            if( !kysely.exec() ) {
-                db().rollback();
-                throw SQLiteVirhe(kysely);
-            }
+            kysely.addBindValue(rivit.at(i).kohdennus);
+            kysely.addBindValue(rivit.at(i).tili);
+            kysely.addBindValue(rivit.at(i).sentti);
+        }
+        if( !kysely.exec() ) {
+            db().rollback();
+            throw SQLiteVirhe(kysely);
         }
     }
     db().commit();

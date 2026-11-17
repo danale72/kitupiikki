@@ -57,7 +57,7 @@ void YksittainenLaskuDialogi::tallennettu(QVariantMap tosite)
         LaskunToimittaja::toimita(lista);
     }
 
-    emit kp()->kirjanpitoaMuokattu();
+    kp()->muokattu();
     QDialog::accept();
 }
 

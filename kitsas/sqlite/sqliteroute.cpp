@@ -21,6 +21,7 @@
 #include <QSqlError>
 #include <QSet>
 #include <QMap>
+#include <QVector>
 
 #include "model/euro.h"
 
@@ -43,6 +44,7 @@ QVariant SQLiteRoute::route(SQLiteKysely *kysely, const QVariant &data)
         loppu = loppu.mid(1);
 
     QVariant paluu;
+    urlKysely_ = kysely->urlKysely();
 
     switch (kysely->metodi()) {
     case KpKysely::GET:
@@ -90,6 +92,31 @@ QVariant SQLiteRoute::doDelete(const QString &/*polku*/)
     return QVariant();
 }
 
+bool SQLiteRoute::onTyhja(const QVariant &arvo)
+{
+    // Sama tulos kuin arvo.toString().isEmpty() || arvo.toString() == "0",
+    // mutta lukuja ei muuteta merkkijonoiksi
+    if( arvo.isNull())
+        return true;
+    switch (arvo.typeId()) {
+    case QMetaType::Int:
+    case QMetaType::LongLong:
+    case QMetaType::UInt:
+    case QMetaType::ULongLong:
+        return arvo.toLongLong() == 0;
+    case QMetaType::Double:
+        return arvo.toDouble() == 0.0;
+    case QMetaType::QString: {
+        const QString teksti = arvo.toString();
+        return teksti.isEmpty() || teksti == QLatin1String("0");
+    }
+    default: {
+        const QString teksti = arvo.toString();
+        return teksti.isEmpty() || teksti == QLatin1String("0");
+    }
+    }
+}
+
 QVariantList SQLiteRoute::resultList(QSqlQuery &kysely)
 {
     if( kysely.lastError().type() != QSqlError::NoError) {
@@ -99,35 +126,72 @@ QVariantList SQLiteRoute::resultList(QSqlQuery &kysely)
     }
 
 
+    // Sarakkeiden käsittely päätellään kerran kyselyä kohden eikä joka rivillä
+    enum Laji { Tavallinen, Ryhma, Sentit, AlvProsentti, Json };
+    struct Sarake {
+        Laji laji = Tavallinen;
+        QString nimi;       // Ryhma: ryhmän nimi, Sentit: kenttä ilman snt-päätettä
+        QString alakentta;
+    };
+
+    const QSqlRecord tietue = kysely.record();
+    QVector<Sarake> sarakkeet(tietue.count());
+    int jsonSarake = -1;
+    for(int i=0; i < tietue.count(); i++) {
+        const QString kenttanimi = tietue.fieldName(i);
+        Sarake& sarake = sarakkeet[i];
+        // Jos kenttänimi esim. era_id, tulee era.id
+        const int viivanpaikka = kenttanimi.indexOf(QChar('_'));
+        if( viivanpaikka >= 0 ) {
+            sarake.laji = Ryhma;
+            sarake.nimi = kenttanimi.left(viivanpaikka);
+            sarake.alakentta = kenttanimi.mid(viivanpaikka+1);
+        } else if( kenttanimi.endsWith("snt")) {
+            sarake.laji = Sentit;
+            sarake.nimi = kenttanimi.left( kenttanimi.length() - 3 );
+        } else if( kenttanimi == "alvprosentti") {
+            sarake.laji = AlvProsentti;
+        } else if( kenttanimi == "json") {
+            sarake.laji = Json;
+            jsonSarake = i;
+        } else {
+            sarake.nimi = kenttanimi;
+        }
+    }
+
     QVariantList lista;
     while( kysely.next()) {
         // Sijoitetaan ensin json-kenttä
+        QVariantMap map;
+        if( jsonSarake >= 0 ) {
+            const QVariant json = kysely.value(jsonSarake);
+            if( !json.isNull() )
+                map = QJsonDocument::fromJson( json.toString().toUtf8() ).toVariant().toMap();
+        }
 
-        QSqlRecord tietue = kysely.record();
-        QVariantMap map = QJsonDocument::fromJson( tietue.value("json").toString().toUtf8() ).toVariant().toMap();
-
-        for(int i=0; i < tietue.count(); i++) {
-            QString kenttanimi = tietue.fieldName(i);
-            // Jos kenttänimi esim. era_id, tulee era.id
-            if( tietue.value(i).toString().isEmpty() ||
-                tietue.value(i).toString() == "0")
+        for(int i=0; i < sarakkeet.count(); i++) {
+            const Sarake& sarake = sarakkeet.at(i);
+            if( sarake.laji == Json )
+                continue;
+            const QVariant arvo = kysely.value(i);
+            if( onTyhja(arvo) )
                 continue;   // Ei tyhjiä kenttiä
 
-            if( kenttanimi.contains(QChar('_'))) {
-                int viivanpaikka = kenttanimi.indexOf('_');
-                QString ryhma = kenttanimi.left(viivanpaikka);
-                QString alakentta = kenttanimi.mid(viivanpaikka+1);
-                QVariantMap rmap = map.value(ryhma, QVariantMap()).toMap();
-                rmap.insert(alakentta, tietue.value(i));
-                map.insert(ryhma, rmap);
+            switch (sarake.laji) {
+            case Ryhma: {
+                QVariantMap rmap = map.value(sarake.nimi, QVariantMap()).toMap();
+                rmap.insert(sarake.alakentta, arvo);
+                map.insert(sarake.nimi, rmap);
+                break;
             }
-            else if( kenttanimi.endsWith("snt")) {
-                map.insert( kenttanimi.left( kenttanimi.length() - 3 ), Euro( tietue.value(i).toLongLong() ).toString() );
-            } else if( kenttanimi == "alvprosentti") {
-                map.insert("alvprosentti", QString::number( tietue.value(i).toDouble(), 'f', 2 ));
-            }
-            else if( kenttanimi != "json") {
-                map.insert( kenttanimi, tietue.value(i));
+            case Sentit:
+                map.insert( sarake.nimi, Euro( arvo.toLongLong() ).toString() );
+                break;
+            case AlvProsentti:
+                map.insert("alvprosentti", QString::number( arvo.toDouble(), 'f', 2 ));
+                break;
+            default:
+                map.insert( sarake.nimi, arvo);
             }
         }
         lista.append(map);
@@ -150,6 +214,19 @@ QString SQLiteRoute::mapToJson(const QVariantMap &map)
     // Must return QString, not QByteArray: Qt's QPSQL driver binds QByteArray
     // parameters as Postgres bytea (hex-escaped), which corrupts/rejects json(b) columns.
     return QString::fromUtf8(QJsonDocument::fromVariant(map).toJson(QJsonDocument::Compact));
+}
+
+void SQLiteRoute::kirjoitaTapahtumana(const std::function<bool ()> &kirjoitukset)
+{
+    QSqlDatabase tietokanta = db();
+    if( !tietokanta.transaction()) {
+        kirjoitukset();
+        return;
+    }
+    if( kirjoitukset() && tietokanta.commit())
+        return;
+    tietokanta.rollback();
+    kirjoitukset();
 }
 
 QSqlDatabase SQLiteRoute::db()

@@ -51,14 +51,20 @@ public:
 
     static AsiakasToimittajaListaModel *instanssi();
 
+    /** Hakee listan, jos se on merkitty vanhentuneeksi */
+    void varmistaLadattu();
+
 public slots:
     void lataa();
+    void vanhenna();
+    void tyhjenna();
 
 private slots:
     void saapuu(QVariant* variant);
 
 private:
     QList<Item> lista_;
+    bool vanhentunut_ = true;
 
     static AsiakasToimittajaListaModel* instanssi__;
 };

@@ -24,6 +24,7 @@
 #include <QSqlQuery>
 
 #include <exception>
+#include <functional>
 
 class SQLiteRoute
 {
@@ -36,6 +37,9 @@ public:
 
     QString polku() const { return polku_;}
 
+    /** Tyhjentää reitin omat välimuistit (kirjanpito vaihtuu tai sitä muokataan) */
+    virtual void tyhjennaValimuisti() {}
+
 protected:
 
     virtual QVariant get(const QString& polku, const QUrlQuery& urlquery = QUrlQuery());
@@ -45,15 +49,29 @@ protected:
     virtual QVariant doDelete(const QString& polku);
 
     QVariantList resultList(QSqlQuery& kysely);
+    /** resultListin tyhjän kentän ehto: NULL, tyhjä tai "0" */
+    static bool onTyhja(const QVariant& arvo);
     QVariantMap resultMap(QSqlQuery& kysely);
     static QString mapToJson(const QVariantMap& map);
 
     void taydennaEratJaMerkkaukset(QVariantList& vientilista);
 
+    /**
+     * @brief Tekee toisistaan riippumattomat kirjoitukset yhdessä tapahtumassa
+     *
+     * Yksi tapahtuma säästää SQLitessä levyn synkronoinnit ja Postgresissa verkkokierrokset.
+     * Jos jokin kirjoitus epäonnistuu (kirjoitukset palauttaa false), tapahtuma perutaan ja
+     * kirjoitukset tehdään uudelleen ilman tapahtumaa, jolloin yksittäinen virhe ei estä
+     * muita kirjoituksia: Postgres keskeyttäisi muuten koko tapahtuman ensimmäiseen virheeseen.
+     */
+    void kirjoitaTapahtumana(const std::function<bool()>& kirjoitukset);
+
 protected:
     QSqlDatabase db();
     SqlModel *model_;
     QString polku_;
+    /** Käsiteltävän kyselyn parametrit myös muille kuin GET-pyynnöille */
+    QUrlQuery urlKysely_;
 };
 
 #endif // SQLITEROUTE_H

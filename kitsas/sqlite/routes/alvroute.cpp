@@ -26,7 +26,7 @@ AlvRoute::AlvRoute(SqlModel *model)
 
 }
 
-QVariant AlvRoute::get(const QString &/*polku*/, const QUrlQuery &/*urlquery*/)
+QVariant AlvRoute::get(const QString &/*polku*/, const QUrlQuery &urlquery)
 {
     QSqlQuery kysely(db());
 
@@ -35,6 +35,20 @@ QVariant AlvRoute::get(const QString &/*polku*/, const QUrlQuery &/*urlquery*/)
 
     QVariantList kyselyntulos = resultList(kysely);
     QVariantList vastaus;
+
+    // Sormenjäljet lasketaan vain pyydettäessä (alv-sivulla), koska ne vaativat
+    // koosteen kaikkien ilmoitettujen kausien kirjauksista
+    const bool tarkista = urlquery.hasQueryItem("tarkista");
+    QList<QPair<QDate,QDate>> tarkistettavat;
+    if( tarkista ) {
+        for(const QVariant& item : qAsConst( kyselyntulos )) {
+            const QVariantMap vmap = item.toMap().value("alv").toMap();
+            if( !vmap.value("muokattu").toBool() && vmap.contains("sormenjalki"))
+                tarkistettavat.append(qMakePair(vmap.value("kausialkaa").toDate(), vmap.value("kausipaattyy").toDate()));
+        }
+    }
+    const QList<QVariantMap> jaljet = sormenjaljet(db(), tarkistettavat);
+    int jalkiIndeksi = 0;
 
     for(const QVariant& item : qAsConst( kyselyntulos )) {
         QVariantMap map = item.toMap();
@@ -46,8 +60,8 @@ QVariant AlvRoute::get(const QString &/*polku*/, const QUrlQuery &/*urlquery*/)
         bool tarkistettu = true;
         bool muokattu = vmap.value("muokattu").toBool();
         if( !muokattu && vmap.contains("sormenjalki")) {
-            muokattu = !samaSormenjalki( vmap.value("sormenjalki").toMap(),
-                                         sormenjalki(db(), vmap.value("kausialkaa").toDate(), vmap.value("kausipaattyy").toDate()));
+            if( tarkista )
+                muokattu = !samaSormenjalki( vmap.value("sormenjalki").toMap(), jaljet.value(jalkiIndeksi++));
         } else if( !muokattu ) {
             tarkistettu = false;
         }
@@ -121,6 +135,60 @@ QVariantMap AlvRoute::sormenjalki(QSqlDatabase db, const QDate &alkaa, const QDa
         jalki.insert(avain, jalki.value(avain).toLongLong() + summa);
     }
     return jalki;
+}
+
+QList<QVariantMap> AlvRoute::sormenjaljet(QSqlDatabase db, const QList<QPair<QDate, QDate> > &kaudet)
+{
+    QList<QVariantMap> jaljet;
+    QDate alku;
+    QDate loppu;
+    for(const auto& kausi : kaudet) {
+        jaljet.append(QVariantMap());
+        if( !kausi.first.isValid() || !kausi.second.isValid())
+            continue;
+        if( !alku.isValid() || kausi.first < alku)
+            alku = kausi.first;
+        if( !loppu.isValid() || kausi.second > loppu)
+            loppu = kausi.second;
+    }
+    if( !alku.isValid())
+        return jaljet;
+
+    // Yksi kooste päivittäin kaikkien kausien ajalta, jaetaan kausille täällä
+    QSqlQuery kysely(db);
+    kysely.setForwardOnly(true);
+    kysely.exec( QString("SELECT Vienti.pvm, Vienti.alvkoodi, Vienti.alvprosentti, "
+                         "SUM(COALESCE(Vienti.debetsnt,0)) - SUM(COALESCE(Vienti.kreditsnt,0)) "
+                         "FROM Vienti JOIN Tosite ON Vienti.tosite=Tosite.id "
+                         "WHERE Tosite.tila >= 100 AND Tosite.tyyppi <> %1 AND Vienti.alvkoodi > 0 "
+                         "AND Vienti.pvm BETWEEN '%2' AND '%3' "
+                         "GROUP BY Vienti.pvm, Vienti.alvkoodi, Vienti.alvprosentti")
+                 .arg(TositeTyyppi::ALVLASKELMA)
+                 .arg(alku.toString(Qt::ISODate), loppu.toString(Qt::ISODate)));
+    while( kysely.next()) {
+        const qlonglong summa = kysely.value(3).toLongLong();
+        if( !summa )
+            continue;
+        const QDate pvm = kysely.value(0).toDate();
+        const QString avain = QString("%1/%2").arg(kysely.value(1).toInt())
+                                              .arg(qRound(kysely.value(2).toDouble() * 100));
+        for(int i=0; i < kaudet.count(); i++) {
+            if( pvm >= kaudet.at(i).first && pvm <= kaudet.at(i).second) {
+                QVariantMap& jalki = jaljet[i];
+                jalki.insert(avain, jalki.value(avain).toLongLong() + summa);
+            }
+        }
+    }
+    // Nollasummat pois, kuten sormenjalki() tekee
+    for(QVariantMap& jalki : jaljet) {
+        for(auto iter = jalki.begin(); iter != jalki.end(); ) {
+            if( iter.value().toLongLong() == 0)
+                iter = jalki.erase(iter);
+            else
+                ++iter;
+        }
+    }
+    return jaljet;
 }
 
 bool AlvRoute::samaSormenjalki(const QVariantMap &a, const QVariantMap &b)

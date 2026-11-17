@@ -130,7 +130,12 @@ QString VakioViiteModel::seuraava() const
 
 void VakioViiteModel::dataSaapuu(QVariant *data)
 {
+    asetaLista( data->toList() );
+}
+
+void VakioViiteModel::asetaLista(const QVariantList &lista)
+{
     beginResetModel();
-    lista_ = data->toList();
+    lista_ = lista;
     endResetModel();
 }

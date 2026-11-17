@@ -23,8 +23,22 @@
 MallipohjaModel::MallipohjaModel(QObject *parent)
     : QAbstractListModel(parent)
 {
-    connect(kp(), &Kirjanpito::tietokantaVaihtui, this, &MallipohjaModel::haeLista);
-    connect(kp(), &Kirjanpito::kirjanpitoaMuokattu, this, &MallipohjaModel::haeLista);
+    connect(kp(), &Kirjanpito::tietokantaVaihtui, this, &MallipohjaModel::tyhjenna);
+    connect(kp(), &Kirjanpito::mallipohjatMuuttuivat, this, &MallipohjaModel::haeLista);
+}
+
+void MallipohjaModel::tyhjenna()
+{
+    beginResetModel();
+    lista_.clear();
+    ladattu_ = false;
+    endResetModel();
+}
+
+void MallipohjaModel::varmistaLadattu()
+{
+    if( !ladattu_ )
+        haeLista();
 }
 
 int MallipohjaModel::rowCount(const QModelIndex &/*parent*/) const
@@ -54,7 +68,6 @@ MallipohjaModel *MallipohjaModel::instanssi()
 {
     if( !instanssi__) {
         instanssi__ = new MallipohjaModel();
-        instanssi__->haeLista();
     }
     return instanssi__;
 }
@@ -66,6 +79,7 @@ void MallipohjaModel::haeLista()
 
     KpKysely* kysely = kpk("/tositteet");
     if(kysely) {
+        ladattu_ = true;
         kysely->lisaaAttribuutti("malli");
         connect(kysely, &KpKysely::vastaus, this, &MallipohjaModel::listaSaapuu);
         kysely->kysy();

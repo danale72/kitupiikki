@@ -84,11 +84,13 @@ QString TositeRoute::kysymys(const QUrlQuery &urlquery)
     else if( urlquery.hasQueryItem("malli"))
         jarjestys = "otsikko";
 
+    // Liitteiden määrä ja summa korreloivina alikyselyinä, jotta ne lasketaan vain
+    // rajauksen tositteille eikä koko Liite- ja Vienti-taululle
     QString kysymys = "SELECT tosite.id AS id, tosite.pvm AS pvm, tyyppi, tila, tunniste, otsikko, kumppani.nimi as kumppani, "
-                      "tosite.sarja as sarja, liitteita, summa "
+                      "tosite.sarja as sarja, "
+                      "(SELECT COUNT(*) FROM Liite WHERE Liite.tosite=tosite.id) AS liitteita, "
+                      "(SELECT SUM(debetsnt) FROM Vienti WHERE Vienti.tosite=tosite.id) / 100.0 AS summa "
                       " FROM Tosite LEFT OUTER JOIN Kumppani on tosite.kumppani=kumppani.id  "
-                      " LEFT OUTER JOIN (SELECT tosite, COUNT(id) AS liitteita FROM Liite GROUP BY tosite) AS lq ON tosite.id=lq.tosite "
-                      " LEFT OUTER JOIN (SELECT tosite, SUM(debetsnt) / 100.0 AS summa FROM Vienti GROUP BY tosite) as sq ON tosite.id=sq.tosite "
                       "WHERE ";
     kysymys.append( ehdot.join(" AND ") + QString(" ORDER BY ") + jarjestys );
     return kysymys;
@@ -96,10 +98,18 @@ QString TositeRoute::kysymys(const QUrlQuery &urlquery)
 
 QVariant TositeRoute::get(const QString &polku, const QUrlQuery &urlquery)
 {
+    if( polku.startsWith("loki/")) {
+        // Yksittäisen lokirivin tilannekuva
+        QSqlQuery kysely( db());
+        kysely.exec(QString("SELECT data FROM Tositeloki WHERE id=%1").arg( polku.mid(5).toInt() ));
+        if( kysely.next())
+            return QJsonDocument::fromJson( kysely.value(0).toString().toUtf8() ).toVariant().toMap();
+        return QVariantMap();
+    }
     if( !polku.isEmpty())
         return hae( polku.toInt() );
     else if( urlquery.hasQueryItem("vienti"))
-        return hae( 0 - urlquery.queryItemValue("vienti").toInt());
+        return hae( 0 - urlquery.queryItemValue("vienti").toInt(), urlquery.hasQueryItem("vainviennit"));
 
     // Muuten tositteiden lista
 
@@ -113,12 +123,26 @@ QVariant TositeRoute::get(const QString &polku, const QUrlQuery &urlquery)
 
 QVariant TositeRoute::post(const QString & /*polku*/, const QVariant &data)
 {
-    return hae( lisaaTaiPaivita(data) );
+    const bool kokoTosite = urlKysely_.queryItemValue("palauta") == "tosite";
+    return tallennusVastaus( lisaaTaiPaivita(data), kokoTosite );
 }
 
 QVariant TositeRoute::put(const QString &polku, const QVariant &data)
 {
-    return hae( lisaaTaiPaivita(data, polku.toInt() ) );
+    const bool kokoTosite = urlKysely_.queryItemValue("palauta") == "tosite";
+    return tallennusVastaus( lisaaTaiPaivita(data, polku.toInt() ), kokoTosite );
+}
+
+QVariant TositeRoute::tallennusVastaus(int tositeId, bool kokoTosite)
+{
+    if( kokoTosite )
+        return hae(tositeId);
+
+    // Tallentaja tarvitsee yleensä vain tunnisteet; koko tositteen haku
+    // (viennit, erät, liitteet, loki) jätetään pois
+    QSqlQuery kysely(db());
+    kysely.exec(QString("SELECT id, tunniste, sarja FROM Tosite WHERE id=%1").arg(tositeId));
+    return resultMap(kysely);
 }
 
 QVariant TositeRoute::patch(const QString &polku, const QVariant &data)
@@ -140,15 +164,20 @@ QVariant TositeRoute::patch(const QString &polku, const QVariant &data)
             QDate pvm = kysely.value(1).toDate();
             Tilikausi kausi = kp()->tilikaudet()->tilikausiPaivalle(pvm);
             QString sarja = kysely.value(2).toString();
-            if( sarja.isEmpty()) {
+            // Tyhjä kausi: sama kuin lisaaTaiPaivita. Postgres ei hyväksy
+            // BETWEEN '' AND '' date-sarakkeessa, vaan peruu tapahtuman.
+            if( !kausi.alkaa().isValid() || !kausi.paattyy().isValid()) {
+                tunniste = 1;
+            } else if( sarja.isEmpty()) {
                 kysely.exec(QString("SELECT MAX(tunniste) FROM Tosite WHERE pvm BETWEEN '%1' AND '%2' AND sarja IS NULL")
                             .arg( kausi.alkaa().toString(Qt::ISODate) ).arg( kausi.paattyy().toString( Qt::ISODate )) );
+                if( kysely.next())
+                    tunniste = kysely.value(0).toInt() + 1;
             } else {
                 kysely.exec(QString("SELECT MAX(tunniste) FROM Tosite WHERE pvm BETWEEN '%1' AND '%2' AND sarja = '%3'")
                             .arg(kausi.alkaa().toString(Qt::ISODate)).arg(kausi.paattyy().toString(Qt::ISODate)).arg(sarja));
-            }
-            if( kysely.next()) {
-                tunniste = kysely.value(0).toInt() + 1;
+                if( kysely.next())
+                    tunniste = kysely.value(0).toInt() + 1;
             }
         }
     }
@@ -176,14 +205,31 @@ QVariant TositeRoute::doDelete(const QString &polku)
 
     QSqlQuery kysely(db());
 
+    // Tilan muutos ja lokirivi yhtenä tapahtumana (yksi levyn synkronointi / verkkokierros)
+    const bool tapahtuma = db().transaction();
     if(!kysely.exec(QString("UPDATE Tosite SET tila=0 WHERE id=%1")
-                .arg(tositeid)))
+                .arg(tositeid))) {
+        if( tapahtuma )
+            db().rollback();
         throw SQLiteVirhe(kysely);
+    }
 
     // Lisätään tositelokiin
     kysely.prepare("INSERT INTO Tositeloki (tosite, tila) VALUES (?,0) ");
     kysely.addBindValue(tositeid);
-    kysely.exec();
+    const bool lokiin = kysely.exec();
+
+    if( tapahtuma ) {
+        // Lokirivin virhe ei estä poistoa (kuten ennenkin), mutta Postgres perui jo
+        // koko tapahtuman, joten tila päivitetään silloin uudelleen ilman lokia
+        if( lokiin )
+            db().commit();
+        else {
+            db().rollback();
+            if(!kysely.exec(QString("UPDATE Tosite SET tila=0 WHERE id=%1").arg(tositeid)))
+                throw SQLiteVirhe(kysely);
+        }
+    }
 
     return QVariant();
 }
@@ -229,14 +275,23 @@ int TositeRoute::lisaaTaiPaivita(const QVariant pyynto, const int paivitettavanT
 
     // Tunnisteen hakeminen
     if( !tunniste && tila >= Tosite::KIRJANPIDOSSA) {
-        if( sarja.isNull() )
+        // Ilman tilikautta päivämääräväli olisi tyhjä merkkijono. SQLite vertaa
+        // päivämääriä tekstinä eikä löydä rivejä (MAX on NULL, tunnisteeksi tulee 1),
+        // mutta Postgres hylkää tyhjän date-arvon ja peruu koko tapahtuman, jolloin
+        // tosite jää tallentumatta.
+        if( !kausi.alkaa().isValid() || !kausi.paattyy().isValid()) {
+            tunniste = 1;
+        } else if( sarja.isNull() ) {
             kysely.exec( QString("SELECT MAX(tunniste) as tunniste FROM Tosite WHERE pvm BETWEEN '%1' AND '%2' AND sarja IS NULL AND tila >= 100")
                          .arg(kausi.alkaa().toString(Qt::ISODate)).arg(kausi.paattyy().toString(Qt::ISODate)));
-        else
+            if( kysely.next())
+                tunniste = kysely.value("tunniste").toInt() + 1;
+        } else {
             kysely.exec( QString("SELECT MAX(tunniste) as tunniste FROM Tosite WHERE pvm BETWEEN '%1' AND '%2' AND sarja='%3' AND tila >= 100")
                          .arg(kausi.alkaa().toString(Qt::ISODate)).arg(kausi.paattyy().toString(Qt::ISODate)).arg(sarja));
-        if( kysely.next())
-            tunniste = kysely.value("tunniste").toInt() + 1;
+            if( kysely.next())
+                tunniste = kysely.value("tunniste").toInt() + 1;
+        }
     }
     // Laskun numero ja viite
     if( map.contains("lasku") && !map.value("lasku").toMap().contains("numero") && tila >= Tosite::KIRJANPIDOSSA &&
@@ -419,13 +474,19 @@ int TositeRoute::lisaaTaiPaivita(const QVariant pyynto, const int paivitettavanT
     int erakoko = 3000;   // turvamarginaalilla Postgresin 65535/18 parametrin rajasta
 
     if( db().driverName() == "QSQLITE") {
-        int major = 3, minor = 0;
-        QSqlQuery versiokysely(db());
-        if( versiokysely.exec("SELECT sqlite_version()") && versiokysely.next()) {
-            const QStringList osat = versiokysely.value(0).toString().split('.');
-            major = osat.value(0).toInt();
-            minor = osat.value(1).toInt();
+        // Kirjastoversio ei vaihdu ajon aikana, joten se kysytään vain kerran
+        static int tunnettuMajor = -1, tunnettuMinor = 0;
+        if( tunnettuMajor < 0 ) {
+            QSqlQuery versiokysely(db());
+            if( versiokysely.exec("SELECT sqlite_version()") && versiokysely.next()) {
+                const QStringList osat = versiokysely.value(0).toString().split('.');
+                tunnettuMajor = osat.value(0).toInt();
+                tunnettuMinor = osat.value(1).toInt();
+            }
         }
+        // Jos versiota ei saatu selville, oletetaan varovasti vanha kirjasto
+        const int major = tunnettuMajor < 0 ? 3 : tunnettuMajor;
+        const int minor = tunnettuMajor < 0 ? 0 : tunnettuMinor;
         returningTuettu = (major > 3) || (major == 3 && minor >= 35);
         const bool isotParametrit = (major > 3) || (major == 3 && minor >= 32);
         erakoko = isotParametrit ? 1500 : 50;   // 1500*18=27000 (<32766); 50*18=900 (<999)
@@ -632,7 +693,10 @@ QVariantList TositeRoute::lokinpurku(QSqlQuery &kysely) const
     while( kysely.next()) {
         // Sijoitetaan ensin json-kenttä
         QVariantMap map;
-        map.insert("data", QJsonDocument::fromJson( kysely.value("data").toString().toUtf8() ).toVariant().toMap());
+        const QString data = kysely.value("data").toString();
+        if( !data.isEmpty())
+            map.insert("data", QJsonDocument::fromJson( data.toUtf8() ).toVariant().toMap());
+        map.insert("id", kysely.value("id"));
         map.insert("aika", kysely.value("aika"));
         map.insert("tila", kysely.value("tila"));
         lista.append(map);
@@ -640,7 +704,7 @@ QVariantList TositeRoute::lokinpurku(QSqlQuery &kysely) const
     return lista;
 }
 
-QVariant TositeRoute::hae(int tositeId)
+QVariant TositeRoute::hae(int tositeId, bool vainViennit)
 {
     QSqlQuery kysely(db());
     if( tositeId > 0)
@@ -672,6 +736,9 @@ QVariant TositeRoute::hae(int tositeId)
     taydennaEratJaMerkkaukset(viennit);
     tosite.insert("viennit", viennit);
 
+    if( vainViennit )
+        return tosite;
+
     // Liitteet
     kysely.exec(QString("SELECT id, nimi, roolinimi, tyyppi, json FROM Liite WHERE tosite=%1").arg(tositeId));
     tosite.insert("liitteet", resultList(kysely));
@@ -681,8 +748,11 @@ QVariant TositeRoute::hae(int tositeId)
                 .arg(tositeId));
     tosite.insert("rivit", resultList(kysely));
 
-    // Loki
-    kysely.exec(QString("SELECT aika, tila, data FROM Tositeloki WHERE tosite=%1 ORDER BY aika DESC")
+    // Loki. Koko JSON-tilannekuva vain uusimmalta riviltä (virheilmoitus);
+    // muiden rivien tiedot haetaan tarvittaessa polulla /tositteet/loki/<id>
+    kysely.exec(QString("SELECT id, aika, tila, CASE WHEN id = "
+                        "(SELECT id FROM Tositeloki WHERE tosite=%1 ORDER BY aika DESC, id DESC LIMIT 1) "
+                        "THEN data END AS data FROM Tositeloki WHERE tosite=%1 ORDER BY aika DESC, id DESC")
                 .arg(tositeId));        
     tosite.insert("loki", lokinpurku(kysely));
 

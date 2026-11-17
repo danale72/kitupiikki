@@ -590,5 +590,5 @@ void AsiakasToimittajaDlg::tallennusValmis(QVariant *data)
     QDialog::accept();
 
     emit kumppaniTallennettu(map);
-    emit kp()->kirjanpitoaMuokattu();
+    kp()->muokattu();
 }

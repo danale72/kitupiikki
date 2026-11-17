@@ -142,7 +142,7 @@ void UusiMaksumuistutusDialogi::tallennaSeuraava()
 {
     nykyinen_++;
     if( nykyinen_ == lista_.count()) {
-        emit kp()->kirjanpitoaMuokattu();
+        kp()->muokattu();
         emit muistutettu();
         QDialog::accept();
     } else {

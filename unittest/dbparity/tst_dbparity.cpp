@@ -10,6 +10,8 @@
 
 #include "db/kirjanpito.h"
 #include "db/kohdennus.h"
+#include "db/tili.h"
+#include "db/tilimodel.h"
 #include "db/tositetyyppimodel.h"
 #include "kitsas.h"
 #include "kieli/kielet.h"
@@ -20,6 +22,7 @@
 #include "tools/kpdateedit.h"
 #include "postgres/postgresmodel.h"
 #include "postgres/sqlitetuoja.h"
+#include "selaus/selausmodel.h"
 #include "sql/sqlalustaja.h"
 #include "sqlite/sqlitemodel.h"
 #include "uusikirjanpito/uusivelho.h"
@@ -29,6 +32,7 @@
 #include <QFile>
 #include <QJsonDocument>
 #include <QProcessEnvironment>
+#include <QSet>
 #include <QSqlError>
 #include <QSqlQuery>
 #include <QtTest>
@@ -49,6 +53,8 @@ private slots:
     void liveSchema_sameTables();
     void liveSchema_sameColumns();
     void liveSchema_sameSeedRows();
+    void indeksit_luodaanJaPoistetaanAvattaessa();
+    void sqlite_pragmatAsetetaanAvattaessa();
 
     void binding_jsonAsStringRoundtripsOnBoth();
     void binding_jsonAsByteArrayRejectedOnPostgresJsonb();
@@ -82,6 +88,16 @@ private slots:
     void route_tositeLogic();
     void route_asiakkaatToimittajatLaskutAlv();
     void route_saldotSisaltaaViisinumeroisenVelkatilin();
+    void route_saldotYhdellaKyselyllaTulostiliJaKustannuspaikat();
+    void route_tilikaudetLuvutJaNumerointi();
+    void route_tositeLokiTilannekuvaHaetaanErikseen();
+    void route_tositeVainViennit();
+    void route_tositeTallennusPalauttaaTunnisteetTaiKokoTositteen();
+    void route_tositeListaLiitteetJaSumma();
+    void selaus_sqliteRivitVastaavatViennitReittia();
+    void route_tuontitulkkiLoytaaViitteettomanEran();
+    void route_taseErittelyEratJaMuutokset();
+    void route_kumppaniValimuistiTyhjeneeKirjanpidonVaihtuessa();
     void route_eratListaaAvoimetTaseEratMolemmissa();
     void route_alvIlmoituksenMuokkausTunnistetaan();
     void route_veroTositeViiteJaJsonKulkevatMolemmissa();
@@ -262,6 +278,84 @@ void DbParityTest::liveSchema_sameSeedRows()
         return map;
     };
     suoritaMolemmissa(toiminto);
+}
+
+void DbParityTest::indeksit_luodaanJaPoistetaanAvattaessa()
+{
+    // Uudessa kannassa luo.sql luo lisäindeksit; vanhassa kannassa SqlModel::varmistaIndeksit
+    // luo puuttuvat ja poistaa tarpeettomat avattaessa
+    const auto indeksit = [this]() {
+        QSqlQuery q(db_.sql());
+        if (db_.sql().driverName() == QLatin1String("QPSQL"))
+            q.exec(QStringLiteral("SELECT indexname FROM pg_indexes WHERE schemaname = current_schema()"));
+        else
+            q.exec(QStringLiteral("SELECT name FROM sqlite_master WHERE type='index'"));
+        QSet<QString> nimet;
+        while (q.next())
+            nimet.insert(q.value(0).toString().toLower());
+        return nimet;
+    };
+    const auto tila = [&indeksit]() {
+        const QSet<QString> nimet = indeksit();
+        QVariantMap map;
+        for (const auto& indeksi : SqlModel::lisaIndeksit())
+            map.insert(indeksi.first, nimet.contains(indeksi.first));
+        for (const QString& nimi : SqlModel::poistetutIndeksit())
+            map.insert(nimi, nimet.contains(nimi));
+        return map;
+    };
+
+    const auto toiminto = [this, &tila]() -> QVariant {
+        QVariantMap tulos;
+        tulos.insert(QStringLiteral("uusi"), tila());
+
+        {
+            // Kysely on suljettava ennen kannan sulkemista: SQLiten exclusive-lukko
+            // jää muuten voimaan ja indeksin poisto avattaessa epäonnistuu.
+            QSqlQuery q(db_.sql());
+            for (const auto& indeksi : SqlModel::lisaIndeksit())
+                q.exec(QStringLiteral("DROP INDEX %1").arg(indeksi.first));
+            q.exec(QStringLiteral("CREATE INDEX liite_tosite ON Liite (tosite)"));
+            q.exec(QStringLiteral("CREATE INDEX rivi_tosite ON Rivi (tosite)"));
+        }
+        tulos.insert(QStringLiteral("vanha"), tila());
+
+        if (!QTest::qVerify(db_.avaaUudelleen(), "db_.avaaUudelleen()", "", __FILE__, __LINE__))
+            return {};
+        tulos.insert(QStringLiteral("avattu"), tila());
+        return tulos;
+    };
+    const QVariantMap tulos = suoritaMolemmissa(toiminto).toMap();
+    if (tulos.isEmpty())
+        return;
+    for (const QString& vaihe : {QStringLiteral("uusi"), QStringLiteral("avattu")}) {
+        const QVariantMap map = tulos.value(vaihe).toMap();
+        for (const auto& indeksi : SqlModel::lisaIndeksit())
+            QVERIFY2(map.value(indeksi.first).toBool(), qPrintable(vaihe + ": " + indeksi.first));
+        for (const QString& nimi : SqlModel::poistetutIndeksit())
+            QVERIFY2(!map.value(nimi).toBool(), qPrintable(vaihe + ": " + nimi));
+    }
+    const QVariantMap vanha = tulos.value(QStringLiteral("vanha")).toMap();
+    for (const auto& indeksi : SqlModel::lisaIndeksit())
+        QVERIFY2(!vanha.value(indeksi.first).toBool(), qPrintable(indeksi.first));
+    for (const QString& nimi : SqlModel::poistetutIndeksit())
+        QVERIFY2(vanha.value(nimi).toBool(), qPrintable(nimi));
+}
+
+void DbParityTest::sqlite_pragmatAsetetaanAvattaessa()
+{
+    QVERIFY(db_.avaaSqlite());
+    const auto pragma = [this](const QString& nimi) {
+        QSqlQuery q(db_.sql());
+        q.exec(QStringLiteral("PRAGMA %1").arg(nimi));
+        return q.next() ? q.value(0).toString().toLower() : QString();
+    };
+    QCOMPARE(pragma(QStringLiteral("journal_mode")), QStringLiteral("wal"));
+    QCOMPARE(pragma(QStringLiteral("synchronous")), QStringLiteral("1"));    // NORMAL
+    QCOMPARE(pragma(QStringLiteral("temp_store")), QStringLiteral("2"));     // MEMORY
+    QCOMPARE(pragma(QStringLiteral("cache_size")), QStringLiteral("-16000"));
+    QCOMPARE(pragma(QStringLiteral("foreign_keys")), QStringLiteral("1"));
+    db_.sulje();
 }
 
 void DbParityTest::binding_jsonAsStringRoundtripsOnBoth()
@@ -991,6 +1085,568 @@ void DbParityTest::route_saldotSisaltaaViisinumeroisenVelkatilin()
              "sisällä oleva alatili.");
 }
 
+void DbParityTest::route_saldotYhdellaKyselyllaTulostiliJaKustannuspaikat()
+{
+    // /saldot laskee tasetilit sekä edellisten ja nykyisen kauden tuloksen yhdellä kyselyllä.
+    // Yksittäisen tulostilin saldo (?tili=) oli virheellistä SQL:ää eikä toiminut kummassakaan
+    // kannassa; ?kustannuspaikat ryhmitteli ilman kuuluu-saraketta, minkä Postgres hylkää.
+    const auto toiminto = [this]() -> QVariant {
+        // Tulostilit lisätään tähän kirjanpitoon, jotta kauden tuloksen tili on olemassa.
+        // Ilman sitä tiliTyypilla palauttaa numeron 0, joka ei ole tili.
+        for (const auto& tili : {qMakePair(2251, QStringLiteral("BE")), qMakePair(2371, QStringLiteral("T"))}) {
+            db_.kysy(QStringLiteral("/tilit"), KpKysely::PUT, QVariantMap{
+                {QStringLiteral("numero"), tili.first},
+                {QStringLiteral("tyyppi"), tili.second},
+                {QStringLiteral("nimi"), QStringLiteral("Tulos")},
+            });
+        }
+        kp()->tilit()->lataa(db_.kysy(QStringLiteral("/init")).toMap().value(QStringLiteral("tilit")).toList());
+
+        for (const auto& pari : {qMakePair(QDate(2019, 3, 1), 40.0), qMakePair(QDate(2019, 6, 1), 100.0)}) {
+            QVariantList viennit;
+            viennit.append(QVariantMap{
+                {QStringLiteral("pvm"), pari.first},
+                {QStringLiteral("tili"), 1910},
+                {QStringLiteral("debet"), pari.second},
+            });
+            viennit.append(QVariantMap{
+                {QStringLiteral("pvm"), pari.first},
+                {QStringLiteral("tili"), 3000},
+                {QStringLiteral("kredit"), pari.second},
+            });
+            lisaaTosite(QStringLiteral("Saldo"), TositeTyyppi::TULO, viennit);
+        }
+        const QString tulostili = QString::number(kp()->tilit()->tiliTyypilla(TiliLaji::KAUDENTULOS).numero());
+        const QVariantMap kaikki = db_.kysy(QStringLiteral("/saldot?pvm=2019-12-31")).toMap();
+        const QVariantMap alussa = db_.kysy(QStringLiteral("/saldot?pvm=2019-04-01&alkusaldot&tase")).toMap();
+        const QVariantMap yksi = db_.kysy(QStringLiteral("/saldot?pvm=2019-12-31&tili=3000")).toMap();
+        const QVariantMap kohdennukset = db_.kysy(QStringLiteral("/saldot?pvm=2019-12-31&kustannuspaikat")).toMap();
+
+        double kohdennettu = 0;
+        for (const QVariant& k : kohdennukset)
+            kohdennettu += k.toMap().value(QStringLiteral("3000")).toDouble();
+
+        QVariantMap tulos;
+        tulos.insert(QStringLiteral("pankki"), kaikki.value(QStringLiteral("1910")).toDouble());
+        tulos.insert(QStringLiteral("tulos"), kaikki.value(tulostili).toDouble());
+        tulos.insert(QStringLiteral("myynti"), kaikki.value(QStringLiteral("3000")).toDouble());
+        tulos.insert(QStringLiteral("pankkiAlussa"), alussa.value(QStringLiteral("1910")).toDouble());
+        tulos.insert(QStringLiteral("eiTulostiliaAlussa"), !alussa.contains(tulostili));
+        tulos.insert(QStringLiteral("yksi"), yksi.value(QStringLiteral("3000")).toDouble());
+        tulos.insert(QStringLiteral("kohdennettu"), kohdennettu);
+        return tulos;
+    };
+    const QVariantMap tulos = suoritaMolemmissa(toiminto).toMap();
+    if (tulos.isEmpty())
+        return;
+    QCOMPARE(tulos.value(QStringLiteral("pankki")).toDouble(), 140.0);
+    QCOMPARE(tulos.value(QStringLiteral("tulos")).toDouble(), 140.0);
+    QCOMPARE(tulos.value(QStringLiteral("myynti")).toDouble(), 140.0);
+    QCOMPARE(tulos.value(QStringLiteral("pankkiAlussa")).toDouble(), 40.0);
+    QVERIFY(tulos.value(QStringLiteral("eiTulostiliaAlussa")).toBool());
+    QCOMPARE(tulos.value(QStringLiteral("yksi")).toDouble(), 140.0);
+    QCOMPARE(tulos.value(QStringLiteral("kohdennettu")).toDouble(), 140.0);
+}
+
+void DbParityTest::route_tilikaudetLuvutJaNumerointi()
+{
+    // GET /tilikaudet laskee kausien luvut ryhmitellyillä kyselyillä; tase ja täsmäys ovat
+    // kertymiä, joihin kuuluvat myös tilikausien ulkopuoliset viennit.
+    // POST /tilikaudet/numerointi päivittää tunnisteet erissä.
+    const auto toiminto = [this]() -> QVariant {
+        const auto lisaa = [this](const QDate& pvm, double euro) {
+            QVariantList viennit;
+            viennit.append(QVariantMap{
+                {QStringLiteral("pvm"), pvm},
+                {QStringLiteral("tili"), 1910},
+                {QStringLiteral("debet"), euro},
+            });
+            viennit.append(QVariantMap{
+                {QStringLiteral("pvm"), pvm},
+                {QStringLiteral("tili"), 3000},
+                {QStringLiteral("kredit"), euro},
+            });
+            QVariantMap map;
+            map.insert(QStringLiteral("pvm"), pvm);
+            map.insert(QStringLiteral("tyyppi"), TositeTyyppi::TULO);
+            map.insert(QStringLiteral("tila"), Tosite::KIRJANPIDOSSA);
+            map.insert(QStringLiteral("otsikko"), pvm.toString(Qt::ISODate));
+            map.insert(QStringLiteral("viennit"), viennit);
+            return db_.kysy(QStringLiteral("/tositteet"), KpKysely::POST, map).toMap().value(QStringLiteral("id")).toInt();
+        };
+        lisaa(QDate(2018, 12, 31), 7.0);
+        const int kesa = lisaa(QDate(2019, 6, 1), 100.0);
+        const int maalis = lisaa(QDate(2019, 3, 1), 40.0);
+        lisaa(QDate(2020, 2, 1), 5.0);
+
+        QVariantMap tulos;
+        for (const QVariant& v : db_.kysy(QStringLiteral("/tilikaudet")).toList()) {
+            const QVariantMap kausi = v.toMap();
+            if (kausi.value(QStringLiteral("alkaa")).toDate() != QDate(2019, 1, 1))
+                continue;
+            tulos.insert(QStringLiteral("tase"), kausi.value(QStringLiteral("tase")).toString());
+            tulos.insert(QStringLiteral("tulos"), kausi.value(QStringLiteral("tulos")).toString());
+            tulos.insert(QStringLiteral("liikevaihto"), kausi.value(QStringLiteral("liikevaihto")).toString());
+            tulos.insert(QStringLiteral("virhe"), kausi.value(QStringLiteral("virhe")).toBool());
+            tulos.insert(QStringLiteral("viimeinen"), kausi.value(QStringLiteral("viimeinen")).toDate());
+        }
+
+        db_.kysy(QStringLiteral("/tilikaudet/numerointi"), KpKysely::POST,
+                 QVariantMap{{QStringLiteral("alkaa"), QDate(2019, 1, 1)}, {QStringLiteral("loppuu"), QDate(2019, 12, 31)}});
+        tulos.insert(QStringLiteral("maalisTunniste"),
+                     db_.kysy(QStringLiteral("/tositteet/%1").arg(maalis)).toMap().value(QStringLiteral("tunniste")).toInt());
+        tulos.insert(QStringLiteral("kesaTunniste"),
+                     db_.kysy(QStringLiteral("/tositteet/%1").arg(kesa)).toMap().value(QStringLiteral("tunniste")).toInt());
+        return tulos;
+    };
+    const QVariantMap tulos = suoritaMolemmissa(toiminto).toMap();
+    if (tulos.isEmpty())
+        return;
+    QCOMPARE(tulos.value(QStringLiteral("tase")).toString(), QStringLiteral("147.00"));
+    QCOMPARE(tulos.value(QStringLiteral("tulos")).toString(), QStringLiteral("140.00"));
+    QCOMPARE(tulos.value(QStringLiteral("liikevaihto")).toString(), QStringLiteral("0.00"));
+    QVERIFY(!tulos.value(QStringLiteral("virhe")).toBool());
+    QCOMPARE(tulos.value(QStringLiteral("viimeinen")).toDate(), QDate(2019, 6, 1));
+    QCOMPARE(tulos.value(QStringLiteral("maalisTunniste")).toInt(), 1);
+    QCOMPARE(tulos.value(QStringLiteral("kesaTunniste")).toInt(), 2);
+}
+
+void DbParityTest::route_tositeLokiTilannekuvaHaetaanErikseen()
+{
+    // GET /tositteet/<id> palauttaa lokista JSON-tilannekuvan vain uusimmalta
+    // riviltä; vanhempien rivien tilannekuva haetaan polulla /tositteet/loki/<id>.
+    const auto toiminto = [this]() -> QVariant {
+        QVariantList viennit;
+        viennit.append(QVariantMap{
+            {QStringLiteral("pvm"), QDate(2019, 3, 1)},
+            {QStringLiteral("tili"), 1910},
+            {QStringLiteral("debet"), 10.0},
+        });
+        viennit.append(QVariantMap{
+            {QStringLiteral("pvm"), QDate(2019, 3, 1)},
+            {QStringLiteral("tili"), 3000},
+            {QStringLiteral("kredit"), 10.0},
+        });
+        const int id = lisaaTosite(QStringLiteral("Ensimmäinen"), TositeTyyppi::TULO, viennit);
+        if (!QTest::qVerify(id > 0, "id > 0", "", __FILE__, __LINE__))
+            return {};
+
+        QVariantMap muokattu = db_.kysy(QStringLiteral("/tositteet/%1").arg(id)).toMap();
+        muokattu.remove(QStringLiteral("loki"));
+        muokattu.remove(QStringLiteral("liitteet"));
+        muokattu.insert(QStringLiteral("otsikko"), QStringLiteral("Toinen"));
+        db_.kysy(QStringLiteral("/tositteet/%1").arg(id), KpKysely::PUT, muokattu);
+
+        const QVariantList loki = db_.kysy(QStringLiteral("/tositteet/%1").arg(id))
+                                      .toMap().value(QStringLiteral("loki")).toList();
+        if (!QTest::qVerify(loki.count() == 2, "loki.count() == 2", "", __FILE__, __LINE__))
+            return {};
+        const QVariantMap uusin = loki.value(0).toMap();
+        const QVariantMap vanhempi = loki.value(1).toMap();
+
+        QVariantMap tulos;
+        tulos.insert(QStringLiteral("uusinOtsikko"),
+                     uusin.value(QStringLiteral("data")).toMap().value(QStringLiteral("otsikko")));
+        tulos.insert(QStringLiteral("vanhemmallaData"), vanhempi.contains(QStringLiteral("data")));
+        tulos.insert(QStringLiteral("vanhemmallaId"), vanhempi.value(QStringLiteral("id")).toInt() > 0);
+        tulos.insert(QStringLiteral("vanhempiHaettuna"),
+                     db_.kysy(QStringLiteral("/tositteet/loki/%1").arg(vanhempi.value(QStringLiteral("id")).toInt()))
+                         .toMap().value(QStringLiteral("otsikko")));
+        return tulos;
+    };
+    const QVariantMap tulos = suoritaMolemmissa(toiminto).toMap();
+    if (tulos.isEmpty())
+        return;
+    QCOMPARE(tulos.value(QStringLiteral("uusinOtsikko")).toString(), QStringLiteral("Toinen"));
+    QCOMPARE(tulos.value(QStringLiteral("vanhemmallaData")).toBool(), false);
+    QCOMPARE(tulos.value(QStringLiteral("vanhemmallaId")).toBool(), true);
+    QCOMPARE(tulos.value(QStringLiteral("vanhempiHaettuna")).toString(), QStringLiteral("Ensimmäinen"));
+}
+
+void DbParityTest::route_tositeVainViennit()
+{
+    const auto toiminto = [this]() -> QVariant {
+        QVariantList viennit;
+        viennit.append(QVariantMap{
+            {QStringLiteral("pvm"), QDate(2019, 4, 1)},
+            {QStringLiteral("tili"), 1910},
+            {QStringLiteral("debet"), 20.0},
+        });
+        viennit.append(QVariantMap{
+            {QStringLiteral("pvm"), QDate(2019, 4, 1)},
+            {QStringLiteral("tili"), 3000},
+            {QStringLiteral("kredit"), 20.0},
+        });
+        const int id = lisaaTosite(QStringLiteral("Viennit"), TositeTyyppi::TULO, viennit);
+        const QVariantMap koko = db_.kysy(QStringLiteral("/tositteet/%1").arg(id)).toMap();
+        const int vientiId = koko.value(QStringLiteral("viennit")).toList().value(0).toMap()
+                                 .value(QStringLiteral("id")).toInt();
+
+        const QVariantMap kevyt = db_.kysy(QStringLiteral("/tositteet?vienti=%1&vainviennit").arg(vientiId)).toMap();
+        QVariantMap tulos;
+        tulos.insert(QStringLiteral("samatViennit"),
+                     kevyt.value(QStringLiteral("viennit")) == koko.value(QStringLiteral("viennit")));
+        tulos.insert(QStringLiteral("id"), kevyt.value(QStringLiteral("id")).toInt() == id);
+        tulos.insert(QStringLiteral("liitteet"), kevyt.contains(QStringLiteral("liitteet")));
+        tulos.insert(QStringLiteral("loki"), kevyt.contains(QStringLiteral("loki")));
+        return tulos;
+    };
+    const QVariantMap tulos = suoritaMolemmissa(toiminto).toMap();
+    if (tulos.isEmpty())
+        return;
+    QVERIFY(tulos.value(QStringLiteral("samatViennit")).toBool());
+    QVERIFY(tulos.value(QStringLiteral("id")).toBool());
+    QVERIFY(!tulos.value(QStringLiteral("liitteet")).toBool());
+    QVERIFY(!tulos.value(QStringLiteral("loki")).toBool());
+}
+
+void DbParityTest::route_tositeTallennusPalauttaaTunnisteetTaiKokoTositteen()
+{
+    // POST/PUT /tositteet palauttaa oletuksena vain {id, tunniste, sarja} (Tosite::tallennusValmis);
+    // ?palauta=tosite palauttaa koko tositteen (laskuliitteen tallennus, jaksottaja).
+    const auto toiminto = [this]() -> QVariant {
+        QVariantList viennit;
+        viennit.append(QVariantMap{
+            {QStringLiteral("pvm"), QDate(2019, 5, 1)},
+            {QStringLiteral("tili"), 1910},
+            {QStringLiteral("debet"), 30.0},
+        });
+        viennit.append(QVariantMap{
+            {QStringLiteral("pvm"), QDate(2019, 5, 1)},
+            {QStringLiteral("tili"), 3000},
+            {QStringLiteral("kredit"), 30.0},
+        });
+        QVariantMap tosite;
+        tosite.insert(QStringLiteral("pvm"), QDate(2019, 5, 1));
+        tosite.insert(QStringLiteral("tyyppi"), TositeTyyppi::TULO);
+        tosite.insert(QStringLiteral("tila"), Tosite::KIRJANPIDOSSA);
+        tosite.insert(QStringLiteral("otsikko"), QStringLiteral("Kevyt vastaus"));
+        tosite.insert(QStringLiteral("viennit"), viennit);
+
+        const QVariantMap kevyt = db_.kysy(QStringLiteral("/tositteet"), KpKysely::POST, tosite).toMap();
+        const int id = kevyt.value(QStringLiteral("id")).toInt();
+        const QVariantMap koko = db_.kysy(QStringLiteral("/tositteet/%1?palauta=tosite").arg(id), KpKysely::PUT, tosite).toMap();
+        const QVariantMap kevytPut = db_.kysy(QStringLiteral("/tositteet/%1").arg(id), KpKysely::PUT, tosite).toMap();
+
+        QVariantMap tulos;
+        tulos.insert(QStringLiteral("kevytAvaimet"), QStringList(kevyt.keys()));
+        tulos.insert(QStringLiteral("kevytTunniste"), kevyt.value(QStringLiteral("tunniste")));
+        tulos.insert(QStringLiteral("kevytPutAvaimet"), QStringList(kevytPut.keys()));
+        tulos.insert(QStringLiteral("kokoOtsikko"), koko.value(QStringLiteral("otsikko")));
+        tulos.insert(QStringLiteral("kokoVienteja"), koko.value(QStringLiteral("viennit")).toList().count());
+        tulos.insert(QStringLiteral("samaId"), koko.value(QStringLiteral("id")).toInt() == id
+                                                   && kevytPut.value(QStringLiteral("id")).toInt() == id);
+        return tulos;
+    };
+    const QVariantMap tulos = suoritaMolemmissa(toiminto).toMap();
+    if (tulos.isEmpty())
+        return;
+    for (const QString& avain : tulos.value(QStringLiteral("kevytAvaimet")).toStringList())
+        QVERIFY2(QStringList({QStringLiteral("id"), QStringLiteral("tunniste"), QStringLiteral("sarja")}).contains(avain),
+                 qPrintable(avain));
+    QVERIFY(tulos.value(QStringLiteral("kevytAvaimet")).toStringList().contains(QStringLiteral("id")));
+    QVERIFY(tulos.value(QStringLiteral("kevytTunniste")).toInt() > 0);
+    QCOMPARE(tulos.value(QStringLiteral("kevytPutAvaimet")).toStringList(), tulos.value(QStringLiteral("kevytAvaimet")).toStringList());
+    QCOMPARE(tulos.value(QStringLiteral("kokoOtsikko")).toString(), QStringLiteral("Kevyt vastaus"));
+    QCOMPARE(tulos.value(QStringLiteral("kokoVienteja")).toInt(), 2);
+    QVERIFY(tulos.value(QStringLiteral("samaId")).toBool());
+}
+
+void DbParityTest::route_tositeListaLiitteetJaSumma()
+{
+    // /tositteet-listan liitteitä ja summaa ei lasketa koko taulusta vaan rajauksen tositteille
+    const auto toiminto = [this]() -> QVariant {
+        QVariantList viennit;
+        viennit.append(QVariantMap{
+            {QStringLiteral("pvm"), QDate(2019, 3, 1)},
+            {QStringLiteral("tili"), 1910},
+            {QStringLiteral("debet"), 12.5},
+        });
+        viennit.append(QVariantMap{
+            {QStringLiteral("pvm"), QDate(2019, 3, 1)},
+            {QStringLiteral("tili"), 3000},
+            {QStringLiteral("kredit"), 12.5},
+        });
+        const int summallinen = lisaaTosite(QStringLiteral("Summa"), TositeTyyppi::TULO, viennit);
+        lisaaTosite(QStringLiteral("Tyhja"));
+        QMap<QString, QString> meta;
+        meta.insert(QStringLiteral("Filename"), QStringLiteral("kuitti.pdf"));
+        meta.insert(QStringLiteral("Content-type"), QStringLiteral("application/pdf"));
+        db_.lahetaTiedosto(QStringLiteral("/liitteet/%1").arg(summallinen), QByteArray("%PDF-1.4 a"), meta);
+        db_.lahetaTiedosto(QStringLiteral("/liitteet/%1").arg(summallinen), QByteArray("%PDF-1.4 b"), meta);
+
+        QVariantList tulos;
+        const QVariantList lista = db_.kysy(QStringLiteral("/tositteet?alkupvm=2019-01-01&loppupvm=2019-12-31&jarjestys=tosite")).toList();
+        for (const QVariant& v : lista) {
+            const QVariantMap m = v.toMap();
+            tulos.append(QVariantMap{
+                {QStringLiteral("otsikko"), m.value(QStringLiteral("otsikko"))},
+                {QStringLiteral("liitteita"), m.value(QStringLiteral("liitteita")).toInt()},
+                {QStringLiteral("summa"), m.value(QStringLiteral("summa")).toDouble()},
+                {QStringLiteral("summaPuuttuu"), !m.contains(QStringLiteral("summa"))},
+            });
+        }
+        return tulos;
+    };
+    const QVariantList tulos = suoritaMolemmissa(toiminto).toList();
+    if (tulos.isEmpty())
+        return;
+    QCOMPARE(tulos.count(), 2);
+    const QVariantMap summa = tulos.value(0).toMap();
+    const QVariantMap tyhja = tulos.value(1).toMap();
+    QCOMPARE(summa.value(QStringLiteral("otsikko")).toString(), QStringLiteral("Summa"));
+    QCOMPARE(summa.value(QStringLiteral("liitteita")).toInt(), 2);
+    QCOMPARE(summa.value(QStringLiteral("summa")).toDouble(), 12.5);
+    QCOMPARE(tyhja.value(QStringLiteral("liitteita")).toInt(), 0);
+    QVERIFY(tyhja.value(QStringLiteral("summaPuuttuu")).toBool());
+}
+
+void DbParityTest::selaus_sqliteRivitVastaavatViennitReittia()
+{
+    // SelausModel::lataaSqlite hakee merkkaukset ja erät koko selaukselle kerralla;
+    // rivien tekstien on oltava samat kuin /viennit-reitin kautta muodostetuilla riveillä
+    QVERIFY(db_.avaaSqlite());
+
+    QVariantList laskuViennit;
+    laskuViennit.append(QVariantMap{
+        {QStringLiteral("pvm"), QDate(2019, 3, 1)},
+        {QStringLiteral("tili"), 1910},
+        {QStringLiteral("debet"), 50.0},
+        {QStringLiteral("era"), QVariantMap{{QStringLiteral("id"), Kitsas::UUSI_ERA}}},
+    });
+    laskuViennit.append(QVariantMap{
+        {QStringLiteral("pvm"), QDate(2019, 3, 1)},
+        {QStringLiteral("tili"), 3000},
+        {QStringLiteral("kredit"), 50.0},
+    });
+    const int lasku = lisaaTosite(QStringLiteral("Lasku"), TositeTyyppi::TULO, laskuViennit);
+    int eraId = 0;
+    for (const QVariant& v : db_.kysy(QStringLiteral("/tositteet/%1").arg(lasku)).toMap()
+                                 .value(QStringLiteral("viennit")).toList()) {
+        if (v.toMap().value(QStringLiteral("tili")).toInt() == 1910)
+            eraId = v.toMap().value(QStringLiteral("id")).toInt();
+    }
+    QVERIFY(eraId > 0);
+
+    QVariantList maksuViennit;
+    maksuViennit.append(QVariantMap{
+        {QStringLiteral("pvm"), QDate(2019, 3, 1)},
+        {QStringLiteral("tili"), 3000},
+        {QStringLiteral("debet"), 20.0},
+    });
+    maksuViennit.append(QVariantMap{
+        {QStringLiteral("pvm"), QDate(2019, 3, 1)},
+        {QStringLiteral("tili"), 1910},
+        {QStringLiteral("kredit"), 20.0},
+        {QStringLiteral("era"), QVariantMap{{QStringLiteral("id"), eraId}}},
+    });
+    lisaaTosite(QStringLiteral("Maksu"), TositeTyyppi::TULO, maksuViennit);
+
+    const auto rivit = [](const SelausModel& malli) {
+        QStringList lista;
+        for (int i = 0; i < malli.rowCount(QModelIndex()); i++) {
+            QStringList sarakkeet;
+            for (int s : {SelausModel::TOSITE, SelausModel::TILI, SelausModel::DEBET,
+                          SelausModel::KREDIT, SelausModel::KOHDENNUS}) {
+                sarakkeet << malli.data(malli.index(i, s), Qt::DisplayRole).toString();
+            }
+            sarakkeet << malli.data(malli.index(i, SelausModel::PVM), Qt::EditRole).toString();
+            lista << sarakkeet.join('|');
+        }
+        lista.sort();
+        return lista;
+    };
+
+    SelausModel sqlMalli;
+    sqlMalli.lataaSqlite(kp()->sqlite(), QDate(2019, 1, 1), QDate(2019, 12, 31));
+
+    SelausModel reittiMalli;
+    QVariant viennit = db_.kysy(QStringLiteral("/viennit?alkupvm=2019-01-01&loppupvm=2019-12-31"));
+    reittiMalli.tietoSaapuu(&viennit);
+
+    const QStringList sqlRivit = rivit(sqlMalli);
+    QCOMPARE(sqlRivit.count(), 4);
+    QCOMPARE(sqlRivit, rivit(reittiMalli));
+
+    // Maksun erärivillä näkyy laskun tositetunnus
+    int eranViittaukset = 0;
+    for (int i = 0; i < sqlMalli.rowCount(QModelIndex()); i++) {
+        if (!sqlMalli.data(sqlMalli.index(i, SelausModel::KOHDENNUS), Qt::DisplayRole).toString().isEmpty())
+            eranViittaukset++;
+    }
+    QCOMPARE(eranViittaukset, 1);
+
+    db_.sulje();
+}
+
+void DbParityTest::route_tuontitulkkiLoytaaViitteettomanEran()
+{
+    // Tiliotteen tulkinta löytää kumppanin avoimen, oikean suuruisen erän ilman viitettä.
+    // Kyselyt olivat aiemmin moniselitteisiä (pvm, kumppani, id sekä Viennissä että Tositteella)
+    // eivätkä toimineet kummassakaan kannassa.
+    const auto toiminto = [this]() -> QVariant {
+        const int kumppani = db_.kysy(QStringLiteral("/kumppanit"), KpKysely::POST,
+                                      QVariantMap{{QStringLiteral("nimi"), QStringLiteral("Tulkki Oy")}})
+                                 .toMap().value(QStringLiteral("id")).toInt();
+        const QVariantMap kumppaniMap{{QStringLiteral("id"), kumppani}};
+
+        const auto eranAloitus = [&](int tyyppi, const QString& puoli, double euro) {
+            QVariantList viennit;
+            viennit.append(QVariantMap{
+                {QStringLiteral("pvm"), QDate(2019, 3, 1)},
+                {QStringLiteral("tili"), 1910},
+                {QStringLiteral("tyyppi"), tyyppi},
+                {puoli, euro},
+                {QStringLiteral("kumppani"), kumppaniMap},
+                {QStringLiteral("era"), QVariantMap{{QStringLiteral("id"), Kitsas::UUSI_ERA}}},
+            });
+            viennit.append(QVariantMap{
+                {QStringLiteral("pvm"), QDate(2019, 3, 1)},
+                {QStringLiteral("tili"), 3000},
+                {puoli == QLatin1String("debet") ? QStringLiteral("kredit") : QStringLiteral("debet"), euro},
+            });
+            const int id = lisaaTosite(QStringLiteral("Erä"), TositeTyyppi::TULO, viennit);
+            for (const QVariant& v : db_.kysy(QStringLiteral("/tositteet/%1").arg(id)).toMap()
+                                         .value(QStringLiteral("viennit")).toList()) {
+                if (v.toMap().value(QStringLiteral("tili")).toInt() == 1910)
+                    return v.toMap().value(QStringLiteral("id")).toInt();
+            }
+            return 0;
+        };
+        const int myyntiEra = eranAloitus(TositeVienti::MYYNTI + TositeVienti::VASTAKIRJAUS, QStringLiteral("debet"), 100.0);
+        const int ostoEra = eranAloitus(TositeVienti::OSTO + TositeVienti::VASTAKIRJAUS, QStringLiteral("kredit"), 40.0);
+
+        QVariantList tapahtumat;
+        tapahtumat.append(QVariantMap{
+            {QStringLiteral("euro"), 100.0},
+            {QStringLiteral("pvm"), QDate(2019, 3, 10)},
+            {QStringLiteral("saajamaksaja"), QStringLiteral("Tulkki Oy")},
+        });
+        tapahtumat.append(QVariantMap{
+            {QStringLiteral("euro"), -40.0},
+            {QStringLiteral("pvm"), QDate(2019, 3, 10)},
+            {QStringLiteral("saajamaksaja"), QStringLiteral("Tulkki Oy")},
+        });
+        const QVariantList tulkitut = db_.kysy(QStringLiteral("/tuontitulkki"), KpKysely::POST,
+                                               QVariantMap{{QStringLiteral("tyyppi"), TositeTyyppi::TILIOTE},
+                                                           {QStringLiteral("tapahtumat"), tapahtumat}})
+                                          .toMap().value(QStringLiteral("tapahtumat")).toList();
+        QVariantMap tulos;
+        tulos.insert(QStringLiteral("tuloEraOikein"),
+                     tulkitut.value(0).toMap().value(QStringLiteral("era")).toMap().value(QStringLiteral("id")).toInt() == myyntiEra);
+        tulos.insert(QStringLiteral("tuloTili"), tulkitut.value(0).toMap().value(QStringLiteral("tili")).toInt());
+        tulos.insert(QStringLiteral("menoEraOikein"),
+                     tulkitut.value(1).toMap().value(QStringLiteral("era")).toMap().value(QStringLiteral("id")).toInt() == ostoEra);
+        tulos.insert(QStringLiteral("menoTili"), tulkitut.value(1).toMap().value(QStringLiteral("tili")).toInt());
+        return tulos;
+    };
+    const QVariantMap tulos = suoritaMolemmissa(toiminto).toMap();
+    if (tulos.isEmpty())
+        return;
+    QVERIFY(tulos.value(QStringLiteral("tuloEraOikein")).toBool());
+    QCOMPARE(tulos.value(QStringLiteral("tuloTili")).toInt(), 1910);
+    QVERIFY(tulos.value(QStringLiteral("menoEraOikein")).toBool());
+    QCOMPARE(tulos.value(QStringLiteral("menoTili")).toInt(), 1910);
+}
+
+void DbParityTest::route_taseErittelyEratJaMuutokset()
+{
+    // EraRoute::taysiErittely hakee erien alkusaldot ja kauden muutokset kaikille tilin erille kerralla
+    const auto toiminto = [this]() -> QVariant {
+        QVariantList aloitus;
+        aloitus.append(QVariantMap{
+            {QStringLiteral("pvm"), QDate(2019, 2, 1)},
+            {QStringLiteral("tili"), 1910},
+            {QStringLiteral("debet"), 80.0},
+            {QStringLiteral("selite"), QStringLiteral("Aloitus")},
+            {QStringLiteral("era"), QVariantMap{{QStringLiteral("id"), Kitsas::UUSI_ERA}}},
+        });
+        aloitus.append(QVariantMap{
+            {QStringLiteral("pvm"), QDate(2019, 2, 1)},
+            {QStringLiteral("tili"), 3000},
+            {QStringLiteral("kredit"), 80.0},
+        });
+        const int aloitusId = lisaaTosite(QStringLiteral("Aloitus"), TositeTyyppi::TULO, aloitus);
+        int eraId = 0;
+        for (const QVariant& v : db_.kysy(QStringLiteral("/tositteet/%1").arg(aloitusId)).toMap()
+                                     .value(QStringLiteral("viennit")).toList()) {
+            if (v.toMap().value(QStringLiteral("tili")).toInt() == 1910)
+                eraId = v.toMap().value(QStringLiteral("id")).toInt();
+        }
+
+        for (double euro : {30.0, 15.0}) {
+            QVariantList maksu;
+            maksu.append(QVariantMap{
+                {QStringLiteral("pvm"), QDate(2019, 6, 1)},
+                {QStringLiteral("tili"), 3000},
+                {QStringLiteral("debet"), euro},
+            });
+            maksu.append(QVariantMap{
+                {QStringLiteral("pvm"), QDate(2019, 6, 1)},
+                {QStringLiteral("tili"), 1910},
+                {QStringLiteral("kredit"), euro},
+                {QStringLiteral("selite"), QStringLiteral("Maksu")},
+                {QStringLiteral("era"), QVariantMap{{QStringLiteral("id"), eraId}}},
+            });
+            lisaaTosite(QStringLiteral("Maksu"), TositeTyyppi::TULO, maksu);
+        }
+
+        Tili* tili = kp()->tilit()->tili(1910);
+        if (!QTest::qVerify(tili != nullptr, "tili", "", __FILE__, __LINE__))
+            return {};
+        const int vanhaTapa = tili->luku(QStringLiteral("erittely"));
+        tili->set(QStringLiteral("erittely"), static_cast<int>(Tili::TASEERITTELY_TAYSI));
+        const QVariantMap erittely = db_.kysy(QStringLiteral("/erat/erittely?alkaa=2019-04-01&loppuu=2019-12-31")).toMap();
+        tili->set(QStringLiteral("erittely"), vanhaTapa);
+
+        QVariantList tulos;
+        for (const QVariant& v : erittely.value(QStringLiteral("1910T")).toList()) {
+            const QVariantMap emap = v.toMap();
+            QVariantList kausi;
+            for (const QVariant& m : emap.value(QStringLiteral("kausi")).toList())
+                kausi.append(m.toMap().value(QStringLiteral("eur")).toString());
+            tulos.append(QVariantMap{
+                {QStringLiteral("era"), emap.value(QStringLiteral("era")).toMap().value(QStringLiteral("eur")).toString()},
+                {QStringLiteral("ennen"), emap.value(QStringLiteral("ennen")).toString()},
+                {QStringLiteral("kausi"), kausi},
+                {QStringLiteral("saldo"), emap.value(QStringLiteral("saldo")).toString()},
+            });
+        }
+        return tulos;
+    };
+    const QVariantList tulos = suoritaMolemmissa(toiminto).toList();
+    if (tulos.isEmpty())
+        return;
+    const QVariantMap era = tulos.value(0).toMap();
+    QCOMPARE(era.value(QStringLiteral("ennen")).toString(), Euro::fromCents(8000).toString());
+    QCOMPARE(era.value(QStringLiteral("kausi")).toList().count(), 2);
+    QCOMPARE(era.value(QStringLiteral("saldo")).toString(), Euro::fromCents(3500).toString());
+}
+
+void DbParityTest::route_kumppaniValimuistiTyhjeneeKirjanpidonVaihtuessa()
+{
+    // TositeRoute muistaa nimellä luodut kumppanit; toisessa kirjanpidossa sama id on eri kumppani
+    const auto lisaaNimella = [this](const QString& nimi) {
+        QVariantMap map;
+        map.insert(QStringLiteral("pvm"), QDate(2019, 3, 1));
+        map.insert(QStringLiteral("tyyppi"), TositeTyyppi::TULO);
+        map.insert(QStringLiteral("tila"), Tosite::KIRJANPIDOSSA);
+        map.insert(QStringLiteral("otsikko"), nimi);
+        map.insert(QStringLiteral("kumppani"), QVariantMap{{QStringLiteral("nimi"), nimi}});
+        const int id = db_.kysy(QStringLiteral("/tositteet"), KpKysely::POST, map).toMap().value(QStringLiteral("id")).toInt();
+        return db_.kysy(QStringLiteral("/tositteet/%1").arg(id)).toMap()
+            .value(QStringLiteral("kumppani")).toMap().value(QStringLiteral("nimi")).toString();
+    };
+
+    QVERIFY(db_.avaaSqlite());
+    QCOMPARE(lisaaNimella(QStringLiteral("Muistettu Oy")), QStringLiteral("Muistettu Oy"));
+
+    QVERIFY(db_.avaaSqlite());
+    db_.kysy(QStringLiteral("/kumppanit"), KpKysely::POST, QVariantMap{{QStringLiteral("nimi"), QStringLiteral("Toinen Oy")}});
+    QCOMPARE(lisaaNimella(QStringLiteral("Muistettu Oy")), QStringLiteral("Muistettu Oy"));
+    db_.sulje();
+}
+
 void DbParityTest::route_alvIlmoituksenMuokkausTunnistetaan()
 {
     // Uuteen alv-ilmoitukseen tallennetaan kauden alv-kirjausten sormenjälki (TositeRoute),
@@ -1047,7 +1703,9 @@ void DbParityTest::route_alvIlmoituksenMuokkausTunnistetaan()
                 .toMap().value(QStringLiteral("id")).toInt();
         };
         const auto tila = [this](int alvId) -> QString {
-            const QVariantList lista = db_.kysy(QStringLiteral("/alv")).toList();
+            // Sormenjälki vertaillaan vain ?tarkista-kutsulla (alv-sivu). Pelkkä /alv
+            // palauttaa tallennetun tilan tekemättä koosteita.
+            const QVariantList lista = db_.kysy(QStringLiteral("/alv?tarkista")).toList();
             for (const QVariant& item : lista) {
                 const QVariantMap map = item.toMap();
                 if (map.value(QStringLiteral("id")).toInt() != alvId)

@@ -147,10 +147,25 @@ Tuote TuoteModel::tuote(int id) const
 }
 
 
+void TuoteModel::nollaa()
+{
+    beginResetModel();
+    tuotteet_.clear();
+    ladattu_ = false;
+    endResetModel();
+}
+
+void TuoteModel::varmistaLadattu()
+{
+    if( !ladattu_ )
+        lataa();
+}
+
 void TuoteModel::lataa()
 {
     KpKysely *kys = kpk("/tuotteet");
     if( kys ) {
+        ladattu_ = true;
         connect( kys, &KpKysely::vastaus, this, &TuoteModel::dataSaapuu);
         kys->kysy();
     }

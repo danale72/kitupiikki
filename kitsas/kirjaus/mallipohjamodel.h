@@ -32,12 +32,17 @@ public:
 
     static MallipohjaModel *instanssi();
 
+    /** Hakee mallipohjat, ellei niitä ole vielä haettu tähän kirjanpitoon */
+    void varmistaLadattu();
+
 protected:
     void haeLista();
+    void tyhjenna();
     void listaSaapuu(QVariant* data);
 
 private:
     QVariantList lista_;
+    bool ladattu_ = false;
 
     static MallipohjaModel* instanssi__;
 };

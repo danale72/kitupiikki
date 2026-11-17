@@ -49,6 +49,7 @@ core_sources = files(
   'db/yhteysmodel.cpp',
   'sql/sqlalustaja.cpp',
   'sql/sqlmodel.cpp',
+  'sql/saldocache.cpp',
   'postgres/postgresmodel.cpp',
   'postgres/postgresvelhosivu.cpp',
   'postgres/postgresyhteysdlg.cpp',

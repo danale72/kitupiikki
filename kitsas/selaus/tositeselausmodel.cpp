@@ -183,10 +183,11 @@ void TositeSelausModel::lataaSqlite(SQLiteModel *sqlite, const QDate &alkaa, con
     ehdot.append( QString("tosite.pvm <= '%1'").arg( loppuu.toString(Qt::ISODate)));
 
     QString kysymys = "SELECT tosite.id AS id, tosite.pvm AS pvm, tyyppi, tila, tunniste, otsikko, kumppani.nimi as kumppani, "
-                      "tosite.sarja as sarja, liitteita, summa, Tosite.json AS json"
+                      "tosite.sarja as sarja, "
+                      "(SELECT COUNT(*) FROM Liite WHERE Liite.tosite=tosite.id) AS liitteita, "
+                      "(SELECT SUM(debetsnt) FROM Vienti WHERE Vienti.tosite=tosite.id) AS summa, "
+                      "Tosite.json AS json"
                       " FROM Tosite LEFT OUTER JOIN Kumppani on tosite.kumppani=kumppani.id  "
-                      " LEFT OUTER JOIN (SELECT tosite, COUNT(id) AS liitteita FROM Liite GROUP BY tosite) AS lq ON tosite.id=lq.tosite "
-                      " LEFT OUTER JOIN (SELECT tosite, SUM(debetsnt) AS summa FROM Vienti GROUP BY tosite) as sq ON tosite.id=sq.tosite "
                       "WHERE ";
     kysymys.append( ehdot.join(" AND "));
 
@@ -197,6 +198,7 @@ void TositeSelausModel::lataaSqlite(SQLiteModel *sqlite, const QDate &alkaa, con
     rivit_.clear();
 
     QSqlQuery kysely(sqlite->tietokanta());
+    kysely.setForwardOnly(true);
     kysely.exec(kysymys);
     while(kysely.next()) {
         TositeSelausRivi rivi(kysely, samakausi_);
@@ -254,8 +256,9 @@ TositeSelausRivi::TositeSelausRivi(QSqlQuery &data, bool samakausi)
     kumppani = data.value("kumppani").toString();
     summa = data.value("summa").toLongLong();
     liitteita = data.value("liitteita").toInt();
-    QJsonDocument json = QJsonDocument::fromJson(data.value("json").toByteArray());
-    huomio = json["huomio"].toBool();
+    // Koko json jäsennetään vain, jos siinä ylipäätään on huomio-kenttä
+    const QByteArray json = data.value("json").toByteArray();
+    huomio = json.contains("\"huomio\"") && QJsonDocument::fromJson(json)["huomio"].toBool();
     etsiTeksti = tositeTunniste + " " + kumppani + " " + otsikko;
 
 }

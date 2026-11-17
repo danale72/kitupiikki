@@ -241,6 +241,8 @@ void AloitusSivu::kirjanpitoVaihtui()
         // Kirjanpito avattu
         ui->nimiLabel->setText( kp()->asetukset()->asetus(AsetusModel::OrganisaatioNimi));
 
+        // Saldot haetaan kerran siirrySivulle():ssä, ei jokaisesta indeksin vaihdosta
+        const QSignalBlocker comboEstin( ui->tilikausiCombo );
         ui->tilikausiCombo->setModel( kp()->tilikaudet() );
         ui->tilikausiCombo->setModelColumn( 0 );
 

@@ -85,6 +85,11 @@ public slots:
     void selaa(int kumpi);
 
     void contextMenu(const QPoint& pos);
+
+    /**
+     * @brief Kirjanpitoa on muokattu: päivitetään heti, jos sivu näkyy, muuten vasta näytettäessä
+     */
+    void kirjanpitoMuuttui();
 public:
     void siirrySivulle() override;
 
@@ -131,6 +136,11 @@ private:
     int selaustili_ = -1;
     bool lataaKoon_ = false;
     int poistoLaskuri_ = 0;
+
+    QString lataustunniste() const;
+    /** Viimeksi ladatun näkymän välilehti, aikaväli ja tili */
+    QString ladattuTunniste_;
+    bool vanhentunut_ = true;
 };
 
 #endif // SELAUSWG_H

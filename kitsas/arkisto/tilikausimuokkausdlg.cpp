@@ -165,7 +165,7 @@ void TilikausiMuokkausDlg::poistaTilinavaus()
     kp()->asetukset()->poista("Tilinavaus");
     if(tilinavausId_) {
         KpKysely *poisto = kpk(QString("/tositteet/%1").arg(tilinavausId_), KpKysely::DELETE);
-        connect(poisto, &KpKysely::vastaus, kp(), &Kirjanpito::kirjanpitoaMuokattu);
+        connect(poisto, &KpKysely::vastaus, kp(), &Kirjanpito::muokattu);
         poisto->kysy();
     }
 }

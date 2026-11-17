@@ -67,6 +67,8 @@ CREATE TABLE KumppaniIban
 	kumppani INTEGER REFERENCES Kumppani(id) ON DELETE CASCADE
 );
 
+CREATE INDEX kumppaniiban_kumppani ON KumppaniIban (kumppani);
+
 INSERT INTO Kumppani(nimi,alvtunnus,json)
 	VALUES ('Verohallinto','FI02454583','{"osoite":"PL 325","postinumero":"00510","kaupunki":"VERO"}');
 INSERT INTO KumppaniIban(iban,kumppani)	VALUES
@@ -107,6 +109,10 @@ CREATE TABLE Tosite
 CREATE INDEX tosite_pvm ON Tosite (pvm);
 CREATE INDEX tosite_tyyppi ON Tosite (tyyppi);
 CREATE INDEX tosite_tila ON Tosite (tila);
+CREATE INDEX tosite_viite ON Tosite (viite);
+CREATE INDEX tosite_kumppani ON Tosite (kumppani);
+CREATE INDEX tosite_sarja_pvm ON Tosite (sarja, pvm);
+CREATE INDEX tosite_tila_sarja ON Tosite (tila, sarja);
 
 CREATE TABLE Tositeloki
 (
@@ -154,6 +160,10 @@ CREATE INDEX vienti_tosite ON Vienti (tosite);
 CREATE INDEX vienti_pvm ON Vienti (pvm);
 CREATE INDEX vienti_tili ON Vienti (tili);
 CREATE INDEX vienti_kohdennus ON Vienti (kohdennus);
+CREATE INDEX vienti_eraid ON Vienti (eraid);
+CREATE INDEX vienti_kumppani_tyyppi_tili ON Vienti (kumppani, tyyppi, tili);
+CREATE INDEX vienti_tyyppi ON Vienti (tyyppi);
+CREATE INDEX merkkaus_kohdennus ON Merkkaus (kohdennus);
 
 CREATE TABLE Liite
 (
@@ -169,7 +179,6 @@ CREATE TABLE Liite
 	UNIQUE(tosite,roolinimi)
 );
 
-CREATE INDEX liite_tosite ON Liite (tosite);
 
 CREATE TABLE Tuote
 (
@@ -190,7 +199,6 @@ CREATE TABLE Rivi
 	PRIMARY KEY(tosite, rivi)
 );
 
-CREATE INDEX rivi_tosite ON Rivi (tosite);
 
 
 CREATE TABLE Vakioviite

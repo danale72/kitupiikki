@@ -19,15 +19,34 @@ Liite::Liite() :
 }
 */
 
-Liite::Liite(LiitteetModel *model, const QVariantMap &map) :
+Liite::Liite(LiitteetModel *model, const QVariantMap &map, bool haeHeti) :
     model_(model)
 {
     liiteId_ = map.value("id").toInt();
     nimi_ = map.value("nimi").toString();
     rooli_ = map.value("roolinimi").toString();
     tyyppi_ = map.value("tyyppi").toString();
-    cache_ = kp()->liiteCache()->liite(liiteId_);
+    if( haeHeti ) {
+        cache_ = kp()->liiteCache()->liite(liiteId_);
+        hakuPyydetty_ = true;
+    } else {
+        cache_ = kp()->liiteCache()->liiteHakematta(liiteId_);
+    }
     cache_->lukitse();
+}
+
+void Liite::varmistaHaku() const
+{
+    if( hakuPyydetty_ || !liiteId_ )
+        return;
+    hakuPyydetty_ = true;
+    // Palauttaa saman välimuistiolion, joten lukitus säilyy
+    kp()->liiteCache()->liite(liiteId_);
+}
+
+bool Liite::odotetaan() const
+{
+    return hakuPyydetty_ && tila() == HAETAAN;
 }
 
 Liite::Liite(LiitteetModel *model, const QByteArray &ba, const QString &polku, const QString& rooli) :
@@ -88,6 +107,7 @@ QPixmap Liite::thumb() const
 
 QByteArray *Liite::dataPtr() const
 {
+    varmistaHaku();
     return cache_->dataPtr();
 }
 

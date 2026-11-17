@@ -209,6 +209,9 @@ private:
 private:
     QVariantMap data_;
     QVariantMap tallennettu_;
+    // tarkasta(): tallennetun tilan JSON, lasketaan uudelleen vain tallennetun tilan vaihtuessa
+    QVariantMap tallennettuVertailu_;
+    QByteArray tallennettuArray_;
     bool muutettu_ = false;
 
     TositeViennit* viennit_;

@@ -11,8 +11,11 @@
 #define SQLMODEL_H
 
 #include "db/yhteysmodel.h"
+#include "sql/saldocache.h"
 
 #include <QSqlDatabase>
+#include <QPair>
+#include <QStringList>
 
 class SQLiteRoute;
 class SQLiteKysely;
@@ -51,17 +54,39 @@ public:
 
     virtual qint64 tietokannanKoko() const;
 
+    /** Kirjoitetaanko jokainen kysely lokiin (qInfo). Oletuksena vain, jos ympäristömuuttuja
+     *  KITSAS_KYSELYLOKI on asetettu: lokitus maksaa joka kyselyllä. */
+    static void asetaKyselyLoki(bool lokitetaanko) { lokitaKyselyt__ = lokitetaanko; }
+
+    /** Kaavioversion 24 jälkeen lisätyt indeksit (nimi -> CREATE INDEX -lause), samat kuin luo.sql:ssä */
+    static QList<QPair<QString,QString>> lisaIndeksit();
+    /** Kaaviosta poistetut tarpeettomat indeksit (PK/UNIQUE kattaa ne jo) */
+    static QStringList poistetutIndeksit();
+
+public slots:
+    void tyhjennaValimuisti();
+
 protected:
     SqlModel(const QString& ajuri, const QString& yhteysnimi, QObject *parent = nullptr);
 
     void lisaaRoute(SQLiteRoute *route);
     void varmistaUid();
     void merkitseAvatuksi();
+    /**
+     * @brief Luo puuttuvat lisäindeksit ja poistaa tarpeettomat avattaessa
+     *
+     * Ei nosta kaavioversiota: vanhemmat ohjelmaversiot avaavat kannan yhä.
+     * Epäonnistuminen (esim. Postgresissa ei omistajan oikeuksia) ei estä avaamista.
+     */
+    void varmistaIndeksit();
 
     QSqlDatabase tietokanta_;
 
 private:
     QList<SQLiteRoute*> routes_;
+    SaldoCache saldoCache_;
+
+    static inline bool lokitaKyselyt__ = qEnvironmentVariableIsSet("KITSAS_KYSELYLOKI");
 };
 
 #endif // SQLMODEL_H

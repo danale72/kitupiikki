@@ -217,6 +217,8 @@ void SiirtoApuri::haeAlkuperaistosite(bool debet, int eraId)
     if( eraId) {
         KpKysely *kysely = kpk("/tositteet");
         kysely->lisaaAttribuutti("vienti", eraId);
+        // Paikallinen kirjanpito voi jättää liitteet, rivit ja lokin pois
+        kysely->lisaaAttribuutti("vainviennit");
         connect(kysely, &KpKysely::vastaus, this,  [debet, this] (QVariant* data)
             { this->tositeSaapuu(debet, data); });
         kysely->kysy();

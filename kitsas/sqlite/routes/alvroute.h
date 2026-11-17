@@ -36,6 +36,8 @@ public:
      * muokattu ilmoituksen antamisen jälkeen.
      */
     static QVariantMap sormenjalki(QSqlDatabase db, const QDate& alkaa, const QDate& paattyy);
+    /** Sama kuin sormenjalki() usealle kaudelle yhdellä kyselyllä, kausien järjestyksessä */
+    static QList<QVariantMap> sormenjaljet(QSqlDatabase db, const QList<QPair<QDate,QDate>>& kaudet);
     static bool samaSormenjalki(const QVariantMap& a, const QVariantMap& b);
 };
 

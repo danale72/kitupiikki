@@ -112,13 +112,16 @@ void TuontiTulkki::tilioteTulorivi(QVariantMap &rivi)
 
     if( kumppani.first) {
 
-        QSqlQuery apukysely( db() );
         int tili = 0;
         QVariantMap era;
 
-        // Yritetään löytää tähän kumppaniin liitetty oikean suuruinen erä
-        kysely.exec( QString("SELECT Vienti.id, tosite.pvm, tili, tunniste, sarja FROM Vienti JOIN Tosite ON Vienti.tosite=Tosite.id WHERE vienti.tyyppi=%1 AND "
-                             "kumppani=%2 AND debetsnt=%3 AND pvm<'%4'")
+        // Yritetään löytää tähän kumppaniin liitetty oikean suuruinen erä.
+        // Erän saldo lasketaan samassa kyselyssä eikä jokaiselle ehdokkaalle erikseen.
+        kysely.exec( QString("SELECT Vienti.id, Tosite.pvm, Vienti.tili, Tosite.tunniste, Tosite.sarja, "
+                             "(SELECT SUM(e.debetsnt) FROM Vienti AS e WHERE e.eraid=Vienti.id), "
+                             "(SELECT SUM(e.kreditsnt) FROM Vienti AS e WHERE e.eraid=Vienti.id) "
+                             "FROM Vienti JOIN Tosite ON Vienti.tosite=Tosite.id WHERE Vienti.tyyppi=%1 AND "
+                             "Vienti.kumppani=%2 AND Vienti.debetsnt=%3 AND Vienti.pvm<'%4'")
                      .arg(TositeVienti::MYYNTI + TositeVienti::VASTAKIRJAUS)
                      .arg(kumppani.first)
                      .arg( qRound64(rivi.value("euro").toDouble() * 100) )
@@ -127,14 +130,13 @@ void TuontiTulkki::tilioteTulorivi(QVariantMap &rivi)
 
 
         while( kysely.next()) {
-            apukysely.exec( QString("SELECT SUM(debetsnt), SUM(kreditsnt) FROM Vienti WHERE eraid=%1").arg(kysely.value(0).toInt()));
-            if( apukysely.next() && apukysely.value(0).toLongLong() == qRound64(rivi.value("euro").toDouble() * 100) &&
-                    apukysely.value(1).toLongLong() == 0l) {
+            if( kysely.value(5).toLongLong() == qRound64(rivi.value("euro").toDouble() * 100) &&
+                    kysely.value(6).toLongLong() == 0l) {
                 if(!tili) {
                     era.insert("id", kysely.value(0));
                     era.insert("pvm", kysely.value(1));
-                    era.insert("tunniste", kysely.value(2));
-                    era.insert("sarja", kysely.value(3));
+                    era.insert("tunniste", kysely.value(3));
+                    era.insert("sarja", kysely.value(4));
                     tili = kysely.value(2).toInt();
                 } else {
                     tili = -1;      // Löydetty monta, joten ei valita niistä yhtäkään
@@ -193,12 +195,13 @@ void TuontiTulkki::tilioteMenorivi(QVariantMap &rivi)
     else if( rivi.value("ktokoodi").toInt() == 740)
         rivi.insert("tili", kp()->asetukset()->luku("PankkiMaksettavakorko"));
     else if( kumppani.first){
-        QSqlQuery apukysely( db() );
-
         // 1) Viitemaksun etsiminen
         QSqlQuery kysely( db() );
 
-        kysely.exec( QString("SELECT Vienti.eraid, Vienti.tili, Vienti.selite, Tosite.pvm, Tosite.tunniste, Tosite.sarja FROM Vienti "
+        kysely.exec( QString("SELECT Vienti.eraid, Vienti.tili, Vienti.selite, Tosite.pvm, Tosite.tunniste, Tosite.sarja, "
+                             "(SELECT SUM(e.debetsnt) FROM Vienti AS e WHERE e.eraid=Vienti.eraid), "
+                             "(SELECT SUM(e.kreditsnt) FROM Vienti AS e WHERE e.eraid=Vienti.eraid) "
+                             "FROM Vienti "
                              "JOIN Tosite ON Vienti.tosite=Tosite.id "
                              "WHERE Vienti.tyyppi=%1 AND "
                              "Tosite.Viite='%2' AND Vienti.kumppani=%3 AND Tosite.tila >= 100 ORDER BY Vienti.pvm")
@@ -207,9 +210,8 @@ void TuontiTulkki::tilioteMenorivi(QVariantMap &rivi)
                      .arg(kumppani.first));
         while( kysely.next()) {
             // Jos erä on jo maksettu, ei se kelpaa
-           apukysely.exec( QString("SELECT SUM(debetsnt), SUM(kreditsnt) FROM Vienti WHERE eraid=%1").arg(kysely.value(0).toInt()));
-           if( apukysely.next() &&  (apukysely.value(1).toLongLong() != qRound64(rivi.value("euro").toDouble() * -100) ||
-                   apukysely.value(0).toLongLong() != 0l ))
+           if( kysely.value(7).toLongLong() != qRound64(rivi.value("euro").toDouble() * -100) ||
+                   kysely.value(6).toLongLong() != 0l )
                continue;
 
            QVariantMap eramap;
@@ -229,20 +231,22 @@ void TuontiTulkki::tilioteMenorivi(QVariantMap &rivi)
         QVariantMap era;
 
         // Yritetään löytää tähän kumppaniin liitetty oikean suuruinen erä
-        kysely.exec( QString("SELECT id, tosite.pvm, tili, tunniste, sarja FROM Vienti "
-                             "JOIN Tosite ON Vienti.tosite=Tosite.id WHERE vienti.tyyppi=%1 AND "
-                             "kumppani=%2 AND kreditsnt=%3 AND pvm<'%4' AND Tosite.tila>=100")
+        kysely.exec( QString("SELECT Vienti.id, Tosite.pvm, Vienti.tili, Tosite.tunniste, Tosite.sarja, "
+                             "(SELECT SUM(e.debetsnt) FROM Vienti AS e WHERE e.eraid=Vienti.id), "
+                             "(SELECT SUM(e.kreditsnt) FROM Vienti AS e WHERE e.eraid=Vienti.id) "
+                             "FROM Vienti "
+                             "JOIN Tosite ON Vienti.tosite=Tosite.id WHERE Vienti.tyyppi=%1 AND "
+                             "Vienti.kumppani=%2 AND Vienti.kreditsnt=%3 AND Vienti.pvm<'%4' AND Tosite.tila>=100")
                      .arg(TositeVienti::OSTO + TositeVienti::VASTAKIRJAUS)
                      .arg(kumppani.first)
-                     .arg( qRound64(rivi.value("euro").toDouble() * 100) )
+                     .arg( qRound64(rivi.value("euro").toDouble() * -100) )
                      .arg( rivi.value("pvm").toDate().toString(Qt::ISODate)) );
 
 
 
         while( kysely.next()) {
-            apukysely.exec( QString("SELECT SUM(debetsnt), SUM(kreditsnt) FROM Vienti WHERE eraid=%1").arg(kysely.value(0).toInt()));
-            if( apukysely.next() && apukysely.value(1).toLongLong() == qRound64(rivi.value("euro").toDouble() * -100) &&
-                    apukysely.value(0).toLongLong() == 0l) {
+            if( kysely.value(6).toLongLong() == qRound64(rivi.value("euro").toDouble() * -100) &&
+                    kysely.value(5).toLongLong() == 0l) {
                 if(!tili) {
                     era.insert("id", kysely.value(0));
                     era.insert("pvm", kysely.value(1));

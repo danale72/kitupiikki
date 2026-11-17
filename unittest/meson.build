@@ -150,6 +150,25 @@ liitecachetest = executable(
 )
 test('liitecachetest', liitecachetest, suite: 'unit', env: test_env)
 
+saldocache_moc = qt6.compile_moc(
+  sources: files('saldocachetest/tst_saldocachetest.cpp'),
+  include_directories: kitsas_inc,
+  dependencies: qt_core_test,
+  method: qt_method,
+)
+saldocachetest = executable(
+  'saldocachetest',
+  files(
+    'saldocachetest/tst_saldocachetest.cpp',
+    '../kitsas/sql/saldocache.cpp',
+  ),
+  saldocache_moc,
+  include_directories: kitsas_inc,
+  dependencies: qt_core_test,
+  build_rpath: qt_build_rpath,
+)
+test('saldocachetest', saldocachetest, suite: 'unit', env: test_env)
+
 qt_net_test = dependency('qt6', modules: ['Core', 'Network', 'Test'], method: qt_method)
 
 vero_moc = qt6.compile_moc(

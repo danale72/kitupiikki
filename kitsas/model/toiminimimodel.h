@@ -58,11 +58,13 @@ public:
 
 protected:
     void logoSaapui(int indeksi, QVariant* reply);
+    void haeLogo(int i) const;
     QString toString() const;
 
 private:
     QVector<QVariantMap> lista_;
     QVector<QImage> logo_;
+    mutable QVector<bool> logoHaettu_;
 
     static std::map<int,QString> avaimet__;
 

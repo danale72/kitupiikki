@@ -29,8 +29,9 @@ public:
     QVariant patch(const QString &polku, const QVariant &data) override;
 
 protected:
-    void paivitaAsetukset(const QVariantMap& map);
-    void paivitaTilit(const QVariantList &list);
+    /** @return onnistuivatko kaikki kirjoitukset */
+    bool paivitaAsetukset(const QVariantMap& map);
+    bool paivitaTilit(const QVariantList &list);
 };
 
 #endif // INITROUTE_H

@@ -15,12 +15,20 @@ public:
 //    explicit Liite();
 //    Liite(const Liite& liite);
 
-    Liite(LiitteetModel* model, const QVariantMap& map);
+    /**
+     * @param haeHeti Haetaanko sisältö heti. Muuten se haetaan, kun sisältöä
+     *        ensimmäisen kerran tarvitaan (varmistaHaku).
+     */
+    Liite(LiitteetModel* model, const QVariantMap& map, bool haeHeti = true);
     Liite(LiitteetModel* model, const QByteArray& ba, const QString& polku = QString(), const QString &rooli = QString());
 
     ~Liite();
 
     bool kaytettavissa() const;
+    /** Käynnistää sisällön haun, ellei sitä ole jo pyydetty */
+    void varmistaHaku() const;
+    /** Onko sisältöä pyydetty, mutta se ei ole vielä saapunut */
+    bool odotetaan() const;
 
     int id() const { return liiteId_;}
     QString nimi() const { return nimi_;}
@@ -60,6 +68,7 @@ protected:
     QString polku_;
     LiiteTila tila_ = HAETAAN;
     CacheLiite* cache_ = nullptr;
+    mutable bool hakuPyydetty_ = false;
 };
 
 #endif // LIITE_H

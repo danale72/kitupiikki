@@ -54,9 +54,11 @@ protected:
 
 
 private:
+    void varmistaKuvat() const;
     void lataaKuva();
     void kuvaSaapuu(const QString& uuid, QVariant* reply);
 
+    mutable bool kuvatLadattu_ = false;
     QStringList latausLista_;
     QList<Banneri> bannerit_;
 

@@ -32,6 +32,8 @@
 #include <QTemporaryDir>
 #include <QStringList>
 
+class QTimer;
+
 #include "tilikausi.h"
 
 #include "asetusmodel.h"
@@ -174,8 +176,15 @@ public:
      * Tuoteluettelosta voidaan laskutuksessa valita valmiita tuotteita
      * @return
      */
-    TuoteModel *tuotteet() const override { return tuotteet_; }
-    RyhmatModel *ryhmat() const override { return ryhmat_;}
+    /**
+     * @brief /init-vastauksen lisätiedot (logo, vakioviitteet), joita ei tarvitse hakea erikseen
+     *
+     * Käytetään yhteysAvattu():ssa ja tyhjennetään sen jälkeen.
+     */
+    void asetaInitLisa(const QString& avain, const QVariant& arvo);
+
+    TuoteModel *tuotteet() const override { tuotteet_->varmistaLadattu(); return tuotteet_; }
+    RyhmatModel *ryhmat() const override;
     AlvIlmoitustenModel *alvIlmoitukset() const override { return alvIlmoitukset_;}
     KiertoModel *kierrot() const override { return kiertoModel_; }
 
@@ -302,8 +311,17 @@ signals:
     void tietokantaVaihtui();
     /**
      * @brief Kirjanpitoa on muokattu (tallennettu muokattu vienti)
+     *
+     * Älä lähetä suoraan, vaan kutsu muokattu(): peräkkäiset muutokset
+     * yhdistetään yhdeksi signaaliksi, ettei jokainen kuuntelija hae tietojaan
+     * moneen kertaan.
      */
     void kirjanpitoaMuokattu();
+
+    /**
+     * @brief Mallipohjaksi tallennettua tositetta on lisätty, muokattu tai poistettu
+     */
+    void mallipohjatMuuttuivat();
 
     /**
      * @brief Perusasetuksia muutetaan, joten aloitussivu päivitetään
@@ -347,6 +365,13 @@ signals:
 
 public slots:
     /**
+     * @brief Ilmoittaa kirjanpidon muuttuneen
+     *
+     * kirjanpitoaMuokattu lähetetään, kun muutoksia ei ole tullut 150 ms:iin.
+     */
+    void muokattu();
+
+    /**
      * @brief Avaa kirjanpitotietokannan
      * @param tiedosto Kirjanpidon kitupiikki.sqlite-tiedoston täydellinen polku
      * @return tosi, jos onnistuu
@@ -385,6 +410,8 @@ protected:
     RyhmatModel *ryhmat_;
     AlvIlmoitustenModel *alvIlmoitukset_;
     VakioViiteModel *vakioviitteet_;
+    QVariantMap initLisat_;
+    QTimer* muokkausAjastin_ = nullptr;
     HuoneistoModel *huoneistot_;
     RaporttiValinnat *raporttiValinnat_;
     LiiteCache *liiteCache_ = nullptr;

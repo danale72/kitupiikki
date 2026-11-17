@@ -333,6 +333,15 @@ def resync_sequences(pconn):
     print("Resynced identity sequences for:", ", ".join(IDENTITY_TABLES))
 
 
+def analyze(pconn):
+    # Same as SqliteTuoja: give the planner statistics for the freshly
+    # imported rows instead of waiting for autovacuum to get to them.
+    pcur = pconn.cursor()
+    pcur.execute("ANALYZE")
+    pconn.commit()
+    print("Analyzed imported tables")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("sqlite_path", help="Path to the source .kitsas SQLite file")
@@ -361,6 +370,7 @@ def main():
         for table in TABLE_ORDER:
             migrate_table(sconn, pconn, table)
         resync_sequences(pconn)
+        analyze(pconn)
     except Exception:
         pconn.rollback()
         raise

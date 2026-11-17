@@ -75,8 +75,8 @@ void RyhmaLaskuDialogi::tallennaSeuraava()
     if( jono_.isEmpty()) {
         // Kaikki tallennettu
         emit kp()->onni(tr("Laskut tallennettu Lähtevät-kansioon"));
-        emit kp()->kirjanpitoaMuokattu();
-        QTimer::singleShot(1500, this, [] { emit kp()->kirjanpitoaMuokattu();});
+        kp()->muokattu();
+        QTimer::singleShot(1500, this, [] { kp()->muokattu();});
         QDialog::accept();
         return;
     }

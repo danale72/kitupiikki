@@ -19,6 +19,7 @@
 #include "db/kirjanpito.h"
 
 #include <QDate>
+#include <QHash>
 #include <QDebug>
 #include <QSqlError>
 
@@ -184,6 +185,54 @@ QVariant EraRoute::taysiErittely(Tili *tili, const QDate &mista, const QDate &mi
     Euro erittellytAlussa;
     Euro eritellytLopussa;
 
+    const bool vastaavaa = tili->onko(TiliLaji::VASTAAVAA);
+    const auto etumerkki = [vastaavaa](qlonglong debet, qlonglong kredit) {
+        return Euro::fromCents( vastaavaa ? debet - kredit : kredit - debet );
+    };
+
+    // Erien saldot kauden alussa ja kauden muutokset haetaan kaikille tilin erille kerralla
+    const QString tilinErat = QString("SELECT a.id FROM Vienti AS a WHERE a.tili=%1 AND a.id=a.eraid AND a.pvm <= '%2'")
+            .arg( tili->numero() ).arg(mihin.toString(Qt::ISODate));
+
+    QHash<int, Euro> eratKaudenAlussa;
+    QHash<int, QVariantList> eranMuutokset;
+    QHash<int, Euro> eranMuutosSummat;
+    {
+        QSqlQuery apukysely( db() );
+        apukysely.setForwardOnly(true);
+        apukysely.exec(QString("SELECT Vienti.eraid, sum(debetsnt), sum(kreditsnt) FROM Vienti JOIN Tosite ON Vienti.tosite=Tosite.id "
+                               "WHERE Vienti.eraid IN (%1) AND Vienti.pvm<'%2' AND Tosite.tila >= 100 GROUP BY Vienti.eraid")
+                       .arg(tilinErat, mista.toString(Qt::ISODate)));
+        while( apukysely.next())
+            eratKaudenAlussa.insert( apukysely.value(0).toInt(),
+                                     etumerkki(apukysely.value(1).toLongLong(), apukysely.value(2).toLongLong()));
+
+        apukysely.exec(QString("select Vienti.eraid, vienti.debetsnt, vienti.kreditsnt, vienti.selite, Tosite.pvm as pvm, Tosite.sarja, "
+                               "Tosite.tunniste, tosite.id, Vienti.pvm as vientipvm, Kumppani.nimi AS kumppaninimi "
+                               "FROM Vienti  JOIN Tosite ON Vienti.tosite = Tosite.id  "
+                               "LEFT OUTER JOIN Kumppani ON Vienti.kumppani = Kumppani.id "
+                               "WHERE Vienti.eraid IN (%1) AND Vienti.id<>Vienti.eraid "
+                               "AND Vienti.pvm BETWEEN '%2' AND '%3' AND Tosite.tila >= 100 ORDER BY Vienti.pvm, Vienti.id")
+                       .arg(tilinErat, mista.toString(Qt::ISODate), mihin.toString(Qt::ISODate)));
+        while( apukysely.next() )
+        {
+            const int eraid = apukysely.value(0).toInt();
+            const Euro summa = etumerkki(apukysely.value(1).toLongLong(), apukysely.value(2).toLongLong());
+
+            QVariantMap map;
+            map.insert("pvm", apukysely.value(4).toDate());
+            map.insert("sarja", apukysely.value(5));
+            map.insert("tunniste", apukysely.value(6));
+            map.insert("id", apukysely.value(7).toInt());
+            map.insert("vientipvm", apukysely.value(8).toDate());
+            map.insert("selite", apukysely.value(3).toString());
+            map.insert("eur", summa.toString());
+            map.insert("kumppani", apukysely.value(9));
+            eranMuutokset[eraid].append(map);
+            eranMuutosSummat[eraid] += summa;
+        }
+    }
+
     // Tase-erät
     QSqlQuery erakysely(db());
     erakysely.exec(QString("select vienti.eraid, vienti.debetsnt, vienti.kreditsnt, vienti.selite, Tosite.pvm as pvm, Tosite.sarja, "
@@ -196,52 +245,15 @@ QVariant EraRoute::taysiErittely(Tili *tili, const QDate &mista, const QDate &mi
     while( erakysely.next()) {
         // Tässä haetaan erän aloittavat
         int eraid = erakysely.value(0).toInt();
-        Euro alkuMaara = Euro( tili->onko(TiliLaji::VASTAAVAA) ?
-                    Euro::fromCents(erakysely.value(1).toLongLong()) - Euro::fromCents(erakysely.value(2).toLongLong()) :
-                    Euro::fromCents(erakysely.value(2).toLongLong()) - Euro::fromCents(erakysely.value(1).toLongLong()) );
+        Euro alkuMaara = etumerkki(erakysely.value(1).toLongLong(), erakysely.value(2).toLongLong());
 
-        QSqlQuery apukysely( db() );
-        Euro eranKaudenAlussa;
-
-        apukysely.exec(QString("SELECT sum(debetsnt), sum(kreditsnt) FROM Vienti JOIN Tosite ON Vienti.tosite=Tosite.id WHERE eraid=%1 AND Vienti.pvm<'%2' AND Tosite.tila >= 100 ")
-                       .arg(eraid).arg(mista.toString(Qt::ISODate)));
-        if( apukysely.next()) {
-           eranKaudenAlussa = Euro(tili->onko(TiliLaji::VASTAAVAA) ?
-                        apukysely.value(0).toLongLong() - apukysely.value(1).toLongLong() :
-                        apukysely.value(1).toLongLong() - apukysely.value(0).toLongLong() );
-        }
-
-        apukysely.exec(QString("select vienti.debetsnt, vienti.kreditsnt, vienti.selite, Tosite.pvm as pvm, Tosite.sarja, "
-                               "Tosite.tunniste, tosite.id, Vienti.pvm as vientipvm, Kumppani.nimi AS kumppaninimi "
-                               "FROM Vienti  JOIN Tosite ON Vienti.tosite = Tosite.id  "
-                               "LEFT OUTER JOIN Kumppani ON Vienti.kumppani = Kumppani.id "
-                               "WHERE Vienti.eraid=%1 AND Vienti.id<>Vienti.eraid "
-                               "AND Vienti.pvm BETWEEN '%2' AND '%3' AND Tosite.tila >= 100 ORDER BY Vienti.pvm")
-                       .arg(QString::number(eraid), mista.toString(Qt::ISODate), mihin.toString(Qt::ISODate)));
-        QVariantList muutokset;
+        const Euro eranKaudenAlussa = eratKaudenAlussa.value(eraid);
+        const QVariantList muutokset = eranMuutokset.value(eraid);
 
         // Jos erä alkaa tältä tilikaudelta, on erän aloitus osa muutosta
         Euro eranMuutos = erakysely.value("vientipvm").toDate() < mista ? Euro::Zero : alkuMaara ;
+        eranMuutos += eranMuutosSummat.value(eraid);
 
-
-        while( apukysely.next() )
-        {
-            QVariantMap map;
-            Euro summa = Euro(tili->onko(TiliLaji::VASTAAVAA) ?
-                        apukysely.value(0).toLongLong() - apukysely.value(1).toLongLong() :
-                        apukysely.value(1).toLongLong() - apukysely.value(0).toLongLong() );
-
-            map.insert("pvm", apukysely.value(3).toDate());
-            map.insert("sarja", apukysely.value(4));
-            map.insert("tunniste", apukysely.value(5));
-            map.insert("id", apukysely.value(6).toInt());
-            map.insert("vientipvm", apukysely.value(7).toDate());
-            map.insert("selite", apukysely.value(2).toString());
-            map.insert("eur", summa.toString());
-            map.insert("kumppani", apukysely.value("kumppani"));
-            eranMuutos += summa;
-            muutokset.append(map);
-        }
         if( !eranMuutos && !eranKaudenAlussa )
             continue;
         QVariantMap era;

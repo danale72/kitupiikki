@@ -108,7 +108,7 @@ void SaldoDock::alusta()
         hide();
     } else {
         setVisible( kp()->settings()->value("SaldoDock").toBool() );
-        model_->paivitaSaldot();
+        paivita();
     }
 }
 

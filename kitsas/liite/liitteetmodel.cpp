@@ -115,9 +115,11 @@ void LiitteetModel::lataa(const QVariantList &data)
     beginResetModel();
     tyhjennaLiitteet();
 
+    // Kirjausnäkymässä haetaan vain näytettävän liitteen sisältö; muut haetaan
+    // vasta tarvittaessa. Muut käyttäjät (esim. laskun lähetys) tarvitsevat kaikki.
     for(const auto& item : qAsConst(data)) {
         const QVariantMap& map = item.toMap();
-        liitteet_.append(new Liite(this, map));
+        liitteet_.append(new Liite(this, map, !interaktiivinen_));
     }
 
     endResetModel();
@@ -288,8 +290,13 @@ void LiitteetModel::nayta(int indeksi)
 
     emit valittuVaihtui(indeksi);
 
-    if( indeksi > -1 && liitteet_.at(indeksi)->kaytettavissa())
-        naytaKayttajalle();
+    if( indeksi > -1) {
+        Liite* liite = liitteet_.at(indeksi);
+        if( liite->kaytettavissa())
+            naytaKayttajalle();
+        else
+            liite->varmistaHaku();  // valimuistiLiite näyttää liitteen sen saavuttua
+    }
 }
 
 QModelIndex LiitteetModel::naytettava() const
@@ -513,8 +520,9 @@ void LiitteetModel::tuoLiite(const QString& tyyppi, const QByteArray& sisalto)
 
 void LiitteetModel::tarkastaKaikkiLiitteet()
 {
+    // Vain pyydettyjä liitteitä odotetaan: kirjausnäkymä hakee muut vasta tarvittaessa
     for( const auto ptr : liitteet_) {
-        if( ptr->tila() == Liite::HAETAAN) {
+        if( ptr->odotetaan()) {
             return;
         }
     }

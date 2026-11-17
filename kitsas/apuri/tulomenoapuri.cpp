@@ -287,6 +287,8 @@ void TuloMenoApuri::teeReset()
 
     tiliMuuttui();    
 
+    if( saldoHakematta_ && isVisible())
+        haeVastatilinSaldo();
 
 }
 
@@ -638,16 +640,34 @@ void TuloMenoApuri::vastatiliMuuttui()
 
     tositteelle();
 
-    int vastatilinNumero = vastatili.numero();
     ui->tiliInfo->setText( vastatili.nimiNumero());
     ui->saldoInfo->clear();
+    saldoTili_ = vastatili.numero();
+    if( isVisible() && !resetointiKaynnissa_ )
+        haeVastatilinSaldo();
+    else
+        saldoHakematta_ = true;
+}
+
+void TuloMenoApuri::haeVastatilinSaldo()
+{
+    saldoHakematta_ = false;
+    if( !kp()->yhteysModel() || !saldoTili_ )
+        return;
     KpKysely* kysely = kpk("/saldot");
-    if( kp()->yhteysModel() &&  vastatilinNumero && kysely) {
-        kysely->lisaaAttribuutti("tili", vastatilinNumero);
+    if( kysely ) {
+        kysely->lisaaAttribuutti("tili", saldoTili_);
         kysely->lisaaAttribuutti("pvm", kp()->paivamaara());
         connect( kysely, &KpKysely::vastaus, this, &TuloMenoApuri::vastaSaldoSaapuu);
         kysely->kysy();
     }
+}
+
+void TuloMenoApuri::showEvent(QShowEvent *event)
+{
+    ApuriWidget::showEvent(event);
+    if( saldoHakematta_ )
+        haeVastatilinSaldo();
 }
 
 void TuloMenoApuri::kohdennusMuuttui()

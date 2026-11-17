@@ -18,6 +18,8 @@
 #include "db/kirjanpito.h"
 #include "db/tositetyyppimodel.h"
 #include <QDate>
+#include <QDateTime>
+#include <QHash>
 #include <QJsonDocument>
 #include <QVariant>
 #include <QDebug>
@@ -39,54 +41,116 @@ QVariant TilikaudetRoute::get(const QString &polku, const QUrlQuery &/*urlquery*
     kysely.exec("SELECT alkaa,loppuu,json FROM Tilikausi ORDER BY alkaa");
 
     QVariantList list = resultList(kysely);
+
+    // Kauden luvut kerätään muutamalla ryhmitellyllä kyselyllä (Tilikausi-tauluun liittäen)
+    // eikä kuudella kyselyllä jokaista tilikautta kohden
+    struct KaudenLuvut {
+        qlonglong debet = 0;        // kaikki kauden viennit
+        qlonglong kredit = 0;
+        qlonglong taseDebet = 0;    // tilit < '2'
+        qlonglong taseKredit = 0;
+        qlonglong tulosKredit = 0;  // tilit >= '3'
+        qlonglong tulosDebet = 0;
+        qlonglong lvKredit = 0;     // liikevaihtotilit (CL, CLZ)
+        qlonglong lvDebet = 0;
+        QVariant viimeinen;
+        QDateTime paivitetty;
+    };
+    QHash<QDate, KaudenLuvut> luvut;
+
+    kysely.setForwardOnly(true);
+    kysely.exec("SELECT k.alkaa, SUM(debetsnt), SUM(kreditsnt), "
+                "SUM(CASE WHEN CAST(Vienti.tili AS text) < '2' THEN debetsnt END), "
+                "SUM(CASE WHEN CAST(Vienti.tili AS text) < '2' THEN kreditsnt END), "
+                "SUM(CASE WHEN CAST(Vienti.tili AS text) >= '3' THEN kreditsnt END), "
+                "SUM(CASE WHEN CAST(Vienti.tili AS text) >= '3' THEN debetsnt END), "
+                "SUM(CASE WHEN CAST(Vienti.tili AS text) >= '3' AND (Tili.tyyppi='CL' OR Tili.tyyppi='CLZ') THEN kreditsnt END), "
+                "SUM(CASE WHEN CAST(Vienti.tili AS text) >= '3' AND (Tili.tyyppi='CL' OR Tili.tyyppi='CLZ') THEN debetsnt END) "
+                "FROM Vienti JOIN Tosite ON Vienti.tosite=Tosite.id "
+                "JOIN Tilikausi AS k ON Vienti.pvm BETWEEN k.alkaa AND k.loppuu "
+                "LEFT OUTER JOIN Tili ON Vienti.tili=Tili.numero "
+                "WHERE Tosite.tila >= 100 GROUP BY k.alkaa");
+    while( kysely.next()) {
+        KaudenLuvut& l = luvut[ kysely.value(0).toDate() ];
+        l.debet = kysely.value(1).toLongLong();
+        l.kredit = kysely.value(2).toLongLong();
+        l.taseDebet = kysely.value(3).toLongLong();
+        l.taseKredit = kysely.value(4).toLongLong();
+        l.tulosKredit = kysely.value(5).toLongLong();
+        l.tulosDebet = kysely.value(6).toLongLong();
+        l.lvKredit = kysely.value(7).toLongLong();
+        l.lvDebet = kysely.value(8).toLongLong();
+    }
+
+    kysely.exec("SELECT k.alkaa, MAX(Tosite.pvm) FROM Tosite JOIN Tilikausi AS k ON Tosite.pvm BETWEEN k.alkaa AND k.loppuu "
+                "WHERE Tosite.tila >= 100 GROUP BY k.alkaa");
+    while( kysely.next())
+        luvut[ kysely.value(0).toDate() ].viimeinen = kysely.value(1);
+
+    kysely.exec("SELECT k.alkaa, MAX(Tositeloki.aika) FROM Tositeloki JOIN Tosite ON Tositeloki.tosite=Tosite.id "
+                "JOIN Tilikausi AS k ON Tosite.pvm BETWEEN k.alkaa AND k.loppuu GROUP BY k.alkaa");
+    while( kysely.next())
+        luvut[ kysely.value(0).toDate() ].paivitetty = kysely.value(1).toDateTime();
+
+    // Täsmäys ja tase ovat kertymiä: mukaan myös viennit, jotka eivät osu millekään tilikaudelle
+    QList<QPair<QDate, KaudenLuvut>> kaudenUlkopuoliset;
+    kysely.exec("SELECT Vienti.pvm, SUM(debetsnt), SUM(kreditsnt), "
+                "SUM(CASE WHEN CAST(Vienti.tili AS text) < '2' THEN debetsnt END), "
+                "SUM(CASE WHEN CAST(Vienti.tili AS text) < '2' THEN kreditsnt END) "
+                "FROM Vienti JOIN Tosite ON Vienti.tosite=Tosite.id WHERE Tosite.tila >= 100 "
+                "AND NOT EXISTS (SELECT 1 FROM Tilikausi AS k WHERE Vienti.pvm BETWEEN k.alkaa AND k.loppuu) "
+                "GROUP BY Vienti.pvm");
+    while( kysely.next()) {
+        KaudenLuvut l;
+        l.debet = kysely.value(1).toLongLong();
+        l.kredit = kysely.value(2).toLongLong();
+        l.taseDebet = kysely.value(3).toLongLong();
+        l.taseKredit = kysely.value(4).toLongLong();
+        kaudenUlkopuoliset.append(qMakePair(kysely.value(0).toDate(), l));
+    }
+
+    qlonglong debetKertyma = 0;
+    qlonglong kreditKertyma = 0;
+    qlonglong taseDebetKertyma = 0;
+    qlonglong taseKreditKertyma = 0;
     for(int i=0; i < list.count(); i++){
         QVariantMap map = list.at(i).toMap();
+        const QDate alkaa = map.value("alkaa").toDate();
+        const QDate loppuu = map.value("loppuu").toDate();
+        const KaudenLuvut l = luvut.value(alkaa);
 
-        // Kirjanpidon täsmääminen
-        kysely.exec( QString("SELECT sum(debetsnt), sum(kreditsnt) FROM vienti JOIN Tosite ON Vienti.tosite=Tosite.id WHERE vienti.pvm <= '%1' AND Tosite.tila >= 100 ")
-                        .arg(map.value("loppuu").toString()) );
-        if( kysely.next()) {
-            if( kysely.value(0).toLongLong() != kysely.value(1).toLongLong()) {
-                map.insert("virhe",true);
+        debetKertyma += l.debet;
+        kreditKertyma += l.kredit;
+        taseDebetKertyma += l.taseDebet;
+        taseKreditKertyma += l.taseKredit;
+        // Kaudettomat viennit lasketaan kertymään kerran, viimeistään sen kauden kohdalla, jonka loppuun mennessä ne on kirjattu
+        for(auto iter = kaudenUlkopuoliset.begin(); iter != kaudenUlkopuoliset.end(); ) {
+            if( iter->first <= loppuu ) {
+                debetKertyma += iter->second.debet;
+                kreditKertyma += iter->second.kredit;
+                taseDebetKertyma += iter->second.taseDebet;
+                taseKreditKertyma += iter->second.taseKredit;
+                iter = kaudenUlkopuoliset.erase(iter);
+            } else {
+                ++iter;
             }
         }
 
-        // Tase
-        kysely.exec( QString("SELECT sum(debetsnt), sum(kreditsnt) FROM vienti JOIN Tosite ON Vienti.tosite=Tosite.id WHERE vienti.pvm <= '%1' AND CAST(tili as text) < '2' AND Tosite.tila >= 100 ")
-                     .arg(map.value("loppuu").toString()) );
-        if( kysely.next())
-            map.insert("tase", QString::number( qAbs(kysely.value(1).toLongLong() - kysely.value(0).toLongLong()) / 100.0,'f',2));
-        // Tulos
-        kysely.exec( QString("SELECT sum(kreditsnt), sum(debetsnt) FROM vienti JOIN Tosite ON Vienti.tosite=Tosite.id WHERE vienti.pvm BETWEEN '%1' AND '%2' AND Tosite.tila >= 100 AND CAST(tili as text) >= '3' ")
-                     .arg(map.value("alkaa").toString())
-                     .arg(map.value("loppuu").toString()) );
-        if( kysely.next())
-            map.insert("tulos", QString::number((kysely.value(0).toLongLong() - kysely.value(1).toLongLong()) / 100.0, 'f', 2));
+        // Kirjanpidon täsmääminen
+        if( debetKertyma != kreditKertyma)
+            map.insert("virhe",true);
 
-        // Liikevaihto
-        kysely.exec( QString("SELECT sum(kreditsnt), sum(debetsnt) FROM vienti "
-                             "JOIN Tili ON Vienti.tili=Tili.numero JOIN Tosite ON vienti.tosite=tosite.id "
-                             "WHERE vienti.pvm BETWEEN '%1' AND '%2' AND CAST(tili as text) >= '3' AND Tosite.tila >= 100 "
-                             "AND (tili.tyyppi='CL' OR tili.tyyppi='CLZ')")
-                     .arg(map.value("alkaa").toString())
-                     .arg(map.value("loppuu").toString()) );
-        if( kysely.next())
-            map.insert("liikevaihto", QString::number((kysely.value(0).toLongLong() - kysely.value(1).toLongLong()) / 100.0, 'f', 2));
+        map.insert("tase", QString::number( qAbs(taseKreditKertyma - taseDebetKertyma) / 100.0,'f',2));
+        map.insert("tulos", QString::number((l.tulosKredit - l.tulosDebet) / 100.0, 'f', 2));
+        map.insert("liikevaihto", QString::number((l.lvKredit - l.lvDebet) / 100.0, 'f', 2));
 
         // Kauden viimeinen tosite
-        kysely.exec(QString("SELECT MAX(pvm) FROM Tosite WHERE pvm BETWEEN '%1' AND '%2' AND Tosite.tila >= 100")
-                    .arg(map.value("alkaa").toString()).arg(map.value("loppuu").toString()) );
-        if( kysely.next())
-            map.insert("viimeinen", kysely.value(0));
+        map.insert("viimeinen", l.viimeinen);
 
         // Tilikauden päivitys
-        kysely.exec(QString("SELECT MAX(aika) FROM Tositeloki JOIN Tosite ON Tositeloki.tosite=Tosite.id "
-                            "WHERE Tosite.pvm BETWEEN '%1' AND '%2' ").arg(map.value("alkaa").toString()).arg(map.value("loppuu").toString()) );
-        if( kysely.next()) {
-            QDateTime paivitetty = kysely.value(0).toDateTime();
-            paivitetty.setTimeSpec(Qt::UTC);
-            map.insert("paivitetty", paivitetty.toLocalTime());
-        }
+        QDateTime paivitetty = l.paivitetty;
+        paivitetty.setTimeSpec(Qt::UTC);
+        map.insert("paivitetty", paivitetty.toLocalTime());
 
         list[i] = map;
     }
@@ -168,17 +232,33 @@ QVariant TilikaudetRoute::post(const QString &polku, const QVariant &data)
                "WHERE pvm BETWEEN '%1' AND '%2' AND tila >= 100 "
                 "ORDER BY sarja, pvm, id").arg(alkaa).arg(loppuu));
 
-    db().transaction();
-    QSqlQuery update(db());
-
+    QList<QPair<int,int>> uudet;    // id, tunniste
     while( query.next()) {
         int id = query.value(0).toInt();
         QString sarja = query.value(1).toString();
 
         int tunniste =  numerot.contains(sarja) ? numerot.value(sarja) : 1;
         numerot[sarja] = tunniste + 1;
-        update.exec(QString("UPDATE Tosite SET tunniste=%1 WHERE id=%2")
-                .arg(tunniste).arg(id));
+        uudet.append(qMakePair(id, tunniste));
+    }
+
+    // Päivitetään useita tositteita kerralla, ettei jokaisesta tarvita omaa kyselyä
+    // (etäpalvelimella jokainen kysely on verkkokierros)
+    const int erakoko = 500;
+    db().transaction();
+    QSqlQuery update(db());
+    for(int alku = 0; alku < uudet.count(); alku += erakoko) {
+        QStringList tapaukset;
+        QStringList idt;
+        for(int i = alku; i < qMin(alku + erakoko, uudet.count()); i++) {
+            tapaukset << QString("WHEN %1 THEN %2").arg(uudet.at(i).first).arg(uudet.at(i).second);
+            idt << QString::number(uudet.at(i).first);
+        }
+        if( !update.exec(QString("UPDATE Tosite SET tunniste = CASE id %1 END WHERE id IN (%2)")
+                         .arg(tapaukset.join(' '), idt.join(',')))) {
+            db().rollback();
+            throw SQLiteVirhe(update);
+        }
     }
     db().commit();
     return QVariant();

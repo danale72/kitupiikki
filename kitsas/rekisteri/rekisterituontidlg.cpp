@@ -75,7 +75,7 @@ void RekisteriTuontiDlg::tallennaSeuraava()
 {
     if( tallennusLista_.isEmpty()) {
         QDialog::accept();
-        emit kp()->kirjanpitoaMuokattu();
+        kp()->muokattu();
         return;
     }
     QVariantMap map = tallennusLista_.takeFirst().toMap();
